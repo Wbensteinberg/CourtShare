@@ -13,7 +13,8 @@ jest.mock("firebase/storage", () => ({
 describe("LoginPage", () => {
   it("renders login form", () => {
     render(<LoginPage />);
-    expect(screen.getByText(/Login/i)).toBeInTheDocument();
+    expect(screen.getByText(/CourtShare/i)).toBeInTheDocument();
+    expect(screen.getByText(/Sign in to your account/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Email/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Password/i)).toBeInTheDocument();
     expect(
