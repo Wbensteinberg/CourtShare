@@ -1,6 +1,11 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import LoginPage from "./page";
 
+const mockPush = jest.fn();
+jest.mock("next/navigation", () => ({
+  useRouter: () => ({ push: mockPush }),
+}));
+
 jest.mock("firebase/auth", () => ({
   getAuth: jest.fn(() => ({})),
   signInWithEmailAndPassword: jest.fn(() => Promise.resolve()),
@@ -33,6 +38,20 @@ describe("LoginPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Sign In/i }));
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /Sign In/i })).toBeEnabled();
+    });
+  });
+
+  it("redirects to home page after successful login", async () => {
+    render(<LoginPage />);
+    fireEvent.change(screen.getByPlaceholderText(/Email/i), {
+      target: { value: "test@example.com" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/Password/i), {
+      target: { value: "password123" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Sign In/i }));
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith("/");
     });
   });
 });
