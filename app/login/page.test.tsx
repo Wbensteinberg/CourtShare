@@ -22,9 +22,7 @@ describe("LoginPage", () => {
     expect(screen.getByText(/Sign in to your account/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Email/i)).toBeInTheDocument();
     expect(screen.getByPlaceholderText(/Password/i)).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Sign In/i })
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Log In/i })).toBeInTheDocument();
   });
 
   it("allows user to type email and password and submit", async () => {
@@ -35,9 +33,9 @@ describe("LoginPage", () => {
     fireEvent.change(screen.getByPlaceholderText(/Password/i), {
       target: { value: "password123" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /Sign In/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Log In/i }));
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Sign In/i })).toBeEnabled();
+      expect(screen.getByRole("button", { name: /Log In/i })).toBeEnabled();
     });
   });
 
@@ -49,7 +47,7 @@ describe("LoginPage", () => {
     fireEvent.change(screen.getByPlaceholderText(/Password/i), {
       target: { value: "password123" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /Sign In/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Log In/i }));
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith("/");
     });

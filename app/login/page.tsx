@@ -95,7 +95,7 @@ export default function LoginPage() {
                 Logging in...
               </span>
             ) : (
-              "Sign In"
+              "Log In"
             )}
           </button>
           {/* Optional: Add a link to sign up or reset password */}

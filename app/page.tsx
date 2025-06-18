@@ -2,9 +2,18 @@
 
 import { useAuth } from "@/src/lib/AuthContext";
 import Link from "next/link";
+import { signOut } from "firebase/auth";
+import { auth } from "@/src/lib/firebase";
+import { useRouter } from "next/navigation";
 
 export default function HomePage() {
   const { user, loading } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    router.push("/login");
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-300 via-lime-200 to-green-100 px-4">
@@ -27,6 +36,12 @@ export default function HomePage() {
             <p className="text-gray-600 text-center">
               You are logged in. Refresh the page to test persistent auth state.
             </p>
+            <button
+              className="mt-4 bg-green-600 text-white py-2 px-6 rounded-lg font-semibold shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition"
+              onClick={handleLogout}
+            >
+              Log Out
+            </button>
           </>
         ) : (
           <>
