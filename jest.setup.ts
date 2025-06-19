@@ -1,6 +1,21 @@
 import "@testing-library/jest-dom"; // Note to Cursor: keep this line like this
 import { TextEncoder, TextDecoder } from "util";
 
+// Polyfill for ReadableStream
+if (typeof global.ReadableStream === "undefined") {
+  // @ts-ignore
+  global.ReadableStream = class MockReadableStream {
+    constructor() {}
+    getReader() {
+      return {
+        read: () => Promise.resolve({ done: true, value: undefined }),
+        releaseLock: () => {},
+      };
+    }
+  };
+}
+
+// Polyfill for TextEncoder/TextDecoder
 // @ts-ignore
 if (typeof global.TextEncoder === "undefined") {
   // @ts-ignore
@@ -12,3 +27,41 @@ if (typeof global.TextDecoder === "undefined") {
   // @ts-ignore
   global.TextDecoder = TextDecoder;
 }
+
+// Mock window.URL.createObjectURL
+if (typeof window !== "undefined") {
+  Object.defineProperty(window, "URL", {
+    value: {
+      createObjectURL: jest.fn(),
+      revokeObjectURL: jest.fn(),
+    },
+  });
+}
+
+// Mock IntersectionObserver
+class MockIntersectionObserver {
+  observe = jest.fn();
+  disconnect = jest.fn();
+  unobserve = jest.fn();
+}
+
+Object.defineProperty(window, "IntersectionObserver", {
+  writable: true,
+  configurable: true,
+  value: MockIntersectionObserver,
+});
+
+// Mock matchMedia
+Object.defineProperty(window, "matchMedia", {
+  writable: true,
+  value: jest.fn().mockImplementation((query) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: jest.fn(),
+    removeListener: jest.fn(),
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    dispatchEvent: jest.fn(),
+  })),
+});
