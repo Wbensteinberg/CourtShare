@@ -65,3 +65,12 @@ Object.defineProperty(window, "matchMedia", {
     dispatchEvent: jest.fn(),
   })),
 });
+
+// Polyfill for requestAnimationFrame
+global.requestAnimationFrame = (callback) => {
+  return setTimeout(callback, 0);
+};
+
+global.cancelAnimationFrame = (id) => {
+  clearTimeout(id);
+};
