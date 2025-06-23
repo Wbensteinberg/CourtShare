@@ -18,7 +18,7 @@ export default function LoginPage() {
     setError("");
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push("/");
+      router.push("/courts");
     } catch (err: any) {
       setError(err.message || "Login failed");
     } finally {

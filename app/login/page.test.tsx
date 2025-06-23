@@ -49,7 +49,7 @@ describe("LoginPage", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /Log In/i }));
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/");
+      expect(mockPush).toHaveBeenCalledWith("/courts");
     });
   });
 });
