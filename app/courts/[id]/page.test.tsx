@@ -15,15 +15,25 @@ jest.mock("next/navigation", () => ({
 
 // Mock Firestore
 const mockDb = {};
+let mockBookings: any[] = [];
 jest.mock("@/src/lib/firebase", () => ({ db: mockDb }));
-jest.mock("firebase/firestore", () => ({
-  doc: jest.fn(),
-  getDoc: jest.fn(),
-  addDoc: jest.fn(),
-  collection: jest.fn(() => ({})),
-  Timestamp: { now: jest.fn(() => ({ seconds: 1234567890, nanoseconds: 0 })) },
-}));
-const { getDoc, addDoc, collection } = require("firebase/firestore");
+jest.mock("firebase/firestore", () => {
+  const actual = jest.requireActual("firebase/firestore");
+  return {
+    ...actual,
+    doc: jest.fn(),
+    getDoc: jest.fn(),
+    addDoc: jest.fn(),
+    collection: jest.fn(() => ({})),
+    getDocs: jest.fn(() =>
+      Promise.resolve({ docs: mockBookings.map((b) => ({ data: () => b })) })
+    ),
+    Timestamp: {
+      now: jest.fn(() => ({ seconds: 1234567890, nanoseconds: 0 })),
+    },
+  };
+});
+const { getDoc, addDoc, collection, getDocs } = require("firebase/firestore");
 
 // --- Auth Mocking ---
 let mockUser: any = null;
@@ -38,6 +48,11 @@ const mockCourt = {
   description: "A beautiful test court for all levels.",
   imageUrl: "https://example.com/court.jpg",
 };
+
+// Mock window.alert to prevent jsdom errors
+beforeAll(() => {
+  window.alert = jest.fn();
+});
 
 describe("CourtDetailPage", () => {
   beforeEach(() => {
@@ -133,11 +148,14 @@ describe("CourtDetailPage", () => {
     const CourtDetailPage = require("./page").default;
     render(<CourtDetailPage />);
     expect(await screen.findByText("Test Court")).toBeInTheDocument();
-    // Fill out booking form and click inside act
+    // Select the date (simulate user picking a date)
+    const dateInput = await waitFor(() =>
+      screen.getByPlaceholderText(/select date/i)
+    );
     await act(async () => {
-      fireEvent.change(screen.getByLabelText(/date/i), {
-        target: { value: "2025-07-01" },
-      });
+      fireEvent.change(dateInput, { target: { value: "2025-07-01" } });
+    });
+    await act(async () => {
       fireEvent.change(screen.getByLabelText(/time/i), {
         target: { value: "10:00" },
       });

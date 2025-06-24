@@ -1,11 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { db } from "@/src/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import Image from "next/image";
-import { collection, addDoc, Timestamp } from "firebase/firestore";
+import {
+  collection,
+  addDoc,
+  Timestamp,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
 import { useAuth } from "@/src/lib/AuthContext";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -29,11 +36,28 @@ export default function CourtDetailPage() {
 
   // Booking state
   const [date, setDate] = useState<Date | null>(null);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+  const dateInputRef = useRef<HTMLInputElement>(null);
   const [time, setTime] = useState("");
   const [duration, setDuration] = useState(1);
   const [bookingStatus, setBookingStatus] = useState<
-    "idle" | "loading" | "success" | "error"
+    "idle" | "loading" | "success" | "error" | "conflict"
   >("idle");
+  const [bookingsForDate, setBookingsForDate] = useState<any[]>([]);
+  const [fetchingBookings, setFetchingBookings] = useState(false);
+
+  // Compute all blocked times for the selected date
+  const blockedTimes = new Set<string>();
+  bookingsForDate.forEach((b) => {
+    const startHour = parseInt((b.time || "").split(":")[0], 10);
+    const dur = Number(b.duration) || 1;
+    for (let i = 0; i < dur; i++) {
+      const hour = startHour + i;
+      if (hour >= 8 && hour <= 20) {
+        blockedTimes.add(hour.toString().padStart(2, "0") + ":00");
+      }
+    }
+  });
 
   useEffect(() => {
     if (!id) return;
@@ -57,10 +81,44 @@ export default function CourtDetailPage() {
     fetchCourt();
   }, [id]);
 
+  // Fetch bookings for selected date
+  useEffect(() => {
+    if (!id || !date) {
+      setBookingsForDate([]);
+      return;
+    }
+    setFetchingBookings(true);
+    const fetchBookings = async () => {
+      try {
+        const q = query(
+          collection(db, "bookings"),
+          where("courtId", "==", id),
+          where(
+            "date",
+            "==",
+            date instanceof Date ? date.toISOString().slice(0, 10) : date
+          )
+        );
+        const snap = await getDocs(q);
+        setBookingsForDate(snap.docs.map((doc) => doc.data()));
+      } catch (e) {
+        setBookingsForDate([]);
+      } finally {
+        setFetchingBookings(false);
+      }
+    };
+    fetchBookings();
+  }, [id, date]);
+
   const handleBooking = async () => {
     if (!user) return;
     if (!date || !time || !duration) {
       alert("Please fill out all fields.");
+      return;
+    }
+    // Prevent double booking
+    if (bookingsForDate.some((b) => b.time === time)) {
+      setBookingStatus("conflict");
       return;
     }
     setBookingStatus("loading");
@@ -131,7 +189,9 @@ export default function CourtDetailPage() {
               <span className="text-gray-600 font-semibold">Date</span>
               <DatePicker
                 selected={date}
-                onChange={(d) => setDate(d)}
+                onChange={(d) => {
+                  setDate(d);
+                }}
                 dateFormat="yyyy-MM-dd"
                 placeholderText="Select date"
                 className={`mt-1 block w-full rounded border-gray-300 placeholder:text-gray-400 ${
@@ -155,6 +215,26 @@ export default function CourtDetailPage() {
                 showPopperArrow={false}
               />
             </label>
+            {/* Booked slots section */}
+            {date && blockedTimes.size > 0 && (
+              <div className="text-sm text-gray-500 mb-2">
+                <span className="font-semibold text-gray-700">
+                  Booked slots:
+                </span>
+                <span className="ml-2">
+                  {[...blockedTimes]
+                    .sort((a, b) => parseInt(a) - parseInt(b))
+                    .map((t) => (
+                      <span
+                        key={t}
+                        className="inline-block bg-red-100 text-red-700 rounded px-2 py-0.5 mr-1 mb-1 text-xs font-semibold"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                </span>
+              </div>
+            )}
             <label className="block">
               <span className="text-gray-600 font-semibold">Time</span>
               <select
@@ -170,8 +250,30 @@ export default function CourtDetailPage() {
                 {[...Array(13)].map((_, i) => {
                   const hour = 8 + i;
                   const label = hour.toString().padStart(2, "0") + ":00";
+                  // Disable if booked or (if today) in the past
+                  const isBooked = blockedTimes.has(label);
+                  let isPast = false;
+                  if (date) {
+                    const today = new Date();
+                    const selectedDate = new Date(date);
+                    if (selectedDate.toDateString() === today.toDateString()) {
+                      const nowHour = today.getHours();
+                      isPast = hour <= nowHour;
+                    }
+                  }
                   return (
-                    <option key={label} value={label} className="text-gray-800">
+                    <option
+                      key={label}
+                      value={label}
+                      className={
+                        isBooked
+                          ? "text-red-400 bg-red-50"
+                          : isPast
+                          ? "text-gray-400"
+                          : "text-gray-800"
+                      }
+                      disabled={isBooked || isPast}
+                    >
                       {label}
                     </option>
                   );
@@ -212,6 +314,11 @@ export default function CourtDetailPage() {
             {bookingStatus === "error" && (
               <p className="text-red-600 text-center">
                 Booking failed. Try again.
+              </p>
+            )}
+            {bookingStatus === "conflict" && (
+              <p className="text-red-600 text-center">
+                That time slot is already booked. Please choose another.
               </p>
             )}
           </div>
