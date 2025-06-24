@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/src/lib/firebase";
+import { auth, db } from "@/src/lib/firebase";
+import { doc, setDoc } from "firebase/firestore";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
@@ -24,9 +25,19 @@ export default function SignupPage() {
     }
     setLoading(true);
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
+      // Create user doc in Firestore with isOwner=false
+      await setDoc(doc(db, "users", userCredential.user.uid), {
+        uid: userCredential.user.uid,
+        email: userCredential.user.email,
+        isOwner: false,
+      });
       setSuccess(true);
-      router.push("/");
+      router.push("/courts");
     } catch (err: any) {
       setError(err.message || "Signup failed");
     } finally {

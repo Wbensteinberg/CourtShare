@@ -5,14 +5,23 @@ import Link from "next/link";
 import { signOut } from "firebase/auth";
 import { auth } from "@/src/lib/firebase";
 import { useRouter } from "next/navigation";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "@/src/lib/firebase";
 
 export default function HomePage() {
-  const { user, loading } = useAuth();
+  const { user, loading, isOwner, setIsOwner } = useAuth();
   const router = useRouter();
 
   const handleLogout = async () => {
     await signOut(auth);
     router.push("/login");
+  };
+
+  const handleToggleRole = async () => {
+    if (!user) return;
+    const newIsOwner = !isOwner;
+    await updateDoc(doc(db, "users", user.uid), { isOwner: newIsOwner });
+    setIsOwner(newIsOwner);
   };
 
   return (
@@ -36,6 +45,20 @@ export default function HomePage() {
             <p className="text-gray-600 text-center">
               You are logged in. Refresh the page to test persistent auth state.
             </p>
+            <div className="flex flex-col items-center gap-2 mt-2">
+              <button
+                className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-semibold text-sm shadow hover:bg-blue-200 transition"
+                onClick={handleToggleRole}
+              >
+                Switch to {isOwner ? "Player" : "Owner"} Mode
+              </button>
+              <span className="text-xs text-gray-500">
+                Current mode:{" "}
+                <span className="font-bold">
+                  {isOwner ? "Owner" : "Player"}
+                </span>
+              </span>
+            </div>
             <button
               className="mt-4 bg-green-600 text-white py-2 px-6 rounded-lg font-semibold shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition"
               onClick={handleLogout}

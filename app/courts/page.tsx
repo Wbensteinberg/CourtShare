@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/src/lib/firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
 import Image from "next/image";
 import { useAuth } from "@/src/lib/AuthContext";
 import { signOut } from "firebase/auth";
@@ -22,7 +22,7 @@ export default function CourtsPage() {
   const [courts, setCourts] = useState<Court[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isOwner, setIsOwner } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -54,6 +54,16 @@ export default function CourtsPage() {
   const handleLogout = async () => {
     await signOut(auth);
     router.push("/login");
+  };
+
+  const handleToggleRole = async () => {
+    if (!user) return;
+    const newIsOwner = !isOwner;
+    await updateDoc(doc(db, "users", user.uid), { isOwner: newIsOwner });
+    setIsOwner(newIsOwner);
+    if (newIsOwner) {
+      router.push("/dashboard/owner");
+    }
   };
 
   return (
@@ -103,9 +113,27 @@ export default function CourtsPage() {
             </button>
           </div>
         )}
-        <h1 className="text-5xl sm:text-6xl font-extrabold text-green-900 text-center mb-3 drop-shadow-lg tracking-tight">
-          Browse Tennis Courts
-        </h1>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-2">
+          <h1 className="text-3xl font-extrabold text-green-900 drop-shadow-sm">
+            Browse Courts
+          </h1>
+          {user && (
+            <div className="flex flex-col items-center gap-1">
+              <button
+                className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-semibold text-sm shadow hover:bg-blue-200 transition"
+                onClick={handleToggleRole}
+              >
+                Switch to {isOwner ? "Player" : "Owner"} Mode
+              </button>
+              <span className="text-xs text-gray-500">
+                Current mode:{" "}
+                <span className="font-bold">
+                  {isOwner ? "Owner" : "Player"}
+                </span>
+              </span>
+            </div>
+          )}
+        </div>
         <div className="w-32 h-1 bg-green-400 rounded mx-auto mb-12" />
         {loading && (
           <p className="text-center text-gray-600">Loading courts...</p>

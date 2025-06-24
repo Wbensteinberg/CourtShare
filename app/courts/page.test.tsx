@@ -31,6 +31,8 @@ jest.mock("@/src/lib/firebase", () => ({
 jest.mock("firebase/firestore", () => ({
   collection: jest.fn(),
   getDocs: jest.fn(),
+  doc: jest.fn(() => ({})),
+  updateDoc: jest.fn(() => Promise.resolve()),
 }));
 const { getDocs } = require("firebase/firestore");
 
@@ -150,5 +152,57 @@ describe("CourtsPage", () => {
     getDocs.mockResolvedValue({ docs: [] });
     render(<CourtsPage />);
     expect(await screen.findByText(/no courts found/i)).toBeInTheDocument();
+  });
+
+  it("shows Player mode and allows toggling to Owner (redirects to owner dashboard)", async () => {
+    useAuth.mockReturnValue({
+      user: { email: "player@court.com", uid: "player1" },
+      loading: false,
+      isOwner: false,
+      setIsOwner: jest.fn(),
+    });
+    getDocs.mockResolvedValue({ docs: [] });
+    render(<CourtsPage />);
+    const modeText = await screen.findByText((content, node) => {
+      const hasText = (node: Element | null, text: string) =>
+        node?.textContent === text;
+      return (
+        hasText(node, "Current mode: Player") ||
+        hasText(node, "Current mode:  Player") // in case of extra whitespace
+      );
+    });
+    expect(modeText).toBeInTheDocument();
+    const toggleBtn = screen.getByRole("button", {
+      name: /switch to owner mode/i,
+    });
+    fireEvent.click(toggleBtn);
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith("/dashboard/owner");
+    });
+  });
+
+  it("shows Owner mode and allows toggling to Player (updates UI)", async () => {
+    useAuth.mockReturnValue({
+      user: { email: "owner@court.com", uid: "owner1" },
+      loading: false,
+      isOwner: true,
+      setIsOwner: jest.fn(),
+    });
+    getDocs.mockResolvedValue({ docs: [] });
+    render(<CourtsPage />);
+    const modeText = await screen.findByText((content, node) => {
+      const hasText = (node: Element | null, text: string) =>
+        node?.textContent === text;
+      return (
+        hasText(node, "Current mode: Owner") ||
+        hasText(node, "Current mode:  Owner")
+      );
+    });
+    expect(modeText).toBeInTheDocument();
+    const toggleBtn = screen.getByRole("button", {
+      name: /switch to player mode/i,
+    });
+    fireEvent.click(toggleBtn);
+    expect(toggleBtn).toBeInTheDocument();
   });
 });

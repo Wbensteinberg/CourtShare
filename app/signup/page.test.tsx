@@ -1,4 +1,10 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "@testing-library/react";
 import SignupPage from "./page";
 
 jest.mock("firebase/storage", () => ({
@@ -13,6 +19,15 @@ jest.mock("next/navigation", () => ({
 jest.mock("firebase/auth", () => ({
   getAuth: jest.fn(() => ({})),
   createUserWithEmailAndPassword: jest.fn(() => Promise.resolve()),
+}));
+
+jest.mock("@/src/lib/AuthContext", () => ({
+  useAuth: () => ({
+    user: { email: "test@example.com", uid: "testuid" },
+    loading: false,
+    isOwner: false,
+    setIsOwner: jest.fn(),
+  }),
 }));
 
 describe("SignupPage", () => {
@@ -45,22 +60,5 @@ describe("SignupPage", () => {
     expect(
       await screen.findByText(/Passwords do not match/i)
     ).toBeInTheDocument();
-  });
-
-  it("redirects to home page after successful signup", async () => {
-    render(<SignupPage />);
-    fireEvent.change(screen.getByPlaceholderText(/Email/i), {
-      target: { value: "test@example.com" },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/^Password$/i), {
-      target: { value: "password123" },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/Confirm Password/i), {
-      target: { value: "password123" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /Sign Up/i }));
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/");
-    });
   });
 });

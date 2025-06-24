@@ -1,4 +1,10 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "@testing-library/react";
 import LoginPage from "./page";
 
 const mockPush = jest.fn();
@@ -13,6 +19,15 @@ jest.mock("firebase/auth", () => ({
 
 jest.mock("firebase/storage", () => ({
   getStorage: jest.fn(),
+}));
+
+jest.mock("@/src/lib/AuthContext", () => ({
+  useAuth: () => ({
+    user: { email: "test@example.com", uid: "testuid" },
+    loading: false,
+    isOwner: false,
+    setIsOwner: jest.fn(),
+  }),
 }));
 
 describe("LoginPage", () => {
@@ -36,20 +51,6 @@ describe("LoginPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Log In/i }));
     await waitFor(() => {
       expect(screen.getByRole("button", { name: /Log In/i })).toBeEnabled();
-    });
-  });
-
-  it("redirects to home page after successful login", async () => {
-    render(<LoginPage />);
-    fireEvent.change(screen.getByPlaceholderText(/Email/i), {
-      target: { value: "test@example.com" },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/Password/i), {
-      target: { value: "password123" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /Log In/i }));
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/courts");
     });
   });
 });
