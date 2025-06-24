@@ -7,6 +7,9 @@ import { doc, getDoc } from "firebase/firestore";
 import Image from "next/image";
 import { collection, addDoc, Timestamp } from "firebase/firestore";
 import { useAuth } from "@/src/lib/AuthContext";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import "./datepicker-custom.css";
 
 interface Court {
   name: string;
@@ -25,7 +28,7 @@ export default function CourtDetailPage() {
   const { user } = useAuth();
 
   // Booking state
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState<Date | null>(null);
   const [time, setTime] = useState("");
   const [duration, setDuration] = useState(1);
   const [bookingStatus, setBookingStatus] = useState<
@@ -65,7 +68,7 @@ export default function CourtDetailPage() {
       await addDoc(collection(db, "bookings"), {
         userId: user.uid,
         courtId: id,
-        date,
+        date: date instanceof Date ? date.toISOString().slice(0, 10) : date,
         time,
         duration,
         status: "pending",
@@ -125,32 +128,72 @@ export default function CourtDetailPage() {
               Book This Court
             </h3>
             <label className="block">
-              <span className="text-gray-700">Date</span>
-              <input
-                type="date"
-                className="mt-1 block w-full rounded border-gray-300"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
+              <span className="text-gray-600 font-semibold">Date</span>
+              <DatePicker
+                selected={date}
+                onChange={(d) => setDate(d)}
+                dateFormat="yyyy-MM-dd"
+                placeholderText="Select date"
+                className={`mt-1 block w-full rounded border-gray-300 placeholder:text-gray-400 ${
+                  date ? "text-gray-800" : "text-gray-400"
+                } py-2 px-3`}
+                minDate={new Date()}
+                wrapperClassName="w-full"
+                popperPlacement="bottom"
+                calendarClassName="cs-datepicker-calendar"
+                dayClassName={(d) => {
+                  const today = new Date();
+                  const isToday =
+                    d.getDate() === today.getDate() &&
+                    d.getMonth() === today.getMonth() &&
+                    d.getFullYear() === today.getFullYear();
+                  return [
+                    "cs-datepicker-day",
+                    isToday ? "cs-datepicker-today" : "",
+                  ].join(" ");
+                }}
+                showPopperArrow={false}
               />
             </label>
             <label className="block">
-              <span className="text-gray-700">Time</span>
-              <input
-                type="time"
-                className="mt-1 block w-full rounded border-gray-300"
+              <span className="text-gray-600 font-semibold">Time</span>
+              <select
+                className={`mt-1 block w-full rounded border-gray-300 ${
+                  time ? "text-gray-800" : "text-gray-400"
+                }`}
                 value={time}
                 onChange={(e) => setTime(e.target.value)}
-              />
+              >
+                <option value="" disabled className="text-gray-400">
+                  Select time
+                </option>
+                {[...Array(13)].map((_, i) => {
+                  const hour = 8 + i;
+                  const label = hour.toString().padStart(2, "0") + ":00";
+                  return (
+                    <option key={label} value={label} className="text-gray-800">
+                      {label}
+                    </option>
+                  );
+                })}
+              </select>
             </label>
             <label className="block">
-              <span className="text-gray-700">Duration (hours)</span>
+              <span className="text-gray-600 font-semibold">
+                Duration (hours)
+              </span>
               <select
-                value={duration}
+                value={duration || ""}
                 onChange={(e) => setDuration(Number(e.target.value))}
-                className="mt-1 block w-full rounded border-gray-300"
+                className={`mt-1 block w-full rounded border-gray-300 ${
+                  duration ? "text-gray-800" : "text-gray-400"
+                }`}
               >
+                <option value="" disabled className="text-gray-400">
+                  Select duration
+                </option>
                 {[1, 2, 3].map((d) => (
-                  <option key={d} value={d}>
+                  <option key={d} value={d} className="text-gray-800">
                     {d}
                   </option>
                 ))}
