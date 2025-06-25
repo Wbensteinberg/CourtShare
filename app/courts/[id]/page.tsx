@@ -110,7 +110,7 @@ export default function CourtDetailPage() {
     fetchBookings();
   }, [id, date]);
 
-  const handleBooking = async () => {
+  const handleCheckout = async () => {
     if (!user) return;
     if (!date || !time || !duration) {
       alert("Please fill out all fields.");
@@ -123,18 +123,28 @@ export default function CourtDetailPage() {
     }
     setBookingStatus("loading");
     try {
-      await addDoc(collection(db, "bookings"), {
-        userId: user.uid,
-        courtId: id,
-        date: date instanceof Date ? date.toISOString().slice(0, 10) : date,
-        time,
-        duration,
-        status: "pending",
-        createdAt: Timestamp.now(),
+      const res = await fetch("/api/create-checkout-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courtId: id,
+          userId: user.uid,
+          date: date instanceof Date ? date.toISOString().slice(0, 10) : date,
+          time,
+          duration,
+          price: court?.price || 0,
+        }),
       });
-      setBookingStatus("success");
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setBookingStatus("error");
+        alert("Failed to start checkout: " + data.error);
+      }
     } catch (err) {
       setBookingStatus("error");
+      alert("Failed to start checkout");
     }
   };
 
@@ -302,23 +312,20 @@ export default function CourtDetailPage() {
               </select>
             </label>
             <button
-              onClick={handleBooking}
-              className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:opacity-50 font-semibold text-lg mt-2"
-              disabled={bookingStatus === "loading"}
+              className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold text-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+              onClick={handleCheckout}
+              disabled={bookingStatus === "loading" || fetchingBookings}
             >
-              {bookingStatus === "loading" ? "Booking..." : "Book Court"}
+              {bookingStatus === "loading" ? "Processing..." : "Book & Pay"}
             </button>
-            {bookingStatus === "success" && (
-              <p className="text-green-600 text-center">Booking submitted!</p>
-            )}
-            {bookingStatus === "error" && (
-              <p className="text-red-600 text-center">
-                Booking failed. Try again.
+            {bookingStatus === "conflict" && (
+              <p className="text-red-500 text-sm mt-2 text-center">
+                This time slot is already booked. Please choose another.
               </p>
             )}
-            {bookingStatus === "conflict" && (
-              <p className="text-red-600 text-center">
-                That time slot is already booked. Please choose another.
+            {bookingStatus === "error" && (
+              <p className="text-red-500 text-sm mt-2 text-center">
+                Something went wrong. Please try again.
               </p>
             )}
           </div>
