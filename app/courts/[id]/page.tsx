@@ -137,7 +137,7 @@ export default function CourtDetailPage() {
       });
       const data = await res.json();
       if (data.url) {
-        window.location.href = data.url;
+        window.location.assign(data.url);
       } else {
         setBookingStatus("error");
         alert("Failed to start checkout: " + data.error);
