@@ -14,7 +14,7 @@ export default function SuccessPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-300 via-lime-200 to-green-100">
       <h1 className="text-2xl font-bold text-green-600">
-        ✅ Payment successful! Booking confirmed.
+        Payment successful! Booking confirmed.
       </h1>
     </div>
   );
