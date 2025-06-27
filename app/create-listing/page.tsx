@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { db, storage } from "@/src/lib/firebase";
 import { collection, addDoc, Timestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { useAuth } from "@/src/lib/AuthContext";
 
 export default function CreateListingPage() {
   const [name, setName] = useState("");
@@ -16,6 +17,7 @@ export default function CreateListingPage() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const router = useRouter();
+  const { user } = useAuth();
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -31,13 +33,17 @@ export default function CreateListingPage() {
       setError("Please fill in all fields and upload an image.");
       return;
     }
+    if (!user) {
+      setError("You must be logged in to create a listing.");
+      return;
+    }
     setLoading(true);
     try {
       // 1. Upload image to Firebase Storage
       const imageRef = ref(storage, `courts/${Date.now()}_${image.name}`);
       await uploadBytes(imageRef, image);
       const imageUrl = await getDownloadURL(imageRef);
-      // 2. Add court data to Firestore
+      // 2. Add court data to Firestore, including ownerId
       await addDoc(collection(db, "courts"), {
         name,
         location,
@@ -45,6 +51,7 @@ export default function CreateListingPage() {
         description,
         imageUrl,
         createdAt: Timestamp.now(),
+        ownerId: user.uid,
       });
       setSuccess(true);
       setName("");

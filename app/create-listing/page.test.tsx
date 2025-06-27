@@ -32,6 +32,11 @@ jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
 }));
 
+// Mock useAuth to return a user by default
+jest.mock("@/src/lib/AuthContext", () => ({
+  useAuth: () => ({ user: { uid: "test-user-id", email: "test@example.com" } }),
+}));
+
 describe("CreateListingPage", () => {
   const mockFile = new File(["dummy content"], "test-image.png", {
     type: "image/png",
