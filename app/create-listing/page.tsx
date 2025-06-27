@@ -60,7 +60,7 @@ export default function CreateListingPage() {
       setDescription("");
       setImage(null);
       // Optionally redirect or show success
-      router.push("/");
+      router.push("/dashboard/owner");
     } catch (err: any) {
       setError(err.message || "Failed to create listing");
     } finally {

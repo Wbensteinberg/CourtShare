@@ -4,7 +4,15 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/src/lib/AuthContext";
 import { useRouter } from "next/navigation";
 import { db } from "@/src/lib/firebase";
-import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  orderBy,
+  deleteDoc,
+  doc,
+} from "firebase/firestore";
 import Image from "next/image";
 
 interface Court {
@@ -31,6 +39,7 @@ export default function OwnerDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const router = useRouter();
+  const [deletingCourtId, setDeletingCourtId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -75,9 +84,27 @@ export default function OwnerDashboard() {
     fetchData();
   }, [user]);
 
+  const handleDelete = async (courtId: string) => {
+    if (
+      !window.confirm(
+        "Are you sure you want to delete this court? This cannot be undone."
+      )
+    )
+      return;
+    setDeletingCourtId(courtId);
+    try {
+      await deleteDoc(doc(db, "courts", courtId));
+      setCourts((prev) => prev.filter((c) => c.id !== courtId));
+    } catch (err: any) {
+      alert(err.message || "Failed to delete court");
+    } finally {
+      setDeletingCourtId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-300 via-lime-200 to-green-100 px-4">
-      <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl px-8 py-10 flex flex-col gap-8 animate-fade-in">
+      <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl px-8 py-10 flex flex-col gap-8 animate-fade-in my-16">
         <h1 className="text-3xl font-extrabold text-green-800 mb-2 text-center">
           Owner Dashboard
         </h1>
@@ -131,6 +158,21 @@ export default function OwnerDashboard() {
                     <div className="text-gray-600 text-sm">
                       {court.location}
                     </div>
+                  </div>
+                  <div className="flex gap-2 ml-auto">
+                    <button
+                      className="bg-blue-100 text-blue-800 px-3 py-1 rounded font-semibold text-xs shadow hover:bg-blue-200 transition"
+                      onClick={() => router.push(`/edit-listing/${court.id}`)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="bg-red-100 text-red-700 px-3 py-1 rounded font-semibold text-xs shadow hover:bg-red-200 transition disabled:opacity-60"
+                      onClick={() => handleDelete(court.id)}
+                      disabled={deletingCourtId === court.id}
+                    >
+                      {deletingCourtId === court.id ? "Deleting..." : "Delete"}
+                    </button>
                   </div>
                 </div>
                 <div>

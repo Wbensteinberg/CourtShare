@@ -145,7 +145,7 @@ describe("CreateListingPage", () => {
       expect(
         screen.getByText("Court listed successfully!")
       ).toBeInTheDocument();
-      expect(mockPush).toHaveBeenCalledWith("/");
+      expect(mockPush).toHaveBeenCalledWith("/dashboard/owner");
     });
   });
 
