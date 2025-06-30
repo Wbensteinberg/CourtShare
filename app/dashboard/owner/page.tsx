@@ -105,6 +105,14 @@ export default function OwnerDashboard() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-300 via-lime-200 to-green-100 px-4">
       <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl px-8 py-10 flex flex-col gap-8 animate-fade-in my-16">
+        <div className="flex justify-start mb-4">
+          <button
+            className="text-green-700 hover:underline text-sm font-semibold"
+            onClick={() => router.push("/courts")}
+          >
+            ← Back to Browse
+          </button>
+        </div>
         <h1 className="text-3xl font-extrabold text-green-800 mb-2 text-center">
           Owner Dashboard
         </h1>
