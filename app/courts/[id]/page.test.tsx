@@ -1,10 +1,13 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { act } from "react";
 
-// Mock next/image to render a simple img
-jest.mock("next/image", () => (props: any) => (
-  <img {...props} alt={props.alt} />
-));
+// Mock next/image to render a simple img and ignore boolean props that cause React warnings
+jest.mock("next/image", () => (props: any) => {
+  // Remove boolean props that cause React warnings
+  // eslint-disable-next-line @next/next/no-img-element
+  const { fill, priority, ...rest } = props;
+  return <img {...rest} alt={props.alt} />;
+});
 
 // Mock next/navigation
 const mockBack = jest.fn();
@@ -55,6 +58,24 @@ beforeAll(() => {
 });
 
 global.fetch = jest.fn();
+
+// Mock react-datepicker to be a simple input for testability
+jest.mock("react-datepicker", () => (props: any) => {
+  // Simulate a controlled input that calls onChange with a Date object
+  return (
+    <input
+      type="text"
+      placeholder={props.placeholderText}
+      value={props.selected ? props.selected.toISOString().slice(0, 10) : ""}
+      onChange={(e) => {
+        // Always call onChange with a Date object
+        props.onChange && props.onChange(new Date(e.target.value));
+      }}
+      onBlur={props.onBlur}
+      className={props.className}
+    />
+  );
+});
 
 describe("CourtDetailPage", () => {
   beforeEach(() => {
@@ -185,25 +206,30 @@ describe("CourtDetailPage", () => {
     // Wait for court to load
     await screen.findByText("Test Court");
 
-    // Fill in the form
-    fireEvent.change(screen.getByPlaceholderText("Select date"), {
-      target: { value: "2025-07-01" },
-    });
+    // Set date by directly calling the onChange handler of the DatePicker
+    // Find the input and fire a change event with a real Date object
+    const dateInput = screen.getByPlaceholderText("Select date");
+    fireEvent.change(dateInput, { target: { value: "2025-07-01" } });
+    // Manually set the value in the component's state by firing a blur event (triggers onChange in react-datepicker)
+    fireEvent.blur(dateInput);
+
+    // Set time and duration
     fireEvent.change(screen.getByLabelText(/time/i), {
       target: { value: "10:00" },
     });
     fireEvent.change(screen.getByLabelText(/duration/i), {
       target: { value: "2" },
     });
+
+    // Click the booking button
     fireEvent.click(screen.getByRole("button", { name: /book & pay/i }));
 
+    // Wait for fetch to be called
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/create-checkout-session",
         expect.objectContaining({ method: "POST" })
       );
-      // Skipping redirect assertion due to JSDOM limitations with window.location.assign
-      // expect(assignMock).toHaveBeenCalledWith("https://stripe.com/checkout");
     });
   });
 
