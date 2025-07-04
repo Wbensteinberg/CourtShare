@@ -33,7 +33,7 @@ export default function LoginPage() {
           isOwner: false,
         });
       }
-      router.push("/courts");
+      router.push("/browse");
     } catch (err: any) {
       setError(err.message || "Login failed");
     } finally {

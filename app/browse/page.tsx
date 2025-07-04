@@ -18,7 +18,7 @@ interface Court {
   imageUrl: string;
 }
 
-export default function CourtsPage() {
+export default function BrowsePage() {
   const [courts, setCourts] = useState<Court[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -178,7 +178,7 @@ export default function CourtsPage() {
               </p>
               <button
                 className="mt-auto bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-xl font-semibold shadow-md transition focus:outline-none focus:ring-2 focus:ring-green-400 text-lg"
-                onClick={() => router.push(`/courts/${court.id}`)}
+                onClick={() => router.push(`/browse/${court.id}`)}
               >
                 View Details
               </button>

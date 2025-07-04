@@ -108,7 +108,7 @@ export default function OwnerDashboard() {
         <div className="flex justify-start mb-4">
           <button
             className="text-green-700 hover:underline text-sm font-semibold"
-            onClick={() => router.push("/courts")}
+            onClick={() => router.push("/browse")}
           >
             ← Back to Browse
           </button>

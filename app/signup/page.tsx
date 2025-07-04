@@ -37,7 +37,7 @@ export default function SignupPage() {
         isOwner: false,
       });
       setSuccess(true);
-      router.push("/courts");
+      router.push("/browse");
     } catch (err: any) {
       setError(err.message || "Signup failed");
     } finally {

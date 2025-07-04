@@ -1,5 +1,5 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import CourtsPage from "./page";
+import BrowsePage from "./page";
 
 // Mock next/image to render a simple img
 jest.mock("next/image", () => (props: any) => (
@@ -55,14 +55,14 @@ const mockCourts = [
   },
 ];
 
-describe("CourtsPage", () => {
+describe("BrowsePage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   it("redirects to /login if not logged in", async () => {
     useAuth.mockReturnValue({ user: null, loading: false });
-    render(<CourtsPage />);
+    render(<BrowsePage />);
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith("/login");
     });
@@ -74,7 +74,7 @@ describe("CourtsPage", () => {
       loading: false,
     });
     getDocs.mockReturnValue(new Promise(() => {})); // never resolves
-    render(<CourtsPage />);
+    render(<BrowsePage />);
     expect(screen.getByText(/loading courts/i)).toBeInTheDocument();
   });
 
@@ -84,7 +84,7 @@ describe("CourtsPage", () => {
       loading: false,
     });
     getDocs.mockRejectedValue(new Error("Firestore error"));
-    render(<CourtsPage />);
+    render(<BrowsePage />);
     await waitFor(() => {
       expect(screen.getByText(/firestore error/i)).toBeInTheDocument();
     });
@@ -96,7 +96,7 @@ describe("CourtsPage", () => {
       loading: false,
     });
     getDocs.mockResolvedValue({ docs: [] });
-    render(<CourtsPage />);
+    render(<BrowsePage />);
     expect(await screen.findByText("test@court.com")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /log out/i })
@@ -110,7 +110,7 @@ describe("CourtsPage", () => {
       loading: false,
     });
     getDocs.mockResolvedValue({ docs: [] });
-    render(<CourtsPage />);
+    render(<BrowsePage />);
     const btn = await screen.findByRole("button", { name: /log out/i });
     fireEvent.click(btn);
     await waitFor(() => {
@@ -127,7 +127,7 @@ describe("CourtsPage", () => {
     getDocs.mockResolvedValue({
       docs: mockCourts.map((court) => ({ id: court.id, data: () => court })),
     });
-    render(<CourtsPage />);
+    render(<BrowsePage />);
     expect(await screen.findByText("Will's Court")).toBeInTheDocument();
     expect(screen.getByText("Goleta")).toBeInTheDocument();
     expect(
@@ -150,7 +150,7 @@ describe("CourtsPage", () => {
       loading: false,
     });
     getDocs.mockResolvedValue({ docs: [] });
-    render(<CourtsPage />);
+    render(<BrowsePage />);
     expect(await screen.findByText(/no courts found/i)).toBeInTheDocument();
   });
 
@@ -162,7 +162,7 @@ describe("CourtsPage", () => {
       setIsOwner: jest.fn(),
     });
     getDocs.mockResolvedValue({ docs: [] });
-    render(<CourtsPage />);
+    render(<BrowsePage />);
     const modeText = await screen.findByText((content, node) => {
       const hasText = (node: Element | null, text: string) =>
         node?.textContent === text;
@@ -189,7 +189,7 @@ describe("CourtsPage", () => {
       setIsOwner: jest.fn(),
     });
     getDocs.mockResolvedValue({ docs: [] });
-    render(<CourtsPage />);
+    render(<BrowsePage />);
     const modeText = await screen.findByText((content, node) => {
       const hasText = (node: Element | null, text: string) =>
         node?.textContent === text;
