@@ -38,6 +38,24 @@ if (typeof window !== "undefined") {
   });
 }
 
+// Mock window.location methods to prevent JSDOM "not implemented" errors
+// Delete first to avoid "Cannot redefine property" error
+delete (window as any).location;
+(window as any).location = {
+  href: "http://localhost:3000",
+  origin: "http://localhost:3000",
+  protocol: "http:",
+  host: "localhost:3000",
+  hostname: "localhost",
+  port: "3000",
+  pathname: "/",
+  search: "",
+  hash: "",
+  assign: jest.fn(),
+  replace: jest.fn(),
+  reload: jest.fn(),
+};
+
 // Mock IntersectionObserver
 class MockIntersectionObserver {
   observe = jest.fn();
@@ -74,3 +92,6 @@ global.requestAnimationFrame = (callback) => {
 global.cancelAnimationFrame = (id) => {
   clearTimeout(id);
 };
+
+// Mock alert to prevent errors in tests
+global.alert = jest.fn();

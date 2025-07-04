@@ -21,9 +21,10 @@ const customJestConfig = {
   // This allows imports from both installed packages and local files
   moduleDirectories: ['node_modules', '<rootDir>/'],
   
-  // Add path mapping for the @ alias
+  // Add path mapping for the @ alias and mock next/image
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
+    '^next/image$': '<rootDir>/__mocks__/next/image.js',
   },
 
   // 👇 Add this to handle React 18/19 export conditions
