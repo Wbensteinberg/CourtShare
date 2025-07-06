@@ -1,14 +1,7 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import OwnerDashboard from "./page";
 
-// Mock next/image to avoid errors in Jest
-jest.mock("next/image", () => ({
-  __esModule: true,
-  default: (props: any) => {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img {...props} />;
-  },
-}));
+// next/image is mocked globally in jest.config.js
 
 // Mock next/navigation
 const mockPush = jest.fn();

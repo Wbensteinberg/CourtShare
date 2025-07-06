@@ -1,13 +1,7 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { act } from "react";
 
-// Mock next/image to render a simple img and ignore boolean props that cause React warnings
-jest.mock("next/image", () => (props: any) => {
-  // Remove boolean props that cause React warnings
-  // eslint-disable-next-line @next/next/no-img-element
-  const { fill, priority, ...rest } = props;
-  return <img {...rest} alt={props.alt} />;
-});
+// next/image is mocked globally in jest.config.js
 
 // Mock next/navigation
 const mockBack = jest.fn();
