@@ -1,10 +1,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import CourtsPage from "./page";
 
-// Mock next/image to render a simple img
-jest.mock("next/image", () => (props: any) => (
-  <img {...props} alt={props.alt} />
-));
+// next/image is mocked globally in jest.config.js
 
 // Mock next/navigation
 const mockPush = jest.fn();
