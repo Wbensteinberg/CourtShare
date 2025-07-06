@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { db } from "@/src/lib/firebase";
 import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
@@ -24,11 +24,12 @@ export default function CourtsPage() {
   const [error, setError] = useState("");
   const { user, loading: authLoading, isOwner, setIsOwner } = useAuth();
   const router = useRouter();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push("/login");
-    }
+    // Remove redirect to /login for unauthenticated users
+    // Anyone can view courts now
   }, [user, authLoading, router]);
 
   useEffect(() => {
@@ -53,7 +54,6 @@ export default function CourtsPage() {
 
   const handleLogout = async () => {
     await signOut(auth);
-    router.push("/login");
   };
 
   const handleToggleRole = async () => {
@@ -65,6 +65,21 @@ export default function CourtsPage() {
       router.push("/dashboard/owner");
     }
   };
+
+  // Close menu on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    if (menuOpen) {
+      document.addEventListener("mousedown", handleClick);
+    } else {
+      document.removeEventListener("mousedown", handleClick);
+    }
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [menuOpen]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-200 via-lime-100 to-green-50 px-4 py-16 relative overflow-hidden">
@@ -94,23 +109,68 @@ export default function CourtsPage() {
         </svg>
       </div>
       <div className="relative max-w-6xl mx-auto z-10">
-        {/* User info and logout button */}
-        {user && (
-          <div className="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-200 rounded-full flex items-center justify-center shadow-md">
-                <span className="text-2xl font-bold text-green-700">🎾</span>
-              </div>
-              <span className="text-green-900 font-semibold text-lg">
-                {user.email}
-              </span>
-            </div>
+        {/* Login/Signup buttons for unauthenticated users */}
+        {!user && (
+          <div className="flex justify-end mb-6 gap-4">
             <button
               className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-xl font-semibold shadow-md transition focus:outline-none focus:ring-2 focus:ring-green-400 text-base"
-              onClick={handleLogout}
+              onClick={() => router.push("/login")}
             >
-              Log Out
+              Log In
             </button>
+            <button
+              className="bg-blue-100 text-blue-800 px-5 py-2 rounded-xl font-semibold shadow-md transition focus:outline-none focus:ring-2 focus:ring-blue-400 text-base"
+              onClick={() => router.push("/signup")}
+            >
+              Sign Up
+            </button>
+          </div>
+        )}
+        {/* Hamburger/Profile menu for logged-in users */}
+        {user && (
+          <div className="flex justify-end mb-6 gap-4 relative">
+            <button
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-green-200 hover:bg-green-300 shadow-md focus:outline-none"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label="Open menu"
+            >
+              {/* Hamburger icon */}
+              <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
+                <rect x="4" y="7" width="16" height="2" rx="1" fill="#166534" />
+                <rect
+                  x="4"
+                  y="15"
+                  width="16"
+                  height="2"
+                  rx="1"
+                  fill="#166534"
+                />
+              </svg>
+            </button>
+            {menuOpen && (
+              <div
+                ref={menuRef}
+                className="absolute right-0 mt-12 w-48 bg-white rounded-xl shadow-lg border border-green-100 z-50 animate-fade-in"
+              >
+                <button
+                  className="w-full text-left px-5 py-3 hover:bg-green-50 text-green-800 font-semibold rounded-t-xl"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    router.push(
+                      isOwner ? "/dashboard/owner" : "/dashboard/player"
+                    );
+                  }}
+                >
+                  Dashboard
+                </button>
+                <button
+                  className="w-full text-left px-5 py-3 hover:bg-green-50 text-red-700 font-semibold rounded-b-xl border-t border-green-100"
+                  onClick={handleLogout}
+                >
+                  Log Out
+                </button>
+              </div>
+            )}
           </div>
         )}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-2">

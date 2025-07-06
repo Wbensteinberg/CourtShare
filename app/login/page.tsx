@@ -118,6 +118,14 @@ export default function LoginPage() {
             <a href="#" className="text-green-700 hover:underline text-sm">
               Forgot password?
             </a>
+            <div className="mt-2">
+              <a
+                href="/signup"
+                className="text-blue-700 hover:underline text-sm"
+              >
+                Don't have an account? Sign up
+              </a>
+            </div>
           </div>
         </form>
       </div>
