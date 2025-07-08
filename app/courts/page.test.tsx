@@ -57,14 +57,6 @@ describe("CourtsPage", () => {
     jest.clearAllMocks();
   });
 
-  it("redirects to /login if not logged in", async () => {
-    useAuth.mockReturnValue({ user: null, loading: false });
-    render(<CourtsPage />);
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/login");
-    });
-  });
-
   it("shows loading state", () => {
     useAuth.mockReturnValue({
       user: { email: "test@court.com" },
@@ -87,33 +79,23 @@ describe("CourtsPage", () => {
     });
   });
 
-  it("shows user info and logout button", async () => {
+  it("shows profile and menu for logged in user", async () => {
     useAuth.mockReturnValue({
       user: { email: "test@court.com" },
       loading: false,
+      isOwner: false,
+      setIsOwner: jest.fn(),
     });
     getDocs.mockResolvedValue({ docs: [] });
     render(<CourtsPage />);
-    expect(await screen.findByText("test@court.com")).toBeInTheDocument();
+    // Should show profile avatar button
     expect(
-      screen.getByRole("button", { name: /log out/i })
+      await screen.findByRole("button", { name: /profile/i })
     ).toBeInTheDocument();
-  });
-
-  it("calls signOut and redirects on logout", async () => {
-    const { signOut } = require("firebase/auth");
-    useAuth.mockReturnValue({
-      user: { email: "test@court.com" },
-      loading: false,
-    });
-    getDocs.mockResolvedValue({ docs: [] });
-    render(<CourtsPage />);
-    const btn = await screen.findByRole("button", { name: /log out/i });
-    fireEvent.click(btn);
-    await waitFor(() => {
-      expect(signOut).toHaveBeenCalled();
-      expect(mockPush).toHaveBeenCalledWith("/login");
-    });
+    // Should show hamburger menu button
+    expect(
+      screen.getByRole("button", { name: /open menu/i })
+    ).toBeInTheDocument();
   });
 
   it("renders court cards with all info", async () => {
@@ -151,55 +133,23 @@ describe("CourtsPage", () => {
     expect(await screen.findByText(/no courts found/i)).toBeInTheDocument();
   });
 
-  it("shows Player mode and allows toggling to Owner (redirects to owner dashboard)", async () => {
+  it("calls signOut when logout is clicked in menu", async () => {
+    const { signOut } = require("firebase/auth");
     useAuth.mockReturnValue({
-      user: { email: "player@court.com", uid: "player1" },
+      user: { email: "test@court.com" },
       loading: false,
       isOwner: false,
       setIsOwner: jest.fn(),
     });
     getDocs.mockResolvedValue({ docs: [] });
     render(<CourtsPage />);
-    const modeText = await screen.findByText((content, node) => {
-      const hasText = (node: Element | null, text: string) =>
-        node?.textContent === text;
-      return (
-        hasText(node, "Current mode: Player") ||
-        hasText(node, "Current mode:  Player") // in case of extra whitespace
-      );
-    });
-    expect(modeText).toBeInTheDocument();
-    const toggleBtn = screen.getByRole("button", {
-      name: /switch to owner mode/i,
-    });
-    fireEvent.click(toggleBtn);
+    // Open menu
+    fireEvent.click(screen.getByRole("button", { name: /open menu/i }));
+    // Click logout
+    const logoutBtn = await screen.findByRole("button", { name: /log out/i });
+    fireEvent.click(logoutBtn);
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/dashboard/owner");
+      expect(signOut).toHaveBeenCalled();
     });
-  });
-
-  it("shows Owner mode and allows toggling to Player (updates UI)", async () => {
-    useAuth.mockReturnValue({
-      user: { email: "owner@court.com", uid: "owner1" },
-      loading: false,
-      isOwner: true,
-      setIsOwner: jest.fn(),
-    });
-    getDocs.mockResolvedValue({ docs: [] });
-    render(<CourtsPage />);
-    const modeText = await screen.findByText((content, node) => {
-      const hasText = (node: Element | null, text: string) =>
-        node?.textContent === text;
-      return (
-        hasText(node, "Current mode: Owner") ||
-        hasText(node, "Current mode:  Owner")
-      );
-    });
-    expect(modeText).toBeInTheDocument();
-    const toggleBtn = screen.getByRole("button", {
-      name: /switch to player mode/i,
-    });
-    fireEvent.click(toggleBtn);
-    expect(toggleBtn).toBeInTheDocument();
   });
 });

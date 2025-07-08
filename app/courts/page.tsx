@@ -61,9 +61,7 @@ export default function CourtsPage() {
     const newIsOwner = !isOwner;
     await updateDoc(doc(db, "users", user.uid), { isOwner: newIsOwner });
     setIsOwner(newIsOwner);
-    if (newIsOwner) {
-      router.push("/dashboard/owner");
-    }
+    // Do not route anywhere after toggling mode
   };
 
   // Close menu on outside click
@@ -128,13 +126,32 @@ export default function CourtsPage() {
         )}
         {/* Hamburger/Profile menu for logged-in users */}
         {user && (
-          <div className="flex justify-end mb-6 gap-4 relative">
+          <div className="flex justify-end mb-6 gap-4 relative items-center">
+            {/* Profile avatar */}
             <button
-              className="w-10 h-10 flex items-center justify-center rounded-full bg-green-200 hover:bg-green-300 shadow-md focus:outline-none"
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-green-300 border-2 border-green-600 shadow-md focus:outline-none mr-2 cursor-pointer"
+              onClick={() =>
+                router.push(isOwner ? "/dashboard/owner" : "/dashboard/player")
+              }
+              aria-label="Profile"
+            >
+              {/* If user.photoURL exists, show image, else fallback to emoji */}
+              {user.photoURL ? (
+                <img
+                  src={user.photoURL}
+                  alt="Profile"
+                  className="w-9 h-9 rounded-full object-cover"
+                />
+              ) : (
+                <span className="text-2xl">👤</span>
+              )}
+            </button>
+            {/* Hamburger icon and menu */}
+            <button
+              className="w-10 h-10 flex items-center justify-center rounded-full bg-green-200 hover:bg-green-300 shadow-md focus:outline-none cursor-pointer"
               onClick={() => setMenuOpen((v) => !v)}
               aria-label="Open menu"
             >
-              {/* Hamburger icon */}
               <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
                 <rect x="4" y="7" width="16" height="2" rx="1" fill="#166534" />
                 <rect
@@ -180,17 +197,11 @@ export default function CourtsPage() {
           {user && (
             <div className="flex flex-col items-center gap-1">
               <button
-                className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-semibold text-sm shadow hover:bg-blue-200 transition"
+                className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-semibold text-sm shadow hover:bg-blue-200 transition cursor-pointer"
                 onClick={handleToggleRole}
               >
                 Switch to {isOwner ? "Player" : "Owner"} Mode
               </button>
-              <span className="text-xs text-gray-500">
-                Current mode:{" "}
-                <span className="font-bold">
-                  {isOwner ? "Owner" : "Player"}
-                </span>
-              </span>
             </div>
           )}
         </div>
@@ -237,7 +248,7 @@ export default function CourtsPage() {
                 {court.description}
               </p>
               <button
-                className="mt-auto bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-xl font-semibold shadow-md transition focus:outline-none focus:ring-2 focus:ring-green-400 text-lg"
+                className="mt-auto bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-xl font-semibold shadow-md transition focus:outline-none focus:ring-2 focus:ring-green-400 text-lg cursor-pointer"
                 onClick={() => router.push(`/courts/${court.id}`)}
               >
                 View Details
