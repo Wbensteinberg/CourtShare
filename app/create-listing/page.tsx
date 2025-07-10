@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { db, storage } from "@/src/lib/firebase";
+import { db, storage } from "@/lib/firebase";
 import { collection, addDoc, Timestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { useAuth } from "@/src/lib/AuthContext";
+import { useAuth } from "@/lib/AuthContext";
 
 export default function CreateListingPage() {
   const [name, setName] = useState("");

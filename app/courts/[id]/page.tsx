@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { db } from "@/src/lib/firebase";
+import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import Image from "next/image";
 import {
@@ -13,7 +13,7 @@ import {
   where,
   getDocs,
 } from "firebase/firestore";
-import { useAuth } from "@/src/lib/AuthContext";
+import { useAuth } from "@/lib/AuthContext";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import "./datepicker-custom.css";
@@ -330,9 +330,17 @@ export default function CourtDetailPage() {
             )}
           </div>
         ) : (
-          <p className="text-center text-gray-500 mb-8">
-            Log in to book this court.
-          </p>
+          <div className="flex flex-col items-center mt-8 mb-8">
+            <p className="text-center text-gray-500 mb-4">
+              Log in to book this court.
+            </p>
+            <button
+              className="bg-green-600 text-white py-2 px-6 rounded-lg font-semibold text-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              onClick={() => router.push(`/login?redirect=/courts/${id}`)}
+            >
+              Log In to Book
+            </button>
+          </div>
         )}
         <div className="flex justify-center mt-6">
           <button

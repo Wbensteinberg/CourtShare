@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth, db } from "@/src/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 
 export default function LoginPage() {
@@ -12,6 +12,8 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get("redirect");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +35,11 @@ export default function LoginPage() {
           isOwner: false,
         });
       }
-      router.push("/courts");
+      if (redirect) {
+        router.push(redirect);
+      } else {
+        router.push("/courts");
+      }
     } catch (err: any) {
       setError(err.message || "Login failed");
     } finally {

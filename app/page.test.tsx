@@ -9,8 +9,8 @@ jest.mock("next/navigation", () => ({
 // Mock firebase modules to prevent real initialization
 jest.mock("firebase/auth", () => ({}));
 jest.mock("firebase/firestore", () => ({}));
-jest.mock("@/src/lib/firebase", () => ({}));
-jest.mock("@/src/lib/AuthContext", () => ({
+jest.mock("@/lib/firebase", () => ({}));
+jest.mock("@/lib/AuthContext", () => ({
   useAuth: () => ({ user: null, loading: false }),
 }));
 

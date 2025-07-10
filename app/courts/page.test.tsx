@@ -15,13 +15,13 @@ jest.mock("firebase/auth", () => ({
 }));
 
 // Mock AuthContext
-jest.mock("@/src/lib/AuthContext", () => ({
+jest.mock("@/lib/AuthContext", () => ({
   useAuth: jest.fn(),
 }));
-const { useAuth } = require("@/src/lib/AuthContext");
+const { useAuth } = require("@/lib/AuthContext");
 
 // Mock Firestore
-jest.mock("@/src/lib/firebase", () => ({
+jest.mock("@/lib/firebase", () => ({
   db: {},
   auth: {},
 }));
