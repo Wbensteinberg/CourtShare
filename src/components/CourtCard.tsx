@@ -37,7 +37,7 @@ const CourtCard = ({ court }: CourtCardProps) => {
 
   return (
     <Card
-      className="group overflow-hidden hover:shadow-card transition-all duration-300 hover:-translate-y-1 cursor-pointer"
+      className="group overflow-hidden border border-gray-300 shadow-md rounded-xl hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer bg-white text-black"
       onClick={goToDetails}
       aria-label={`View details for ${court.name}`}
       tabIndex={0}
@@ -46,38 +46,26 @@ const CourtCard = ({ court }: CourtCardProps) => {
         if (e.key === "Enter" || e.key === " ") goToDetails();
       }}
     >
-      <CardHeader className="p-0">
-        <div className="relative overflow-hidden rounded-t-lg">
-          <img
-            src={court.image}
-            alt={court.name}
-            className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-          />
-          <div className="absolute top-3 left-3">
-            <Badge variant={court.indoor ? "default" : "secondary"}>
-              {court.indoor ? "Indoor" : "Outdoor"}
-            </Badge>
-          </div>
-          <div className="absolute top-3 right-3">
-            <Badge variant="secondary" className="bg-white/90 text-foreground">
-              ${court.price}/hr
-            </Badge>
-          </div>
-          <div className="absolute bottom-3 left-3">
-            <Badge className="bg-tennis-green text-white">
-              {court.surface}
-            </Badge>
-          </div>
+      <div className="relative overflow-hidden rounded-t-xl">
+        <img
+          src={court.image}
+          alt={court.name}
+          className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-300 rounded-t-xl"
+        />
+        <div className="absolute top-3 right-3">
+          <span className="inline-block bg-white border border-gray-300 text-black text-sm font-semibold px-3 py-1 rounded-full shadow-sm z-10">
+            ${court.price}/hr
+          </span>
         </div>
-      </CardHeader>
+      </div>
 
-      <CardContent className="p-4">
-        <div className="space-y-3">
+      <CardContent className="py-4 bg-white text-black">
+        <div className="space-y-3 mt-6">
           <div>
             <h3 className="font-semibold text-lg hover:text-primary transition-colors cursor-pointer">
               {court.name}
             </h3>
-            <div className="flex items-center text-sm text-muted-foreground mt-1">
+            <div className="flex items-center text-sm text-gray-500 mt-1">
               <MapPin className="h-4 w-4 mr-1" />
               {court.location}
             </div>
@@ -87,11 +75,11 @@ const CourtCard = ({ court }: CourtCardProps) => {
             <div className="flex items-center">
               <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 mr-1" />
               <span className="font-medium">{court.rating}</span>
-              <span className="text-sm text-muted-foreground ml-1">
+              <span className="text-sm text-gray-500 ml-1">
                 ({court.reviewCount})
               </span>
             </div>
-            <div className="flex items-center text-sm text-muted-foreground">
+            <div className="flex items-center text-sm text-gray-500">
               <Clock className="h-4 w-4 mr-1" />
               {court.availability}
             </div>
@@ -103,7 +91,7 @@ const CourtCard = ({ court }: CourtCardProps) => {
               return (
                 <div
                   key={amenity}
-                  className="flex items-center text-xs text-muted-foreground"
+                  className="flex items-center text-xs text-gray-400"
                 >
                   <Icon className="h-3 w-3 mr-1" />
                   {amenity}
@@ -111,7 +99,7 @@ const CourtCard = ({ court }: CourtCardProps) => {
               );
             })}
             {court.amenities.length > 3 && (
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-gray-400">
                 +{court.amenities.length - 3} more
               </span>
             )}
@@ -119,11 +107,11 @@ const CourtCard = ({ court }: CourtCardProps) => {
         </div>
       </CardContent>
 
-      <CardFooter className="p-4 pt-0">
-        <div className="flex w-full space-x-2">
+      <CardFooter className="p-0 pt-4">
+        <div className="flex w-full gap-2">
           <Button
             variant="outline"
-            className="flex-1"
+            className="w-full h-11 cursor-pointer text-base font-semibold"
             onClick={(e) => {
               e.stopPropagation();
               goToDetails();
@@ -134,7 +122,7 @@ const CourtCard = ({ court }: CourtCardProps) => {
           </Button>
           <Button
             variant="tennis"
-            className="flex-1"
+            className="w-full h-11 cursor-pointer text-base font-semibold"
             onClick={(e) => {
               e.stopPropagation();
               goToDetails();

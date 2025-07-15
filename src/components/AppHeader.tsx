@@ -43,7 +43,7 @@ export default function AppHeader() {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="relative h-16 flex items-center px-4 w-full max-w-screen-2xl mx-auto">
         {/* Left: Logo (in container) */}
         <div
@@ -93,6 +93,7 @@ export default function AppHeader() {
               <Button
                 variant="outline"
                 size="icon"
+                className="cursor-pointer"
                 onClick={() =>
                   router.push(
                     isOwner ? "/dashboard/owner" : "/dashboard/player"
@@ -102,14 +103,19 @@ export default function AppHeader() {
               >
                 <User className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="sm" onClick={handleToggleRole}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleToggleRole}
+                className="cursor-pointer"
+              >
                 Switch to {isOwner ? "Player" : "Owner"} Mode
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleLogout}
-                className="ml-2"
+                className="ml-2 cursor-pointer"
               >
                 Log Out
               </Button>
@@ -136,7 +142,7 @@ export default function AppHeader() {
       {/* Mobile Menu */}
       <div
         className={cn(
-          "md:hidden border-t bg-background",
+          "md:hidden border-t border-gray-200 bg-background",
           menuOpen ? "block" : "hidden"
         )}
       >
@@ -191,6 +197,7 @@ export default function AppHeader() {
                 <Button
                   variant="outline"
                   size="icon"
+                  className="cursor-pointer"
                   onClick={() => {
                     router.push(
                       isOwner ? "/dashboard/owner" : "/dashboard/player"
@@ -201,10 +208,20 @@ export default function AppHeader() {
                 >
                   <User className="h-4 w-4" />
                 </Button>
-                <Button variant="ghost" size="sm" onClick={handleToggleRole}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleToggleRole}
+                  className="cursor-pointer"
+                >
                   Switch to {isOwner ? "Player" : "Owner"} Mode
                 </Button>
-                <Button variant="ghost" size="sm" onClick={handleLogout}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleLogout}
+                  className="cursor-pointer"
+                >
                   Log Out
                 </Button>
               </>
