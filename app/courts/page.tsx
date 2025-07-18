@@ -84,11 +84,13 @@ export default function CourtsPage() {
   }, [menuOpen]);
 
   return (
-    <div className="min-h-screen bg-background w-full">
+    <div className="min-h-screen bg-white w-full">
       <AppHeader />
-      <div className="w-full flex flex-col items-center">
+      <div className="w-full bg-[#286a3a] flex flex-col items-center">
         <HeroSection />
-        <main className="container mx-auto px-4 py-8">
+      </div>
+      <main className="w-full bg-white">
+        <div className="container mx-auto px-4 py-8">
           <SearchSection />
           {loading && (
             <p className="text-center text-gray-600 mt-8">Loading courts...</p>
@@ -120,8 +122,8 @@ export default function CourtsPage() {
           {!loading && courts.length === 0 && !error && (
             <p className="text-center text-gray-500 mt-12">No courts found.</p>
           )}
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

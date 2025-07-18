@@ -159,7 +159,7 @@ export default function CourtDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-200 via-lime-100 to-green-50 px-4 py-12 flex items-center justify-center">
+    <div className="min-h-screen bg-[#286a3a] px-4 py-12 flex items-center justify-center">
       <div className="w-full max-w-2xl bg-white/80 backdrop-blur-lg rounded-3xl shadow-2xl p-8 mx-auto">
         <div className="w-full h-72 relative mb-6 rounded-2xl overflow-hidden shadow-md">
           {court.imageUrl ? (
@@ -177,13 +177,13 @@ export default function CourtDetailPage() {
             </div>
           )}
         </div>
-        <h2 className="text-3xl font-extrabold text-green-900 mb-2 text-center drop-shadow-sm">
+        <h2 className="text-3xl font-extrabold text-[#286a3a] mb-2 text-center drop-shadow-sm">
           {court.name}
         </h2>
         <p className="text-gray-600 text-center mb-1 text-lg">
           {court.location}
         </p>
-        <p className="text-green-800 font-bold text-center text-xl mb-4">
+        <p className="text-[#286a3a] font-bold text-center text-xl mb-4">
           ${court.price} <span className="font-medium">/ hour</span>
         </p>
         <p className="text-gray-700 text-base mb-6 text-center whitespace-pre-line">
@@ -191,8 +191,8 @@ export default function CourtDetailPage() {
         </p>
         {/* Booking UI */}
         {user ? (
-          <div className="bg-white p-6 rounded-2xl shadow-md max-w-md mx-auto mt-4 mb-8 space-y-4 border border-green-100">
-            <h3 className="text-xl font-bold text-green-800 mb-2 text-center">
+          <div className="bg-white p-6 rounded-2xl shadow-md max-w-md mx-auto mt-4 mb-8 space-y-4 border border-[#e3f1e7]">
+            <h3 className="text-xl font-bold text-[#286a3a] mb-2 text-center">
               Book This Court
             </h3>
             <label className="block">
@@ -312,7 +312,7 @@ export default function CourtDetailPage() {
               </select>
             </label>
             <button
-              className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold text-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition disabled:opacity-60 disabled:cursor-not-allowed mt-2"
+              className="w-full bg-[#286a3a] text-white py-3 rounded-lg font-semibold text-lg shadow-md hover:bg-[#20542e] focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition disabled:opacity-60 disabled:cursor-not-allowed mt-2"
               onClick={handleCheckout}
               disabled={bookingStatus === "loading" || fetchingBookings}
             >
@@ -335,7 +335,7 @@ export default function CourtDetailPage() {
               Log in to book this court.
             </p>
             <button
-              className="bg-green-600 text-white py-2 px-6 rounded-lg font-semibold text-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition disabled:opacity-60 disabled:cursor-not-allowed"
+              className="bg-[#286a3a] text-white py-2 px-6 rounded-lg font-semibold text-lg shadow-md hover:bg-[#20542e] focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition disabled:opacity-60 disabled:cursor-not-allowed"
               onClick={() => router.push(`/login?redirect=/courts/${id}`)}
             >
               Log In to Book
@@ -344,7 +344,7 @@ export default function CourtDetailPage() {
         )}
         <div className="flex justify-center mt-6">
           <button
-            className="text-green-700 hover:underline text-sm font-semibold"
+            className="text-[#286a3a] hover:underline text-sm font-semibold"
             onClick={() => router.back()}
           >
             ← Back to Browse

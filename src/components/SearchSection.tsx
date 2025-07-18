@@ -1,6 +1,5 @@
 import { useState, useRef } from "react";
 import type { MutableRefObject } from "react";
-import type { ReactDatePicker } from "react-datepicker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {

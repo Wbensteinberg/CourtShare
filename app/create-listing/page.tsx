@@ -69,15 +69,15 @@ export default function CreateListingPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-300 via-lime-200 to-green-100 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#286a3a] px-4">
       <div className="w-full max-w-lg my-12">
         <form
           onSubmit={handleSubmit}
           className="bg-white rounded-2xl shadow-2xl px-8 py-10 flex flex-col gap-6 animate-fade-in"
         >
           <div className="flex flex-col items-center mb-2">
-            <div className="w-16 h-16 bg-green-200 rounded-full flex items-center justify-center mb-2 shadow-md">
-              <span className="text-3xl font-bold text-green-700">🎾</span>
+            <div className="w-16 h-16 bg-[#e3f1e7] rounded-full flex items-center justify-center mb-2 shadow-md">
+              <span className="text-3xl font-bold text-[#286a3a]">🎾</span>
             </div>
             <h2 className="text-2xl font-extrabold text-gray-800 tracking-tight mb-1">
               Create Court Listing
@@ -87,7 +87,7 @@ export default function CreateListingPage() {
             </p>
           </div>
           <input
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900"
             type="text"
             placeholder="Court Name"
             value={name}
@@ -95,7 +95,7 @@ export default function CreateListingPage() {
             required
           />
           <input
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900"
             type="text"
             placeholder="Location"
             value={location}
@@ -103,7 +103,7 @@ export default function CreateListingPage() {
             required
           />
           <input
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900"
             type="number"
             placeholder="Price per hour (USD)"
             value={price}
@@ -112,7 +112,7 @@ export default function CreateListingPage() {
             required
           />
           <textarea
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900 resize-none"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900 resize-none"
             placeholder="Description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -120,7 +120,7 @@ export default function CreateListingPage() {
             required
           />
           <input
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition mb-2 text-gray-900 caret-gray-900 file:bg-green-100 file:border-0 file:rounded-lg file:px-4 file:py-2 file:text-green-700 file:font-semibold"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 text-gray-900 caret-gray-900 file:bg-[#e3f1e7] file:border-0 file:rounded-lg file:px-4 file:py-2 file:text-[#286a3a] file:font-semibold"
             type="file"
             accept="image/*"
             onChange={handleImageChange}
@@ -135,7 +135,7 @@ export default function CreateListingPage() {
             </p>
           )}
           <button
-            className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold text-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full bg-[#286a3a] text-white py-3 rounded-lg font-semibold text-lg shadow-md hover:bg-[#20542e] focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition disabled:opacity-60 disabled:cursor-not-allowed"
             type="submit"
             disabled={loading}
           >

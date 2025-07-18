@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth, db } from "@/src/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
 
 export default function SignupPage() {
@@ -46,7 +46,7 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-300 via-lime-200 to-green-100 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#286a3a] px-4">
       <div className="w-full max-w-md">
         <form
           onSubmit={handleSignup}
@@ -54,8 +54,8 @@ export default function SignupPage() {
         >
           {/* Logo or App Name */}
           <div className="flex flex-col items-center mb-2">
-            <div className="w-16 h-16 bg-green-200 rounded-full flex items-center justify-center mb-2 shadow-md">
-              <span className="text-3xl font-bold text-green-700">🎾</span>
+            <div className="w-16 h-16 bg-[#e3f1e7] rounded-full flex items-center justify-center mb-2 shadow-md">
+              <span className="text-3xl font-bold text-[#286a3a]">🎾</span>
             </div>
             <h2 className="text-3xl font-extrabold text-gray-800 tracking-tight mb-1">
               CourtShare
@@ -63,7 +63,7 @@ export default function SignupPage() {
             <p className="text-gray-500 text-sm">Create your account</p>
           </div>
           <input
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900"
             type="email"
             placeholder="Email"
             value={email}
@@ -72,7 +72,7 @@ export default function SignupPage() {
             autoComplete="email"
           />
           <input
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900"
             type="password"
             placeholder="Password"
             value={password}
@@ -81,7 +81,7 @@ export default function SignupPage() {
             autoComplete="new-password"
           />
           <input
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-400 transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900"
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900"
             type="password"
             placeholder="Confirm Password"
             value={confirmPassword}
@@ -98,7 +98,7 @@ export default function SignupPage() {
             </p>
           )}
           <button
-            className="w-full bg-green-600 text-white py-3 rounded-lg font-semibold text-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 transition disabled:opacity-60 disabled:cursor-not-allowed"
+            className="w-full bg-[#286a3a] text-white py-3 rounded-lg font-semibold text-lg shadow-md hover:bg-[#20542e] focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition disabled:opacity-60 disabled:cursor-not-allowed"
             type="submit"
             disabled={loading}
           >
@@ -131,7 +131,7 @@ export default function SignupPage() {
             )}
           </button>
           <div className="text-center mt-2">
-            <a href="/login" className="text-green-700 hover:underline text-sm">
+            <a href="/login" className="text-[#286a3a] hover:underline text-sm">
               Already have an account? Log in
             </a>
           </div>

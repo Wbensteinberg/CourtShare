@@ -115,17 +115,17 @@ export default function PlayerDashboard() {
   });
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-300 via-lime-200 to-green-100 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#286a3a] px-4">
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl px-8 py-10 flex flex-col gap-8 animate-fade-in my-16">
         <div className="flex justify-start mb-4">
           <button
-            className="text-green-700 hover:underline text-sm font-semibold"
+            className="text-[#286a3a] hover:underline text-sm font-semibold"
             onClick={() => router.push("/courts")}
           >
             ← Browse More Courts
           </button>
         </div>
-        <h1 className="text-3xl font-extrabold text-green-800 mb-2 text-center">
+        <h1 className="text-3xl font-extrabold text-[#286a3a] mb-2 text-center">
           Player Dashboard
         </h1>
         <p className="text-gray-600 text-center mb-2">
@@ -138,7 +138,7 @@ export default function PlayerDashboard() {
         ) : (
           <>
             <div>
-              <h2 className="text-xl font-bold text-green-700 mb-2">
+              <h2 className="text-xl font-bold text-[#286a3a] mb-2">
                 Upcoming Bookings
               </h2>
               {upcoming.length === 0 ? (
@@ -150,10 +150,10 @@ export default function PlayerDashboard() {
                     return (
                       <li
                         key={b.id}
-                        className="bg-green-50 rounded-xl p-4 shadow flex flex-col sm:flex-row sm:items-center gap-2 border border-green-100"
+                        className="bg-[#e3f1e7] rounded-xl p-4 shadow flex flex-col sm:flex-row sm:items-center gap-2 border border-[#e3f1e7]"
                       >
                         <div className="flex-1">
-                          <div className="text-green-900 font-semibold text-sm">
+                          <div className="text-[#286a3a] font-semibold text-sm">
                             {b.date} at {b.time} ({b.duration}h)
                           </div>
                           <div className="text-xs text-gray-500">
@@ -180,7 +180,7 @@ export default function PlayerDashboard() {
               )}
             </div>
             <div>
-              <h2 className="text-xl font-bold text-green-700 mt-8 mb-2">
+              <h2 className="text-xl font-bold text-[#286a3a] mt-8 mb-2">
                 Past & Cancelled Bookings
               </h2>
               {past.length === 0 ? (

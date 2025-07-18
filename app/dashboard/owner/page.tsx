@@ -103,17 +103,17 @@ export default function OwnerDashboard() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-300 via-lime-200 to-green-100 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#286a3a] px-4">
       <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl px-8 py-10 flex flex-col gap-8 animate-fade-in my-16">
         <div className="flex justify-start mb-4">
           <button
-            className="text-green-700 hover:underline text-sm font-semibold"
+            className="text-[#286a3a] hover:underline text-sm font-semibold"
             onClick={() => router.push("/courts")}
           >
             ← Back to Browse
           </button>
         </div>
-        <h1 className="text-3xl font-extrabold text-green-800 mb-2 text-center">
+        <h1 className="text-3xl font-extrabold text-[#286a3a] mb-2 text-center">
           Owner Dashboard
         </h1>
         <p className="text-gray-600 text-center mb-2">
@@ -121,7 +121,7 @@ export default function OwnerDashboard() {
         </p>
         <div className="flex justify-center mb-4">
           <button
-            className="bg-green-100 text-green-700 px-4 py-2 rounded-lg font-semibold text-sm shadow hover:bg-green-200 transition"
+            className="bg-[#e3f1e7] text-[#286a3a] px-4 py-2 rounded-lg font-semibold text-sm shadow hover:bg-[#d1e7d6] transition"
             onClick={() => router.push("/create-listing")}
           >
             + Add New Court
@@ -142,7 +142,7 @@ export default function OwnerDashboard() {
             {courts.map((court) => (
               <div
                 key={court.id}
-                className="bg-green-50 rounded-2xl p-6 shadow border border-green-100"
+                className="bg-[#e3f1e7] rounded-2xl p-6 shadow border border-[#e3f1e7]"
               >
                 <div className="flex items-center gap-4 mb-3">
                   <div className="w-20 h-20 relative rounded-xl overflow-hidden shadow">
@@ -160,7 +160,7 @@ export default function OwnerDashboard() {
                     )}
                   </div>
                   <div>
-                    <div className="text-lg font-bold text-green-900">
+                    <div className="text-lg font-bold text-[#286a3a]">
                       {court.name}
                     </div>
                     <div className="text-gray-600 text-sm">
@@ -184,7 +184,7 @@ export default function OwnerDashboard() {
                   </div>
                 </div>
                 <div>
-                  <h3 className="text-md font-semibold text-green-700 mb-2">
+                  <h3 className="text-md font-semibold text-[#286a3a] mb-2">
                     Bookings
                   </h3>
                   {bookings.filter((b) => b.courtId === court.id).length ===
@@ -202,10 +202,10 @@ export default function OwnerDashboard() {
                         .map((b) => (
                           <li
                             key={b.id}
-                            className="bg-white rounded-lg p-3 shadow border border-green-50 flex flex-col sm:flex-row sm:items-center gap-2"
+                            className="bg-white rounded-lg p-3 shadow border border-[#e3f1e7] flex flex-col sm:flex-row sm:items-center gap-2"
                           >
                             <div className="flex-1">
-                              <div className="text-green-900 font-semibold text-sm">
+                              <div className="text-[#286a3a] font-semibold text-sm">
                                 {b.date} at {b.time} ({b.duration}h)
                               </div>
                               <div className="text-xs text-gray-500">

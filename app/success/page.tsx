@@ -12,8 +12,8 @@ export default function SuccessPage() {
   }, [sessionId]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-300 via-lime-200 to-green-100">
-      <h1 className="text-2xl font-bold text-green-600">
+    <div className="min-h-screen flex items-center justify-center bg-[#286a3a]">
+      <h1 className="text-2xl font-bold text-[#286a3a] bg-white px-6 py-4 rounded-lg shadow">
         Payment successful! Booking confirmed.
       </h1>
     </div>
