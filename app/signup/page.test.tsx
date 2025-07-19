@@ -11,6 +11,12 @@ jest.mock("firebase/storage", () => ({
   getStorage: jest.fn(),
 }));
 
+jest.mock("@/lib/firebase", () => ({
+  auth: {},
+  db: {},
+  getStorageInstance: jest.fn(() => ({})),
+}));
+
 const mockPush = jest.fn();
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),

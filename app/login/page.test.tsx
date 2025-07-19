@@ -21,6 +21,12 @@ jest.mock("firebase/storage", () => ({
   getStorage: jest.fn(),
 }));
 
+jest.mock("@/lib/firebase", () => ({
+  auth: {},
+  db: {},
+  getStorageInstance: jest.fn(() => ({})),
+}));
+
 jest.mock("@/src/lib/AuthContext", () => ({
   useAuth: () => ({
     user: { email: "test@example.com", uid: "testuid" },

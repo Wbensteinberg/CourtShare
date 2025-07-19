@@ -17,4 +17,13 @@ const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
 export const db = getFirestore(app);
-export const storage = getStorage(app);
+
+// Lazy load storage to avoid permissions issues before authentication
+let storageInstance: ReturnType<typeof getStorage> | null = null;
+
+export const getStorageInstance = () => {
+  if (!storageInstance) {
+    storageInstance = getStorage(app);
+  }
+  return storageInstance;
+};

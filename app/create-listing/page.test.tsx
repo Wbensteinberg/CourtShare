@@ -16,6 +16,12 @@ jest.mock("firebase/storage", () => ({
   ),
 }));
 
+// Mock the getStorageInstance function
+jest.mock("@/lib/firebase", () => ({
+  db: {},
+  getStorageInstance: jest.fn(() => ({})),
+}));
+
 // Mock Firebase firestore
 jest.mock("firebase/firestore", () => ({
   getFirestore: jest.fn(),

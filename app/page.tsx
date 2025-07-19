@@ -25,8 +25,14 @@ export default function HomePage() {
   };
 
   useEffect(() => {
-    router.replace("/courts");
-  }, [router]);
+    if (!loading) {
+      if (user) {
+        router.replace("/courts");
+      } else {
+        router.replace("/login");
+      }
+    }
+  }, [user, loading, router]);
 
   return null;
 }

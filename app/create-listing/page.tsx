@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { db, storage } from "@/lib/firebase";
+import { db, getStorageInstance } from "@/lib/firebase";
 import { collection, addDoc, Timestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuth } from "@/lib/AuthContext";
@@ -40,6 +40,7 @@ export default function CreateListingPage() {
     setLoading(true);
     try {
       // 1. Upload image to Firebase Storage
+      const storage = getStorageInstance();
       const imageRef = ref(storage, `courts/${Date.now()}_${image.name}`);
       await uploadBytes(imageRef, image);
       const imageUrl = await getDownloadURL(imageRef);

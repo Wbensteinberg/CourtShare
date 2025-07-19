@@ -48,13 +48,18 @@ export default function CourtsPage() {
         })) as Court[];
         setCourts(courtsData);
       } catch (err: any) {
-        setError(err.message || "Failed to fetch courts");
+        console.error("Error fetching courts:", err);
+        setError("Failed to fetch courts. Please try again later.");
       } finally {
         setLoading(false);
       }
     };
-    fetchCourts();
-  }, []);
+    
+    // Only fetch courts if user is authenticated or if we're not in loading state
+    if (!authLoading) {
+      fetchCourts();
+    }
+  }, [authLoading]);
 
   const handleLogout = async () => {
     await signOut(auth);

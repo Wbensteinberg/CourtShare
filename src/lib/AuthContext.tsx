@@ -34,11 +34,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(firebaseUser);
       setLoading(false);
       if (firebaseUser) {
-        // Fetch isOwner from Firestore
-        const { getDoc, doc } = await import("firebase/firestore");
-        const { db } = await import("./firebase");
-        const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
-        setIsOwner(userDoc.exists() ? !!userDoc.data().isOwner : false);
+        try {
+          // Fetch isOwner from Firestore
+          const { getDoc, doc } = await import("firebase/firestore");
+          const { db } = await import("./firebase");
+          const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+          setIsOwner(userDoc.exists() ? !!userDoc.data().isOwner : false);
+        } catch (error) {
+          console.error("Error fetching user data:", error);
+          setIsOwner(false);
+        }
       } else {
         setIsOwner(false);
       }
