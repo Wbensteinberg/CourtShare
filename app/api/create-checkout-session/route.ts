@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
         time,
         duration,
       },
-      success_url: `${req.nextUrl.origin}/success?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${req.nextUrl.origin}/dashboard/player?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${req.nextUrl.origin}/cancel`,
     });
 

@@ -32,7 +32,7 @@ export default function CourtDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isOwner } = useAuth();
 
   // Booking state
   const [date, setDate] = useState<Date | null>(null);
@@ -190,7 +190,22 @@ export default function CourtDetailPage() {
           {court.description}
         </p>
         {/* Booking UI */}
-        {user ? (
+        {user && isOwner ? (
+          <div className="bg-white p-6 rounded-2xl shadow-md max-w-md mx-auto mt-4 mb-8 space-y-4 border border-[#e3f1e7]">
+            <h3 className="text-xl font-bold text-[#286a3a] mb-2 text-center">
+              Owner Mode Active
+            </h3>
+            <p className="text-gray-600 text-center mb-4">
+              You're currently in owner mode. Switch to player mode to book courts.
+            </p>
+            <button
+              className="w-full bg-[#286a3a] text-white py-3 rounded-lg font-semibold text-lg shadow-md hover:bg-[#20542e] focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition"
+              onClick={() => router.push("/dashboard/owner")}
+            >
+              Go to Owner Dashboard
+            </button>
+          </div>
+        ) : user && !isOwner ? (
           <div className="bg-white p-6 rounded-2xl shadow-md max-w-md mx-auto mt-4 mb-8 space-y-4 border border-[#e3f1e7]">
             <h3 className="text-xl font-bold text-[#286a3a] mb-2 text-center">
               Book This Court

@@ -97,35 +97,65 @@ export default function CourtsPage() {
       <main className="w-full bg-white">
         <div className="container mx-auto px-4 py-8">
           <SearchSection />
-          {loading && (
-            <p className="text-center text-gray-600 mt-8">Loading courts...</p>
-          )}
-          {error && <p className="text-center text-red-500 mt-8">{error}</p>}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 mt-8">
-            {courts.map((court) => (
-              <CourtCard
-                key={court.id}
-                court={{
-                  id: court.id,
-                  name: court.name,
-                  location: court.location,
-                  price: court.price,
-                  rating: 4.8, // Default or fetch if available
-                  reviewCount: 42, // Default or fetch if available
-                  image:
-                    court.imageUrl ||
-                    "https://placehold.co/400x300?text=Tennis+Court",
-                  surface: "Hard Court", // Default or fetch if available
-                  indoor: false, // Default or fetch if available
-                  amenities: ["Parking", "WiFi"], // Default or fetch if available
-                  availability: "Available", // Default or fetch if available
-                }}
-                // Optionally, add onClick handlers for View Details/Book Now
-              />
-            ))}
-          </div>
-          {!loading && courts.length === 0 && !error && (
-            <p className="text-center text-gray-500 mt-12">No courts found.</p>
+          {isOwner ? (
+            <div className="text-center py-12">
+              <div className="max-w-md mx-auto">
+                <div className="text-6xl mb-4">🏢</div>
+                <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                  Owner Mode Active
+                </h2>
+                <p className="text-gray-600 mb-6">
+                  You're currently in owner mode. Switch to player mode to view and book courts.
+                </p>
+                <div className="space-y-3">
+                  <button
+                    onClick={handleToggleRole}
+                    className="w-full bg-[#286a3a] text-white py-3 px-6 rounded-lg font-semibold hover:bg-[#20542e] transition"
+                  >
+                    Switch to Player Mode
+                  </button>
+                  <button
+                    onClick={() => router.push("/dashboard/owner")}
+                    className="w-full bg-gray-100 text-gray-700 py-3 px-6 rounded-lg font-semibold hover:bg-gray-200 transition"
+                  >
+                    Go to Owner Dashboard
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {loading && (
+                <p className="text-center text-gray-600 mt-8">Loading courts...</p>
+              )}
+              {error && <p className="text-center text-red-500 mt-8">{error}</p>}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 mt-8">
+                {courts.map((court) => (
+                  <CourtCard
+                    key={court.id}
+                    court={{
+                      id: court.id,
+                      name: court.name,
+                      location: court.location,
+                      price: court.price,
+                      rating: 4.8, // Default or fetch if available
+                      reviewCount: 42, // Default or fetch if available
+                      image:
+                        court.imageUrl ||
+                        "https://placehold.co/400x300?text=Tennis+Court",
+                      surface: "Hard Court", // Default or fetch if available
+                      indoor: false, // Default or fetch if available
+                      amenities: ["Parking", "WiFi"], // Default or fetch if available
+                      availability: "Available", // Default or fetch if available
+                    }}
+                    // Optionally, add onClick handlers for View Details/Book Now
+                  />
+                ))}
+              </div>
+              {!loading && courts.length === 0 && !error && (
+                <p className="text-center text-gray-500 mt-12">No courts found.</p>
+              )}
+            </>
           )}
         </div>
       </main>

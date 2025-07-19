@@ -150,7 +150,7 @@ export default function PlayerDashboard() {
                     return (
                       <li
                         key={b.id}
-                        className="bg-[#e3f1e7] rounded-xl p-4 shadow flex flex-col sm:flex-row sm:items-center gap-2 border border-[#e3f1e7]"
+                        className="bg-[#e3f1e7] rounded-xl p-4 shadow flex flex-col sm:flex-row sm:items-center gap-4 border border-[#e3f1e7]"
                       >
                         <div className="flex-1">
                           <div className="text-[#286a3a] font-semibold text-sm">
@@ -164,6 +164,15 @@ export default function PlayerDashboard() {
                             Status: {b.status}
                           </div>
                         </div>
+                        {court?.imageUrl && (
+                          <div className="flex-shrink-0">
+                            <img
+                              src={court.imageUrl}
+                              alt={court.name}
+                              className="w-16 h-16 object-cover rounded-lg shadow-sm"
+                            />
+                          </div>
+                        )}
                         {b.status !== "cancelled" && (
                           <button
                             className="bg-red-100 text-red-700 px-3 py-1 rounded font-semibold text-xs shadow hover:bg-red-200 transition disabled:opacity-60"
@@ -192,7 +201,7 @@ export default function PlayerDashboard() {
                     return (
                       <li
                         key={b.id}
-                        className="bg-gray-50 rounded-xl p-4 shadow flex flex-col sm:flex-row sm:items-center gap-2 border border-gray-100 opacity-70"
+                        className="bg-gray-50 rounded-xl p-4 shadow flex flex-col sm:flex-row sm:items-center gap-4 border border-gray-100 opacity-70"
                       >
                         <div className="flex-1">
                           <div className="text-gray-900 font-semibold text-sm">
@@ -206,6 +215,15 @@ export default function PlayerDashboard() {
                             Status: {b.status}
                           </div>
                         </div>
+                        {court?.imageUrl && (
+                          <div className="flex-shrink-0">
+                            <img
+                              src={court.imageUrl}
+                              alt={court.name}
+                              className="w-16 h-16 object-cover rounded-lg shadow-sm opacity-70"
+                            />
+                          </div>
+                        )}
                       </li>
                     );
                   })}
