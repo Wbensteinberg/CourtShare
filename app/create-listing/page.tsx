@@ -12,7 +12,7 @@ export default function CreateListingPage() {
   const [location, setLocation] = useState("");
   const [price, setPrice] = useState("");
   const [description, setDescription] = useState("");
-  const [image, setImage] = useState<File | null>(null);
+  const [images, setImages] = useState<File[]>([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -20,17 +20,22 @@ export default function CreateListingPage() {
   const { user } = useAuth();
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setImage(e.target.files[0]);
+    if (e.target.files) {
+      const selectedFiles = Array.from(e.target.files);
+      setImages(prev => [...prev, ...selectedFiles]);
     }
+  };
+
+  const removeImage = (index: number) => {
+    setImages(images.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setSuccess(false);
-    if (!name || !location || !price || !description || !image) {
-      setError("Please fill in all fields and upload an image.");
+    if (!name || !location || !price || !description || images.length === 0) {
+      setError("Please fill in all fields and upload at least one image.");
       return;
     }
     if (!user) {
@@ -39,18 +44,25 @@ export default function CreateListingPage() {
     }
     setLoading(true);
     try {
-      // 1. Upload image to Firebase Storage
+      // 1. Upload all images to Firebase Storage
       const storage = getStorageInstance();
-      const imageRef = ref(storage, `courts/${Date.now()}_${image.name}`);
-      await uploadBytes(imageRef, image);
-      const imageUrl = await getDownloadURL(imageRef);
+      const imageUrls: string[] = [];
+      
+      for (const image of images) {
+        const imageRef = ref(storage, `courts/${Date.now()}_${image.name}`);
+        await uploadBytes(imageRef, image);
+        const imageUrl = await getDownloadURL(imageRef);
+        imageUrls.push(imageUrl);
+      }
+      
       // 2. Add court data to Firestore, including ownerId
       await addDoc(collection(db, "courts"), {
         name,
         location,
         price: Number(price),
         description,
-        imageUrl,
+        imageUrl: imageUrls[0], // Keep first image as main image for compatibility
+        imageUrls: imageUrls, // Store all image URLs
         createdAt: Timestamp.now(),
         ownerId: user.uid,
       });
@@ -59,7 +71,7 @@ export default function CreateListingPage() {
       setLocation("");
       setPrice("");
       setDescription("");
-      setImage(null);
+      setImages([]);
       // Optionally redirect or show success
       router.push("/dashboard/owner");
     } catch (err: any) {
@@ -120,13 +132,42 @@ export default function CreateListingPage() {
             rows={4}
             required
           />
-          <input
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 text-gray-900 caret-gray-900 file:bg-[#e3f1e7] file:border-0 file:rounded-lg file:px-4 file:py-2 file:text-[#286a3a] file:font-semibold"
-            type="file"
-            accept="image/*"
-            onChange={handleImageChange}
-            required
-          />
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {images.length === 0 ? "Upload Images" : `Add More Images (${images.length} selected)`}
+            </label>
+            <input
+              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 text-gray-900 caret-gray-900 file:bg-[#e3f1e7] file:border-0 file:rounded-lg file:px-4 file:py-2 file:text-[#286a3a] file:font-semibold"
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleImageChange}
+              required={images.length === 0}
+            />
+          </div>
+          {images.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-sm text-gray-600">Selected images ({images.length}):</p>
+              <div className="grid grid-cols-2 gap-2">
+                {images.map((image, index) => (
+                  <div key={index} className="relative">
+                    <img
+                      src={URL.createObjectURL(image)}
+                      alt={`Preview ${index + 1}`}
+                      className="w-full h-24 object-cover rounded-lg"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(index)}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {error && (
             <p className="text-red-500 text-sm mb-2 text-center">{error}</p>
           )}

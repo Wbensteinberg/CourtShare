@@ -45,7 +45,7 @@ const SearchSection = () => {
   };
 
   return (
-    <div className="w-full space-y-6 -mt-12 md:-mt-16 z-10 relative flex flex-col items-center mt-8">
+    <div className="w-full space-y-6 -mt-12 md:-mt-16 z-10 relative flex flex-col items-center mt-8" data-search-section>
       {/* Main Search Card */}
       <Card className="bg-white border border-gray-300 shadow-md rounded-xl w-full max-w-6xl">
         <CardContent className="p-6">

@@ -24,6 +24,7 @@ interface Court {
   price: number;
   description: string;
   imageUrl: string;
+  imageUrls?: string[];
 }
 
 export default function CourtDetailPage() {
@@ -45,6 +46,7 @@ export default function CourtDetailPage() {
   >("idle");
   const [bookingsForDate, setBookingsForDate] = useState<any[]>([]);
   const [fetchingBookings, setFetchingBookings] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // Compute all blocked times for the selected date
   const blockedTimes = new Set<string>();
@@ -163,14 +165,43 @@ export default function CourtDetailPage() {
       <div className="w-full max-w-2xl bg-white/80 backdrop-blur-lg rounded-3xl shadow-2xl p-8 mx-auto">
         <div className="w-full h-72 relative mb-6 rounded-2xl overflow-hidden shadow-md">
           {court.imageUrl ? (
-            <Image
-              src={court.imageUrl}
-              alt={court.name}
-              fill
-              className="object-cover rounded-2xl"
-              sizes="(max-width: 768px) 100vw, 50vw"
-              priority
-            />
+            <>
+              <Image
+                src={court.imageUrls && court.imageUrls.length > 0 ? court.imageUrls[currentImageIndex] : court.imageUrl}
+                alt={court.name}
+                fill
+                className="object-cover rounded-2xl"
+                sizes="(max-width: 768px) 100vw, 50vw"
+                priority
+              />
+              {court.imageUrls && court.imageUrls.length > 1 && (
+                <>
+                  <button
+                    onClick={() => setCurrentImageIndex(prev => prev > 0 ? prev - 1 : court.imageUrls!.length - 1)}
+                    className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-black/70 transition"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    onClick={() => setCurrentImageIndex(prev => prev < court.imageUrls!.length - 1 ? prev + 1 : 0)}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-black/70 transition"
+                  >
+                    ›
+                  </button>
+                  <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex space-x-1">
+                    {court.imageUrls.map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setCurrentImageIndex(index)}
+                        className={`w-2 h-2 rounded-full transition ${
+                          index === currentImageIndex ? 'bg-white' : 'bg-white/50'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
           ) : (
             <div className="w-full h-full bg-gray-200 flex items-center justify-center rounded-2xl">
               <span className="text-6xl">🎾</span>

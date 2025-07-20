@@ -110,13 +110,13 @@ export default function CourtsPage() {
                 <div className="space-y-3">
                   <button
                     onClick={handleToggleRole}
-                    className="w-full bg-[#286a3a] text-white py-3 px-6 rounded-lg font-semibold hover:bg-[#20542e] transition"
+                    className="w-full bg-[#286a3a] text-white py-3 px-6 rounded-lg font-semibold hover:bg-[#20542e] transition hover:cursor-pointer"
                   >
                     Switch to Player Mode
                   </button>
                   <button
                     onClick={() => router.push("/dashboard/owner")}
-                    className="w-full bg-gray-100 text-gray-700 py-3 px-6 rounded-lg font-semibold hover:bg-gray-200 transition"
+                    className="w-full bg-gray-100 text-gray-700 py-3 px-6 rounded-lg font-semibold hover:bg-gray-200 transition hover:cursor-pointer"
                   >
                     Go to Owner Dashboard
                   </button>

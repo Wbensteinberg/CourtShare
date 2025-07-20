@@ -47,27 +47,39 @@ export default function AppHeader() {
       <div className="relative h-16 flex items-center px-4 w-full max-w-screen-2xl mx-auto">
         {/* Left: Logo (in container) */}
         <div
-          className="flex items-center min-w-[160px] cursor-pointer"
+          className="flex items-center cursor-pointer"
           onClick={() => router.push("/courts")}
         >
-          <div className="h-8 w-8 rounded-lg bg-gradient-primary flex items-center justify-center">
-            <MapPin className="h-5 w-5 text-white" />
-          </div>
-          <span className="text-xl font-bold text-primary ml-2">
+          <span className="text-xl font-bold text-primary hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium rounded-lg px-2 py-1">
             CourtShare
           </span>
         </div>
         {/* Center: Navigation (absolutely centered on desktop) */}
         <nav className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 space-x-8">
-          <Button variant="ghost" onClick={() => router.push("/courts")}>
-            Find Courts
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => router.push("/create-listing")}
-          >
-            List Your Court
-          </Button>
+          {!isOwner && (
+            <Button
+              variant="ghost"
+              className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
+              onClick={() => {
+                // Scroll to search section
+                const searchSection = document.querySelector('[data-search-section]');
+                if (searchSection) {
+                  searchSection.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+            >
+              Find Courts
+            </Button>
+          )}
+          {isOwner && (
+            <Button
+              variant="ghost"
+              className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
+              onClick={() => router.push("/create-listing")}
+            >
+              List Your Court
+            </Button>
+          )}
         </nav>
         {/* Right: Auth/Profile, truly flush right */}
         <div className="hidden md:flex absolute right-0 top-0 h-full items-center justify-end min-w-[260px] space-x-4 pr-4">
@@ -107,7 +119,7 @@ export default function AppHeader() {
                 variant="ghost"
                 size="sm"
                 onClick={handleToggleRole}
-                className="cursor-pointer"
+                className="cursor-pointer hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
               >
                 Switch to {isOwner ? "Player" : "Owner"} Mode
               </Button>
@@ -115,7 +127,7 @@ export default function AppHeader() {
                 variant="ghost"
                 size="sm"
                 onClick={handleLogout}
-                className="ml-2 cursor-pointer"
+                className="ml-2 cursor-pointer hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
               >
                 Log Out
               </Button>
@@ -148,24 +160,34 @@ export default function AppHeader() {
       >
         <div className="container py-4 space-y-4" ref={menuRef}>
           <nav className="flex flex-col space-y-3">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                router.push("/courts");
-                setMenuOpen(false);
-              }}
-            >
-              Find Courts
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                router.push("/create-listing");
-                setMenuOpen(false);
-              }}
-            >
-              List Your Court
-            </Button>
+            {!isOwner && (
+              <Button
+                variant="ghost"
+                className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
+                onClick={() => {
+                  // Scroll to search section
+                  const searchSection = document.querySelector('[data-search-section]');
+                  if (searchSection) {
+                    searchSection.scrollIntoView({ behavior: 'smooth' });
+                  }
+                  setMenuOpen(false);
+                }}
+              >
+                Find Courts
+              </Button>
+            )}
+            {isOwner && (
+              <Button
+                variant="ghost"
+                className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
+                onClick={() => {
+                  router.push("/create-listing");
+                  setMenuOpen(false);
+                }}
+              >
+                List Your Court
+              </Button>
+            )}
           </nav>
           <div className="flex flex-col space-y-2 pt-4 border-t">
             {!user ? (
@@ -212,7 +234,7 @@ export default function AppHeader() {
                   variant="ghost"
                   size="sm"
                   onClick={handleToggleRole}
-                  className="cursor-pointer"
+                  className="cursor-pointer hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
                 >
                   Switch to {isOwner ? "Player" : "Owner"} Mode
                 </Button>
@@ -220,7 +242,7 @@ export default function AppHeader() {
                   variant="ghost"
                   size="sm"
                   onClick={handleLogout}
-                  className="cursor-pointer"
+                  className="cursor-pointer hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
                 >
                   Log Out
                 </Button>
