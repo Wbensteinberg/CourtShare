@@ -36,15 +36,22 @@ export async function POST(req: NextRequest) {
     "[WEBHOOK] Stripe webhook POST handler called at",
     new Date().toISOString()
   );
+  
+  // Log all headers for debugging
+  console.log("[WEBHOOK] Request headers:", Object.fromEntries(req.headers.entries()));
+  
   const sig = req.headers.get("stripe-signature");
   let event: Stripe.Event;
 
   // Read the raw body for signature verification
   const rawBody = await req.text();
+  console.log("[WEBHOOK] Raw body length:", rawBody.length);
 
   try {
     if (!sig || !endpointSecret) {
       console.error("[WEBHOOK] Missing Stripe signature or webhook secret");
+      console.error("[WEBHOOK] sig:", sig);
+      console.error("[WEBHOOK] endpointSecret exists:", !!endpointSecret);
       return NextResponse.json(
         { error: "Missing Stripe signature or webhook secret" },
         { status: 400 }
@@ -86,10 +93,12 @@ export async function POST(req: NextRequest) {
           sessionId: session.id,
         };
         console.log("[WEBHOOK] Booking data to write:", bookingData);
-        await addDoc(collection(db, "bookings"), bookingData);
+        const bookingRef = await addDoc(collection(db, "bookings"), bookingData);
         console.log(
           "[WEBHOOK] Booking created in Firestore for session:",
-          session.id
+          session.id,
+          "with booking ID:",
+          bookingRef.id
         );
       } catch (err: any) {
         console.error(

@@ -39,6 +39,7 @@ export default function PlayerDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [showPastBookings, setShowPastBookings] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -150,7 +151,8 @@ export default function PlayerDashboard() {
                     return (
                       <li
                         key={b.id}
-                        className="bg-[#e3f1e7] rounded-xl p-4 shadow flex flex-col sm:flex-row sm:items-center gap-4 border border-[#e3f1e7]"
+                        className="bg-[#e3f1e7] rounded-xl p-4 shadow flex flex-col sm:flex-row sm:items-center gap-4 border border-[#e3f1e7] cursor-pointer hover:bg-[#d0e8d8] transition-colors"
+                        onClick={() => router.push(`/booking/${b.id}`)}
                       >
                         <div className="flex-1">
                           <div className="text-[#286a3a] font-semibold text-sm">
@@ -173,15 +175,29 @@ export default function PlayerDashboard() {
                             />
                           </div>
                         )}
-                        {b.status !== "cancelled" && (
+                        <div className="flex gap-2">
                           <button
-                            className="bg-red-100 text-red-700 px-3 py-1 rounded font-semibold text-xs shadow hover:bg-red-200 transition disabled:opacity-60"
-                            onClick={() => handleCancel(b.id)}
-                            disabled={cancelling === b.id}
+                            className="bg-[#286a3a] text-white px-3 py-1 rounded font-semibold text-xs shadow hover:bg-[#20542e] transition hover:cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/booking/${b.id}`);
+                            }}
                           >
-                            {cancelling === b.id ? "Cancelling..." : "Cancel"}
+                            View Details
                           </button>
-                        )}
+                          {b.status !== "cancelled" && (
+                            <button
+                              className="bg-red-100 text-red-700 px-3 py-1 rounded font-semibold text-xs shadow hover:bg-red-200 transition disabled:opacity-60 hover:cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCancel(b.id);
+                              }}
+                              disabled={cancelling === b.id}
+                            >
+                              {cancelling === b.id ? "Cancelling..." : "Cancel"}
+                            </button>
+                          )}
+                        </div>
                       </li>
                     );
                   })}
@@ -189,45 +205,56 @@ export default function PlayerDashboard() {
               )}
             </div>
             <div>
-              <h2 className="text-xl font-bold text-[#286a3a] mt-8 mb-2">
-                Past & Cancelled Bookings
-              </h2>
-              {past.length === 0 ? (
-                <p className="text-gray-400 text-sm">No past bookings.</p>
-              ) : (
-                <ul className="space-y-3">
-                  {past.map((b) => {
-                    const court = courts[b.courtId];
-                    return (
-                      <li
-                        key={b.id}
-                        className="bg-gray-50 rounded-xl p-4 shadow flex flex-col sm:flex-row sm:items-center gap-4 border border-gray-100 opacity-70"
-                      >
-                        <div className="flex-1">
-                          <div className="text-gray-900 font-semibold text-sm">
-                            {b.date} at {b.time} ({b.duration}h)
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            Court: {court ? court.name : b.courtId} (
-                            {court ? court.location : ""})
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            Status: {b.status}
-                          </div>
-                        </div>
-                        {court?.imageUrl && (
-                          <div className="flex-shrink-0">
-                            <img
-                              src={court.imageUrl}
-                              alt={court.name}
-                              className="w-16 h-16 object-cover rounded-lg shadow-sm opacity-70"
-                            />
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
+              <button
+                onClick={() => setShowPastBookings(!showPastBookings)}
+                className="flex items-center justify-between w-full text-xl font-bold text-[#286a3a] mt-8 mb-2 p-2 rounded-lg hover:bg-gray-50 transition-colors hover:cursor-pointer"
+              >
+                <span>Past Bookings</span>
+                <span className={`transform transition-transform ${showPastBookings ? 'rotate-180' : ''}`}>
+                  ▼
+                </span>
+              </button>
+              {showPastBookings && (
+                <>
+                  {past.length === 0 ? (
+                    <p className="text-gray-400 text-sm">No past bookings.</p>
+                  ) : (
+                    <ul className="space-y-3">
+                      {past.map((b) => {
+                        const court = courts[b.courtId];
+                        return (
+                          <li
+                            key={b.id}
+                            className="bg-gray-50 rounded-xl p-4 shadow flex flex-col sm:flex-row sm:items-center gap-4 border border-gray-100 opacity-70 cursor-pointer hover:bg-gray-100 transition-colors"
+                            onClick={() => router.push(`/booking/${b.id}`)}
+                          >
+                            <div className="flex-1">
+                              <div className="text-gray-900 font-semibold text-sm">
+                                {b.date} at {b.time} ({b.duration}h)
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                Court: {court ? court.name : b.courtId} (
+                                {court ? court.location : ""})
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                Status: {b.status}
+                              </div>
+                            </div>
+                            {court?.imageUrl && (
+                              <div className="flex-shrink-0">
+                                <img
+                                  src={court.imageUrl}
+                                  alt={court.name}
+                                  className="w-16 h-16 object-cover rounded-lg shadow-sm opacity-70"
+                                />
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </>
               )}
             </div>
           </>

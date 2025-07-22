@@ -169,7 +169,7 @@ export default function OwnerDashboard() {
                   </div>
                   <div className="flex gap-2 ml-auto">
                     <button
-                      className="bg-blue-100 text-blue-800 px-3 py-1 rounded font-semibold text-xs shadow hover:bg-blue-200 transition"
+                      className="bg-blue-100 text-blue-800 px-3 py-1 rounded font-semibold text-xs shadow hover:bg-blue-200 transition hover:cursor-pointer"
                       onClick={() => router.push(`/edit-listing/${court.id}`)}
                     >
                       Edit

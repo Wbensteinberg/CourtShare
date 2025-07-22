@@ -10,6 +10,8 @@ import { useAuth } from "@/lib/AuthContext";
 export default function CreateListingPage() {
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
+  const [address, setAddress] = useState("");
+  const [accessInstructions, setAccessInstructions] = useState("");
   const [price, setPrice] = useState("");
   const [description, setDescription] = useState("");
   const [images, setImages] = useState<File[]>([]);
@@ -34,7 +36,7 @@ export default function CreateListingPage() {
     e.preventDefault();
     setError("");
     setSuccess(false);
-    if (!name || !location || !price || !description || images.length === 0) {
+    if (!name || !location || !address || !price || !description || images.length === 0) {
       setError("Please fill in all fields and upload at least one image.");
       return;
     }
@@ -59,6 +61,8 @@ export default function CreateListingPage() {
       await addDoc(collection(db, "courts"), {
         name,
         location,
+        address,
+        accessInstructions,
         price: Number(price),
         description,
         imageUrl: imageUrls[0], // Keep first image as main image for compatibility
@@ -69,6 +73,8 @@ export default function CreateListingPage() {
       setSuccess(true);
       setName("");
       setLocation("");
+      setAddress("");
+      setAccessInstructions("");
       setPrice("");
       setDescription("");
       setImages([]);
@@ -114,6 +120,21 @@ export default function CreateListingPage() {
             value={location}
             onChange={(e) => setLocation(e.target.value)}
             required
+          />
+          <input
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900"
+            type="text"
+            placeholder="Full Address"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            required
+          />
+          <textarea
+            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900 resize-none"
+            placeholder="Access Instructions (e.g., gate code, building access, parking info)"
+            value={accessInstructions}
+            onChange={(e) => setAccessInstructions(e.target.value)}
+            rows={3}
           />
           <input
             className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900"

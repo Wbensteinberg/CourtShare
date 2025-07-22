@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
             product_data: {
               name: `Court Booking: ${date} at ${time}`,
             },
-            unit_amount: price * 100, // price in cents
+            unit_amount: price * duration * 100, // price in cents (price per hour * duration)
           },
           quantity: 1,
         },
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
         time,
         duration,
       },
-      success_url: `${req.nextUrl.origin}/dashboard/player?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${req.nextUrl.origin}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${req.nextUrl.origin}/cancel`,
     });
 
