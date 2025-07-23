@@ -97,13 +97,15 @@ export default function AppHeader() {
               <Button
                 variant="ghost"
                 size="sm"
+                className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
                 onClick={() => router.push("/login")}
               >
                 Sign In
               </Button>
               <Button
-                variant="tennis"
+                variant="ghost"
                 size="sm"
+                className="bg-green-700 text-white hover:bg-green-800 transition-colors duration-200 font-medium hover:cursor-pointer"
                 onClick={() => router.push("/signup")}
               >
                 Sign Up
@@ -216,7 +218,7 @@ export default function AppHeader() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="justify-start"
+                  className="justify-start hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
                   onClick={() => {
                     router.push("/login");
                     setMenuOpen(false);
@@ -225,8 +227,9 @@ export default function AppHeader() {
                   Sign In
                 </Button>
                 <Button
-                  variant="tennis"
+                  variant="ghost"
                   size="sm"
+                  className="bg-green-700 text-white hover:bg-green-800 transition-colors duration-200 font-medium hover:cursor-pointer"
                   onClick={() => {
                     router.push("/signup");
                     setMenuOpen(false);
