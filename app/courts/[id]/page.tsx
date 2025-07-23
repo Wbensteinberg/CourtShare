@@ -222,26 +222,6 @@ export default function CourtDetailPage() {
         <p className="text-gray-700 text-base mb-6 text-center whitespace-pre-line">
           {court.description}
         </p>
-        {court.address && (
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold text-[#286a3a] mb-2 text-center">
-              Address
-            </h3>
-            <p className="text-gray-700 text-base text-center">
-              {court.address}
-            </p>
-          </div>
-        )}
-        {court.accessInstructions && (
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold text-[#286a3a] mb-2 text-center">
-              Access Instructions
-            </h3>
-            <p className="text-gray-700 text-base text-center whitespace-pre-line">
-              {court.accessInstructions}
-            </p>
-          </div>
-        )}
         {/* Booking UI */}
         {user && isOwner ? (
           <div className="bg-white p-6 rounded-2xl shadow-md max-w-md mx-auto mt-4 mb-8 space-y-4 border border-[#e3f1e7]">

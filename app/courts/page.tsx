@@ -110,7 +110,7 @@ export default function CourtsPage() {
                 <div className="space-y-3">
                   <button
                     onClick={handleToggleRole}
-                    className="w-full bg-[#286a3a] text-white py-3 px-6 rounded-lg font-semibold hover:bg-[#20542e] transition hover:cursor-pointer"
+                    className="w-full bg-green-700 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-800 transition hover:cursor-pointer"
                   >
                     Switch to Player Mode
                   </button>

@@ -38,6 +38,7 @@ export default function EditListingPage() {
   const [images, setImages] = useState<File[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [removedImages, setRemovedImages] = useState<string[]>([]);
+  const [mainImageIndex, setMainImageIndex] = useState<number>(0);
   
   const router = useRouter();
   const { user } = useAuth();
@@ -78,6 +79,8 @@ export default function EditListingPage() {
         setPrice(courtData.price.toString());
         setDescription(courtData.description);
         setExistingImages(courtData.imageUrls || [courtData.imageUrl]);
+        // Set the main image index to 0 (first image) by default
+        setMainImageIndex(0);
         
       } catch (err: any) {
         setError(err.message || "Failed to fetch court details");
@@ -97,12 +100,24 @@ export default function EditListingPage() {
   };
 
   const removeImage = (index: number) => {
+    const newImageIndex = existingImages.length + index;
     setImages(images.filter((_, i) => i !== index));
+    
+    // Adjust main image index if the removed image was the main image or before it
+    if (newImageIndex <= mainImageIndex) {
+      setMainImageIndex(Math.max(0, mainImageIndex - 1));
+    }
   };
 
   const removeExistingImage = (imageUrl: string) => {
+    const imageIndex = existingImages.indexOf(imageUrl);
     setExistingImages(existingImages.filter(img => img !== imageUrl));
     setRemovedImages([...removedImages, imageUrl]);
+    
+    // Adjust main image index if the removed image was the main image or before it
+    if (imageIndex <= mainImageIndex) {
+      setMainImageIndex(Math.max(0, mainImageIndex - 1));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -142,6 +157,9 @@ export default function EditListingPage() {
         return;
       }
       
+      // Use the selected main image
+      const mainImageUrl = finalImageUrls[mainImageIndex] || finalImageUrls[0];
+      
       // Update court data in Firestore
       await updateDoc(doc(db, "courts", courtId as string), {
         name,
@@ -150,7 +168,7 @@ export default function EditListingPage() {
         accessInstructions,
         price: Number(price),
         description,
-        imageUrl: finalImageUrls[0], // Keep first image as main image
+        imageUrl: mainImageUrl, // Use selected main image
         imageUrls: finalImageUrls,
       });
       
@@ -294,13 +312,16 @@ export default function EditListingPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Current Images ({existingImages.length})
               </label>
+              <p className="text-xs text-gray-500 mb-2">
+                Click "Set as Main" to choose which photo appears first in your listing
+              </p>
               <div className="grid grid-cols-2 gap-2">
                 {existingImages.map((imageUrl, index) => (
                   <div key={index} className="relative">
                     <img
                       src={imageUrl}
                       alt={`Current ${index + 1}`}
-                      className="w-full h-24 object-cover rounded-lg"
+                      className={`w-full h-24 object-cover rounded-lg ${mainImageIndex === index ? 'ring-2 ring-[#286a3a]' : ''}`}
                     />
                     <button
                       type="button"
@@ -308,6 +329,22 @@ export default function EditListingPage() {
                       className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
                     >
                       ×
+                    </button>
+                    {mainImageIndex === index && (
+                      <div className="absolute -top-2 -left-2 bg-[#286a3a] text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">
+                        ★
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setMainImageIndex(index)}
+                      className={`absolute bottom-1 left-1 px-2 py-1 rounded text-xs font-medium transition ${
+                        mainImageIndex === index 
+                          ? 'bg-[#286a3a] text-white' 
+                          : 'bg-white/90 text-gray-700 hover:bg-[#286a3a] hover:text-white'
+                      }`}
+                    >
+                      {mainImageIndex === index ? 'Main Photo' : 'Set as Main'}
                     </button>
                   </div>
                 ))}
@@ -333,22 +370,41 @@ export default function EditListingPage() {
             <div className="space-y-2">
               <p className="text-sm text-gray-600">New images ({images.length}):</p>
               <div className="grid grid-cols-2 gap-2">
-                {images.map((image, index) => (
-                  <div key={index} className="relative">
-                    <img
-                      src={URL.createObjectURL(image)}
-                      alt={`New ${index + 1}`}
-                      className="w-full h-24 object-cover rounded-lg"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeImage(index)}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
+                {images.map((image, index) => {
+                  const newImageIndex = existingImages.length + index;
+                  return (
+                    <div key={index} className="relative">
+                      <img
+                        src={URL.createObjectURL(image)}
+                        alt={`New ${index + 1}`}
+                        className={`w-full h-24 object-cover rounded-lg ${mainImageIndex === newImageIndex ? 'ring-2 ring-[#286a3a]' : ''}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeImage(index)}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
+                      >
+                        ×
+                      </button>
+                      {mainImageIndex === newImageIndex && (
+                        <div className="absolute -top-2 -left-2 bg-[#286a3a] text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">
+                          ★
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setMainImageIndex(newImageIndex)}
+                        className={`absolute bottom-1 left-1 px-2 py-1 rounded text-xs font-medium transition ${
+                          mainImageIndex === newImageIndex 
+                            ? 'bg-[#286a3a] text-white' 
+                            : 'bg-white/90 text-gray-700 hover:bg-[#286a3a] hover:text-white'
+                        }`}
+                      >
+                        {mainImageIndex === newImageIndex ? 'Main Photo' : 'Set as Main'}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

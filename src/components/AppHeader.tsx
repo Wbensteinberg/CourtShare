@@ -72,13 +72,22 @@ export default function AppHeader() {
             </Button>
           )}
           {isOwner && (
-            <Button
-              variant="ghost"
-              className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
-              onClick={() => router.push("/create-listing")}
-            >
-              List Your Court
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
+                onClick={() => router.push("/dashboard/owner")}
+              >
+                View Listings
+              </Button>
+              <Button
+                variant="ghost"
+                className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
+                onClick={() => router.push("/create-listing")}
+              >
+                List Your Court
+              </Button>
+            </>
           )}
         </nav>
         {/* Right: Auth/Profile, truly flush right */}
@@ -177,16 +186,28 @@ export default function AppHeader() {
               </Button>
             )}
             {isOwner && (
-              <Button
-                variant="ghost"
-                className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
-                onClick={() => {
-                  router.push("/create-listing");
-                  setMenuOpen(false);
-                }}
-              >
-                List Your Court
-              </Button>
+              <>
+                <Button
+                  variant="ghost"
+                  className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
+                  onClick={() => {
+                    router.push("/dashboard/owner");
+                    setMenuOpen(false);
+                  }}
+                >
+                  View Listings
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
+                  onClick={() => {
+                    router.push("/create-listing");
+                    setMenuOpen(false);
+                  }}
+                >
+                  List Your Court
+                </Button>
+              </>
             )}
           </nav>
           <div className="flex flex-col space-y-2 pt-4 border-t">

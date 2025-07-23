@@ -107,7 +107,7 @@ export default function OwnerDashboard() {
       <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl px-8 py-10 flex flex-col gap-8 animate-fade-in my-16">
         <div className="flex justify-start mb-4">
           <button
-            className="text-[#286a3a] hover:underline text-sm font-semibold"
+            className="text-[#286a3a] hover:underline text-sm font-semibold hover:cursor-pointer"
             onClick={() => router.push("/courts")}
           >
             ← Back to Browse
