@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import { signOut } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Menu, X, MapPin, User } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ export default function AppHeader() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [profileImageUrl, setProfileImageUrl] = useState<string>("");
 
   // Close menu on outside click
   useEffect(() => {
@@ -41,6 +42,30 @@ export default function AppHeader() {
     setIsOwner(newIsOwner);
     setMenuOpen(false);
   };
+
+  // Fetch user profile image
+  useEffect(() => {
+    const fetchProfileImage = async () => {
+      if (!user) {
+        setProfileImageUrl("");
+        return;
+      }
+      
+      try {
+        const userRef = doc(db, "users", user.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const userData = userSnap.data();
+          setProfileImageUrl(userData.profileImageUrl || "");
+        }
+      } catch (error) {
+        console.error("Error fetching profile image:", error);
+        setProfileImageUrl("");
+      }
+    };
+    
+    fetchProfileImage();
+  }, [user]);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -113,27 +138,34 @@ export default function AppHeader() {
             </>
           ) : (
             <>
-              <Button
-                variant="outline"
-                size="icon"
-                className="cursor-pointer"
-                onClick={() =>
-                  router.push(
-                    isOwner ? "/dashboard/owner" : "/dashboard/player"
-                  )
-                }
-                aria-label="Profile"
-              >
-                <User className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleToggleRole}
-                className="cursor-pointer hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
-              >
-                Switch to {isOwner ? "Player" : "Owner"} Mode
-              </Button>
+                                            <Button
+                 variant="ghost"
+                 size="sm"
+                 onClick={handleToggleRole}
+                 className="cursor-pointer hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
+               >
+                 Switch to {isOwner ? "Player" : "Owner"} Mode
+               </Button>
+               <Button
+                 variant="outline"
+                 size="icon"
+                 className="cursor-pointer p-0 overflow-hidden rounded-full w-8 h-8"
+                 onClick={() => router.push("/profile")}
+                 aria-label="Profile"
+               >
+                 {profileImageUrl ? (
+                   <img
+                     src={profileImageUrl}
+                     alt="Profile"
+                     className="w-full h-full rounded-full object-cover"
+                     onError={(e) => {
+                       e.currentTarget.style.display = 'none';
+                       e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                     }}
+                   />
+                 ) : null}
+                 <User className={`h-4 w-4 ${profileImageUrl ? 'hidden' : ''}`} />
+               </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -240,28 +272,37 @@ export default function AppHeader() {
               </>
             ) : (
               <>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="cursor-pointer"
-                  onClick={() => {
-                    router.push(
-                      isOwner ? "/dashboard/owner" : "/dashboard/player"
-                    );
-                    setMenuOpen(false);
-                  }}
-                  aria-label="Profile"
-                >
-                  <User className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleToggleRole}
-                  className="cursor-pointer hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
-                >
-                  Switch to {isOwner ? "Player" : "Owner"} Mode
-                </Button>
+                                                  <Button
+                   variant="ghost"
+                   size="sm"
+                   onClick={handleToggleRole}
+                   className="cursor-pointer hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
+                 >
+                   Switch to {isOwner ? "Player" : "Owner"} Mode
+                 </Button>
+                 <Button
+                   variant="outline"
+                   size="icon"
+                   className="cursor-pointer p-0 overflow-hidden rounded-full w-8 h-8"
+                   onClick={() => {
+                     router.push("/profile");
+                     setMenuOpen(false);
+                   }}
+                   aria-label="Profile"
+                 >
+                   {profileImageUrl ? (
+                     <img
+                       src={profileImageUrl}
+                       alt="Profile"
+                       className="w-full h-full rounded-full object-cover"
+                       onError={(e) => {
+                         e.currentTarget.style.display = 'none';
+                         e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                       }}
+                     />
+                   ) : null}
+                   <User className={`h-4 w-4 ${profileImageUrl ? 'hidden' : ''}`} />
+                 </Button>
                 <Button
                   variant="ghost"
                   size="sm"
