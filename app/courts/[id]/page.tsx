@@ -27,6 +27,8 @@ interface Court {
   description: string;
   imageUrl: string;
   imageUrls?: string[];
+  blockedDates?: string[];
+  blockedTimes?: { [date: string]: string[] };
 }
 
 export default function CourtDetailPage() {
@@ -50,8 +52,17 @@ export default function CourtDetailPage() {
   const [fetchingBookings, setFetchingBookings] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
+  // Filter function for blocked dates
+  const filterBlockedDates = (date: Date) => {
+    if (!court?.blockedDates) return true;
+    const dateString = date.toISOString().split('T')[0];
+    return !court.blockedDates.includes(dateString);
+  };
+
   // Compute all blocked times for the selected date
   const blockedTimes = new Set<string>();
+  
+  // Add existing bookings
   bookingsForDate.forEach((b) => {
     const startHour = parseInt((b.time || "").split(":")[0], 10);
     const dur = Number(b.duration) || 1;
@@ -62,6 +73,15 @@ export default function CourtDetailPage() {
       }
     }
   });
+  
+  // Add court's blocked times for the selected date
+  if (court && date && court.blockedTimes) {
+    const dateString = date.toISOString().split('T')[0];
+    const courtBlockedTimes = court.blockedTimes[dateString] || [];
+    courtBlockedTimes.forEach(time => {
+      blockedTimes.add(time);
+    });
+  }
 
   useEffect(() => {
     if (!id) return;
@@ -256,6 +276,7 @@ export default function CourtDetailPage() {
                   date ? "text-gray-800" : "text-gray-400"
                 } py-2 px-3`}
                 minDate={new Date()}
+                filterDate={filterBlockedDates}
                 wrapperClassName="w-full"
                 popperPlacement="bottom"
                 calendarClassName="cs-datepicker-calendar"
@@ -265,9 +286,11 @@ export default function CourtDetailPage() {
                     d.getDate() === today.getDate() &&
                     d.getMonth() === today.getMonth() &&
                     d.getFullYear() === today.getFullYear();
+                  const isBlocked = !filterBlockedDates(d);
                   return [
                     "cs-datepicker-day",
                     isToday ? "cs-datepicker-today" : "",
+                    isBlocked ? "cs-datepicker-blocked" : "",
                   ].join(" ");
                 }}
                 showPopperArrow={false}

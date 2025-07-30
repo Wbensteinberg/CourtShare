@@ -18,6 +18,12 @@ export default function CreateListingPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  
+  // Availability management state
+  const [blockedDates, setBlockedDates] = useState<string[]>([]);
+  const [blockedTimes, setBlockedTimes] = useState<{ [date: string]: string[] }>({});
+  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [selectedTime, setSelectedTime] = useState<string>("");
   const router = useRouter();
   const { user } = useAuth();
 
@@ -30,6 +36,52 @@ export default function CreateListingPage() {
 
   const removeImage = (index: number) => {
     setImages(images.filter((_, i) => i !== index));
+  };
+
+  // Availability management functions
+  const addBlockedDate = () => {
+    if (selectedDate && !blockedDates.includes(selectedDate)) {
+      setBlockedDates(prev => [...prev, selectedDate]);
+      setSelectedDate("");
+    }
+  };
+
+  const removeBlockedDate = (date: string) => {
+    setBlockedDates(prev => prev.filter(d => d !== date));
+    // Also remove any blocked times for this date
+    const newBlockedTimes = { ...blockedTimes };
+    delete newBlockedTimes[date];
+    setBlockedTimes(newBlockedTimes);
+  };
+
+  const addBlockedTime = () => {
+    if (selectedDate && selectedTime) {
+      const dateTimes = blockedTimes[selectedDate] || [];
+      if (!dateTimes.includes(selectedTime)) {
+        setBlockedTimes(prev => ({
+          ...prev,
+          [selectedDate]: [...dateTimes, selectedTime]
+        }));
+        setSelectedTime("");
+      }
+    }
+  };
+
+  const removeBlockedTime = (date: string, time: string) => {
+    setBlockedTimes(prev => ({
+      ...prev,
+      [date]: prev[date]?.filter(t => t !== time) || []
+    }));
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -67,6 +119,8 @@ export default function CreateListingPage() {
         description,
         imageUrl: imageUrls[0], // Keep first image as main image for compatibility
         imageUrls: imageUrls, // Store all image URLs
+        blockedDates,
+        blockedTimes,
         createdAt: Timestamp.now(),
         ownerId: user.uid,
       });
@@ -189,6 +243,128 @@ export default function CreateListingPage() {
               </div>
             </div>
           )}
+
+          {/* Availability Management */}
+          <div className="space-y-4 border-t pt-6">
+            <h3 className="text-lg font-semibold text-gray-800">Availability Management</h3>
+            <div className="space-y-6">
+                {/* Block Entire Days */}
+                <div className="space-y-3">
+                  <h4 className="font-medium text-gray-700">Block Entire Days</h4>
+                  <div className="flex gap-2">
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition"
+                      min={new Date().toISOString().split('T')[0]}
+                    />
+                    <button
+                      type="button"
+                      onClick={addBlockedDate}
+                      disabled={!selectedDate}
+                      className="px-4 py-2 bg-[#286a3a] text-white rounded-lg font-medium hover:bg-[#20542e] transition disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer"
+                    >
+                      Block Day
+                    </button>
+                  </div>
+                  
+                  {blockedDates.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-gray-600">Blocked Days:</p>
+                      <div className="space-y-1">
+                        {blockedDates.map((date) => (
+                          <div key={date} className="flex items-center justify-between bg-red-50 p-2 rounded-lg">
+                            <span className="text-sm text-gray-700">{formatDate(date)}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeBlockedDate(date)}
+                              className="text-red-600 hover:text-red-800 text-sm font-medium hover:cursor-pointer"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Block Specific Times */}
+                <div className="space-y-3">
+                  <h4 className="font-medium text-gray-700">Block Specific Times</h4>
+                  <div className="flex gap-2">
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition"
+                      min={new Date().toISOString().split('T')[0]}
+                    />
+                    <select
+                      value={selectedTime}
+                      onChange={(e) => setSelectedTime(e.target.value)}
+                      className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition"
+                    >
+                      <option value="">Select Time</option>
+                      {Array.from({ length: 13 }, (_, i) => i + 8).map((hour) => (
+                        <option key={hour} value={`${hour.toString().padStart(2, '0')}:00`}>
+                          {hour}:00
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={addBlockedTime}
+                      disabled={!selectedDate || !selectedTime}
+                      className="px-4 py-2 bg-[#286a3a] text-white rounded-lg font-medium hover:bg-[#20542e] transition disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer"
+                    >
+                      Block Time
+                    </button>
+                  </div>
+                  
+                  {Object.keys(blockedTimes).length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-gray-600">Blocked Times:</p>
+                      <div className="space-y-2">
+                        {Object.entries(blockedTimes).map(([date, times]) => (
+                          <div key={date} className="bg-orange-50 p-3 rounded-lg">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="font-medium text-gray-700">{formatDate(date)}</span>
+                              <button
+                                type="button"
+                                onClick={() => removeBlockedDate(date)}
+                                className="text-red-600 hover:text-red-800 text-sm font-medium hover:cursor-pointer"
+                              >
+                                Remove All
+                              </button>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {times.map((time) => (
+                                <span
+                                  key={time}
+                                  className="inline-flex items-center gap-1 bg-orange-100 text-orange-800 px-2 py-1 rounded text-sm"
+                                >
+                                  {time}
+                                  <button
+                                    type="button"
+                                    onClick={() => removeBlockedTime(date, time)}
+                                    className="text-orange-600 hover:text-orange-800 hover:cursor-pointer"
+                                  >
+                                    ×
+                                  </button>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+          </div>
+
           {error && (
             <p className="text-red-500 text-sm mb-2 text-center">{error}</p>
           )}
