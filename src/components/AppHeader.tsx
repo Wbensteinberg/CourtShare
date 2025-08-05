@@ -146,13 +146,13 @@ export default function AppHeader() {
                >
                  Switch to {isOwner ? "Player" : "Owner"} Mode
                </Button>
-               <Button
-                 variant="outline"
-                 size="icon"
-                 className="cursor-pointer p-0 overflow-hidden rounded-full w-8 h-8"
-                 onClick={() => router.push("/profile")}
-                 aria-label="Profile"
-               >
+                               <Button
+                  variant="ghost"
+                  size="icon"
+                  className="cursor-pointer p-0 overflow-hidden rounded-full w-8 h-8"
+                  onClick={() => router.push("/profile")}
+                  aria-label="Profile"
+                >
                  {profileImageUrl ? (
                    <img
                      src={profileImageUrl}
@@ -280,16 +280,16 @@ export default function AppHeader() {
                  >
                    Switch to {isOwner ? "Player" : "Owner"} Mode
                  </Button>
-                 <Button
-                   variant="outline"
-                   size="icon"
-                   className="cursor-pointer p-0 overflow-hidden rounded-full w-8 h-8"
-                   onClick={() => {
-                     router.push("/profile");
-                     setMenuOpen(false);
-                   }}
-                   aria-label="Profile"
-                 >
+                                   <Button
+                    variant="ghost"
+                    size="icon"
+                    className="cursor-pointer p-0 overflow-hidden rounded-full w-8 h-8"
+                    onClick={() => {
+                      router.push("/profile");
+                      setMenuOpen(false);
+                    }}
+                    aria-label="Profile"
+                  >
                    {profileImageUrl ? (
                      <img
                        src={profileImageUrl}
