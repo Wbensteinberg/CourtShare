@@ -8,6 +8,24 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuth } from "@/lib/AuthContext";
 import ReactCrop, { Crop, PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop';
 import 'react-image-crop/dist/ReactCrop.css';
+import AppHeader from "@/components/AppHeader";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { 
+  User, 
+  Camera, 
+  Edit3, 
+  Save, 
+  ArrowLeft, 
+  CheckCircle, 
+  AlertCircle,
+  Trophy,
+  MapPin,
+  Calendar,
+  Star
+} from "lucide-react";
 
 interface UserProfile {
   uid: string;
@@ -242,10 +260,13 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#286a3a] px-4">
-        <div className="text-white text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p>Loading profile...</p>
+      <div className="min-h-screen bg-white">
+        <AppHeader />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#286a3a] mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading your profile...</p>
+          </div>
         </div>
       </div>
     );
@@ -253,17 +274,23 @@ export default function ProfilePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#286a3a] px-4">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 mx-auto text-center">
-          <div className="text-6xl mb-4">❌</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Error</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
-          <button
-            onClick={() => router.push("/courts")}
-            className="bg-[#286a3a] text-white py-3 px-6 rounded-lg font-semibold hover:bg-[#20542e] transition hover:cursor-pointer"
-          >
-            Back to Courts
-          </button>
+      <div className="min-h-screen bg-white">
+        <AppHeader />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Card className="w-full max-w-md mx-auto text-center">
+            <CardContent className="p-8">
+              <div className="text-6xl mb-4">❌</div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Error</h2>
+              <p className="text-gray-600 mb-6">{error}</p>
+              <Button
+                onClick={() => router.push("/courts")}
+                className="bg-[#286a3a] text-white hover:bg-[#20542e]"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Courts
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
@@ -271,124 +298,307 @@ export default function ProfilePage() {
 
   return (
     <>
-      <div className="min-h-screen flex items-center justify-center bg-[#286a3a] px-4">
-        <div className="w-full max-w-lg my-12">
-          <form
-            onSubmit={handleSubmit}
-            className="bg-white rounded-2xl shadow-2xl px-8 py-10 flex flex-col gap-6 animate-fade-in"
-          >
-            <div className="flex flex-col items-center mb-2">
-              <div className="w-16 h-16 bg-[#e3f1e7] rounded-full flex items-center justify-center mb-2 shadow-md">
-                <span className="text-3xl font-bold text-[#286a3a]">👤</span>
+      <div className="min-h-screen bg-white">
+        <AppHeader />
+        
+                 {/* Hero Section */}
+         <section className="relative overflow-hidden w-full bg-green-700 text-white">
+          {/* Subtle pattern overlay for texture */}
+          <div className="absolute inset-0 opacity-5">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+            }} />
+          </div>
+          
+          <div className="relative w-full flex flex-col items-center py-8 md:py-12">
+            <div className="max-w-4xl w-full mx-auto text-center space-y-4">
+              {/* Badge */}
+              <div className="inline-flex items-center rounded-full bg-white/10 px-6 py-2 text-sm font-medium border border-white/20 text-white backdrop-blur-sm">
+                <User className="h-4 w-4 mr-2" />
+                Profile Management
               </div>
-              <h2 className="text-2xl font-extrabold text-gray-800 tracking-tight mb-1">
-                Profile Settings
-              </h2>
-              <p className="text-gray-500 text-sm">
-                Update your profile information
-              </p>
-            </div>
-            
-            {/* Profile Image */}
-            <div className="space-y-3">
-              <label className="block text-sm font-medium text-gray-700">
-                Profile Picture
-              </label>
-              <div className="flex items-center space-x-4">
-                <div className="relative">
-                  <img
-                    src={profileImagePreview || "/default-avatar.png"}
-                    alt="Profile"
-                    className="w-20 h-20 rounded-full object-cover"
-                    onError={(e) => {
-                      e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23d1d5db'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
-                    }}
-                  />
+
+              {/* Headlines */}
+              <div className="space-y-3">
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-white">
+                  Your Tennis
+                  <span className="block text-yellow-300">Profile</span>
+                </h1>
+                <p className="text-xl text-white/90 max-w-2xl mx-auto leading-relaxed">
+                  Customize your profile to enhance your tennis court booking experience. 
+                  Add your photo, update your information, and make your profile uniquely yours.
+                </p>
+              </div>
+
+              {/* Stats */}
+              <div className="grid grid-cols-2 gap-8 max-w-md mx-auto">
+                <div className="text-center">
+                  <div className="text-2xl md:text-3xl font-bold text-white">
+                    {displayName ? "✓" : "—"}
+                  </div>
+                  <div className="text-sm text-white/80">Name Set</div>
                 </div>
-                <div className="flex-1">
-                  <input
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition text-gray-900 caret-gray-900 file:bg-[#e3f1e7] file:border-0 file:rounded-lg file:px-4 file:py-2 file:text-[#286a3a] file:font-semibold hover:cursor-pointer"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Upload and crop your profile picture
-                  </p>
+                <div className="text-center">
+                  <div className="text-2xl md:text-3xl font-bold text-white">
+                    {profileImagePreview ? "✓" : "—"}
+                  </div>
+                  <div className="text-sm text-white/80">Photo Added</div>
                 </div>
               </div>
             </div>
-            
-            <input
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900"
-              type="text"
-              placeholder="Full Name"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-            />
-            
-            <textarea
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900 resize-none"
-              placeholder="Tell us about yourself (optional)"
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              rows={4}
-            />
-            
-            {error && (
-              <p className="text-red-500 text-sm mb-2 text-center">{error}</p>
-            )}
-            
-            {success && (
-              <p className="text-green-600 text-sm mb-2 text-center">
-                Profile updated successfully!
-              </p>
-            )}
-            
-            <div className="flex gap-4">
-              <button
-                type="button"
-                onClick={() => router.push("/courts")}
-                className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-semibold text-lg shadow-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-300 transition hover:cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                className="flex-1 bg-[#286a3a] text-white py-3 rounded-lg font-semibold text-lg shadow-md hover:bg-[#20542e] focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition disabled:opacity-60 disabled:cursor-not-allowed hover:cursor-pointer"
-                type="submit"
-                disabled={saving}
-              >
-                {saving ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <svg
-                      className="animate-spin h-5 w-5 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8v8z"
-                      ></path>
-                    </svg>
-                    Saving...
-                  </span>
-                ) : (
-                  "Save Profile"
+          </div>
+          
+
+        </section>
+
+        {/* Main Content */}
+        <main className="w-full bg-white relative">
+          {/* Subtle top shadow for depth */}
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-b from-gray-100 to-transparent"></div>
+          <div className="container mx-auto px-4 py-12">
+            <div className="max-w-4xl mx-auto">
+              <form onSubmit={handleSubmit} className="space-y-8">
+                
+                {/* Profile Photo Section */}
+                <Card className="border border-gray-200 shadow-lg rounded-xl overflow-hidden">
+                  <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-full bg-[#286a3a] flex items-center justify-center">
+                        <Camera className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold text-gray-800">Profile Photo</h2>
+                        <p className="text-gray-600">Add a professional photo to personalize your profile</p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-8">
+                    <div className="flex flex-col md:flex-row items-center md:items-start space-y-6 md:space-y-0 md:space-x-8">
+                      {/* Current Photo */}
+                      <div className="relative">
+                        <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-gray-200 shadow-lg">
+                          <img
+                            src={profileImagePreview || "/default-avatar.png"}
+                            alt="Profile"
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23d1d5db'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
+                            }}
+                          />
+                        </div>
+                        {profileImagePreview && (
+                          <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+                            <CheckCircle className="h-5 w-5 text-white" />
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Upload Section */}
+                      <div className="flex-1 space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Upload New Photo
+                          </label>
+                          <div className="flex items-center space-x-4">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              className="border-2 border-dashed border-gray-300 hover:border-[#286a3a] hover:bg-gray-50"
+                              onClick={() => document.getElementById('profile-image-input')?.click()}
+                            >
+                              <Camera className="h-4 w-4 mr-2" />
+                              Choose Photo
+                            </Button>
+                            <input
+                              id="profile-image-input"
+                              className="hidden"
+                              type="file"
+                              accept="image/*"
+                              onChange={handleImageChange}
+                            />
+                            <span className="text-sm text-gray-500">
+                              JPG, PNG up to 5MB
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="secondary" className="bg-blue-50 text-blue-700">
+                            <Camera className="h-3 w-3 mr-1" />
+                            Professional
+                          </Badge>
+                          <Badge variant="secondary" className="bg-green-50 text-green-700">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            High Quality
+                          </Badge>
+                          <Badge variant="secondary" className="bg-purple-50 text-purple-700">
+                            <User className="h-3 w-3 mr-1" />
+                            Clear Face
+                          </Badge>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Personal Information Section */}
+                <Card className="border border-gray-200 shadow-lg rounded-xl overflow-hidden">
+                  <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-full bg-[#286a3a] flex items-center justify-center">
+                        <Edit3 className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold text-gray-800">Personal Information</h2>
+                        <p className="text-gray-600">Update your basic profile information</p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-8 space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Full Name
+                        </label>
+                        <Input
+                          type="text"
+                          placeholder="Enter your full name"
+                          value={displayName}
+                          onChange={(e) => setDisplayName(e.target.value)}
+                          className="border-gray-300 focus:border-[#286a3a] focus:ring-[#286a3a]"
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-gray-700">
+                          Email Address
+                        </label>
+                        <Input
+                          type="email"
+                          value={user?.email || ""}
+                          disabled
+                          className="border-gray-300 bg-gray-50 text-gray-500"
+                        />
+                        <p className="text-xs text-gray-500">Email cannot be changed</p>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Bio
+                      </label>
+                      <textarea
+                        placeholder="Tell us about yourself, your tennis experience, or what you're looking for..."
+                        value={bio}
+                        onChange={(e) => setBio(e.target.value)}
+                        rows={4}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] focus:border-[#286a3a] resize-none"
+                      />
+                      <p className="text-xs text-gray-500">
+                        Share your tennis story, experience level, or what you're looking for in a court
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Account Status Section */}
+                <Card className="border border-gray-200 shadow-lg rounded-xl overflow-hidden">
+                  <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-full bg-[#286a3a] flex items-center justify-center">
+                        <Trophy className="h-5 w-5 text-white" />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold text-gray-800">Account Status</h2>
+                        <p className="text-gray-600">Your current account information and privileges</p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-8">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="text-center p-4 bg-gray-50 rounded-lg">
+                        <div className="w-12 h-12 rounded-full bg-[#286a3a] flex items-center justify-center mx-auto mb-3">
+                          <User className="h-6 w-6 text-white" />
+                        </div>
+                        <h3 className="font-semibold text-gray-800">Account Type</h3>
+                        <p className="text-sm text-gray-600">{profile?.isOwner ? "Court Owner" : "Tennis Player"}</p>
+                      </div>
+                      
+                      <div className="text-center p-4 bg-gray-50 rounded-lg">
+                        <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center mx-auto mb-3">
+                          <MapPin className="h-6 w-6 text-white" />
+                        </div>
+                        <h3 className="font-semibold text-gray-800">Location</h3>
+                        <p className="text-sm text-gray-600">Nationwide Access</p>
+                      </div>
+                      
+                      <div className="text-center p-4 bg-gray-50 rounded-lg">
+                        <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center mx-auto mb-3">
+                          <Star className="h-6 w-6 text-white" />
+                        </div>
+                        <h3 className="font-semibold text-gray-800">Member Since</h3>
+                        <p className="text-sm text-gray-600">Active Member</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Success/Error Messages */}
+                {error && (
+                  <Card className="border-red-200 bg-red-50">
+                    <CardContent className="p-4">
+                      <div className="flex items-center space-x-3">
+                        <AlertCircle className="h-5 w-5 text-red-500" />
+                        <p className="text-red-700">{error}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
                 )}
-              </button>
+                
+                {success && (
+                  <Card className="border-green-200 bg-green-50">
+                    <CardContent className="p-4">
+                      <div className="flex items-center space-x-3">
+                        <CheckCircle className="h-5 w-5 text-green-500" />
+                        <p className="text-green-700">Profile updated successfully! Redirecting to courts...</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex flex-col sm:flex-row gap-4 pt-6">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => router.push("/courts")}
+                    className="flex-1 h-12 text-base font-semibold"
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back to Courts
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={saving}
+                    className="flex-1 h-12 text-base font-semibold bg-[#286a3a] text-white hover:bg-[#20542e]"
+                  >
+                    {saving ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Profile
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
             </div>
-          </form>
-        </div>
+          </div>
+        </main>
       </div>
 
       {/* Crop Modal */}
@@ -425,18 +635,19 @@ export default function ProfilePage() {
             </div>
             
             <div className="flex gap-4 justify-center">
-              <button
+              <Button
+                variant="outline"
                 onClick={handleCancelCrop}
-                className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg font-semibold hover:bg-gray-200 transition hover:cursor-pointer"
+                className="px-6 py-3"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleCropComplete}
-                className="px-6 py-3 bg-[#286a3a] text-white rounded-lg font-semibold hover:bg-[#20542e] transition hover:cursor-pointer"
+                className="px-6 py-3 bg-[#286a3a] text-white hover:bg-[#20542e]"
               >
                 Apply Crop
-              </button>
+              </Button>
             </div>
           </div>
         </div>
