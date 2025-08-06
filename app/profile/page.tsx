@@ -331,7 +331,7 @@ export default function ProfilePage() {
               </div>
 
               {/* Stats */}
-              <div className="grid grid-cols-2 gap-8 max-w-md mx-auto">
+              <div className="grid grid-cols-3 gap-8 max-w-md mx-auto">
                 <div className="text-center">
                   <div className="text-2xl md:text-3xl font-bold text-white">
                     {displayName ? "✓" : "—"}
@@ -343,6 +343,12 @@ export default function ProfilePage() {
                     {profileImagePreview ? "✓" : "—"}
                   </div>
                   <div className="text-sm text-white/80">Photo Added</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl md:text-3xl font-bold text-white">
+                    {bio ? "✓" : "—"}
+                  </div>
+                  <div className="text-sm text-white/80">Bio Added</div>
                 </div>
               </div>
             </div>
