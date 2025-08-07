@@ -14,9 +14,17 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { useAuth } from "@/lib/AuthContext";
-import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
-import "./datepicker-custom.css";
+import { ArrowLeft, MapPin, Star, Clock, Calendar, Users } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
 
 interface Court {
   name: string;
@@ -29,6 +37,11 @@ interface Court {
   imageUrls?: string[];
   blockedDates?: string[];
   blockedTimes?: { [date: string]: string[] };
+  surface?: string;
+  indoor?: boolean;
+  amenities?: string[];
+  rating?: number;
+  reviewCount?: number;
 }
 
 export default function CourtDetailPage() {
@@ -40,17 +53,24 @@ export default function CourtDetailPage() {
   const { user, isOwner } = useAuth();
 
   // Booking state
-  const [date, setDate] = useState<Date | null>(null);
-  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
-  const dateInputRef = useRef<HTMLInputElement>(null);
-  const [time, setTime] = useState("");
-  const [duration, setDuration] = useState(1);
+  const [selectedDate, setSelectedDate] = useState<Date>();
+  const [selectedTime, setSelectedTime] = useState<string>("");
+  const [duration, setDuration] = useState<string>("1");
   const [bookingStatus, setBookingStatus] = useState<
     "idle" | "loading" | "success" | "error" | "conflict"
   >("idle");
   const [bookingsForDate, setBookingsForDate] = useState<any[]>([]);
   const [fetchingBookings, setFetchingBookings] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  // Time slots and durations
+  const timeSlots = [
+    "6:00 AM", "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
+    "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM",
+    "6:00 PM", "7:00 PM", "8:00 PM", "9:00 PM"
+  ];
+
+  const durations = ["1", "1.5", "2", "2.5", "3"];
 
   // Filter function for blocked dates
   const filterBlockedDates = (date: Date) => {
@@ -75,13 +95,36 @@ export default function CourtDetailPage() {
   });
   
   // Add court's blocked times for the selected date
-  if (court && date && court.blockedTimes) {
-    const dateString = date.toISOString().split('T')[0];
+  if (court && selectedDate && court.blockedTimes) {
+    const dateString = selectedDate.toISOString().split('T')[0];
     const courtBlockedTimes = court.blockedTimes[dateString] || [];
     courtBlockedTimes.forEach(time => {
       blockedTimes.add(time);
     });
   }
+
+  // Filter available time slots
+  const availableTimeSlots = timeSlots.filter(time => {
+    const hour = parseInt(time.split(":")[0], 10);
+    const time24 = hour.toString().padStart(2, "0") + ":00";
+    
+    // Check if time is blocked
+    if (blockedTimes.has(time24)) return false;
+    
+    // Check if time is in the past for today
+    if (selectedDate) {
+      const today = new Date();
+      const selectedDateOnly = new Date(selectedDate.toDateString());
+      const todayOnly = new Date(today.toDateString());
+      
+      if (selectedDateOnly.getTime() === todayOnly.getTime()) {
+        const nowHour = today.getHours();
+        return hour > nowHour;
+      }
+    }
+    
+    return true;
+  });
 
   useEffect(() => {
     if (!id) return;
@@ -107,7 +150,7 @@ export default function CourtDetailPage() {
 
   // Fetch bookings for selected date
   useEffect(() => {
-    if (!id || !date) {
+    if (!id || !selectedDate) {
       setBookingsForDate([]);
       return;
     }
@@ -120,7 +163,7 @@ export default function CourtDetailPage() {
           where(
             "date",
             "==",
-            date instanceof Date ? date.toISOString().slice(0, 10) : date
+            selectedDate instanceof Date ? selectedDate.toISOString().slice(0, 10) : selectedDate
           )
         );
         const snap = await getDocs(q);
@@ -132,16 +175,16 @@ export default function CourtDetailPage() {
       }
     };
     fetchBookings();
-  }, [id, date]);
+  }, [id, selectedDate]);
 
   const handleCheckout = async () => {
     if (!user) return;
-    if (!date || !time || !duration) {
+    if (!selectedDate || !selectedTime || !duration) {
       alert("Please fill out all fields.");
       return;
     }
     // Prevent double booking
-    if (bookingsForDate.some((b) => b.time === time)) {
+    if (bookingsForDate.some((b) => b.time === selectedTime)) {
       setBookingStatus("conflict");
       return;
     }
@@ -153,9 +196,9 @@ export default function CourtDetailPage() {
         body: JSON.stringify({
           courtId: id,
           userId: user.uid,
-          date: date instanceof Date ? date.toISOString().slice(0, 10) : date,
-          time,
-          duration,
+          date: selectedDate instanceof Date ? selectedDate.toISOString().slice(0, 10) : selectedDate,
+          time: selectedTime,
+          duration: parseFloat(duration),
           price: court?.price || 0,
         }),
       });
@@ -172,254 +215,310 @@ export default function CourtDetailPage() {
     }
   };
 
+  const totalPrice = (court?.price || 0) * parseFloat(duration || "1");
+
   if (loading) {
-    return <p className="text-center mt-10 text-gray-600">Loading court...</p>;
+    return (
+      <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading court...</p>
+        </div>
+      </div>
+    );
   }
+
   if (error) {
-    return <p className="text-center mt-10 text-red-500">{error}</p>;
+    return (
+      <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-500">{error}</p>
+        </div>
+      </div>
+    );
   }
+
   if (!court) {
-    return <p className="text-center mt-10 text-red-500">Court not found</p>;
+    return (
+      <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-500">Court not found</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="min-h-screen bg-[#286a3a] px-4 py-12 flex items-center justify-center">
-      <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl p-8 mx-auto">
-        <div className="w-full h-72 relative mb-6 rounded-2xl overflow-hidden shadow-md">
-          {court.imageUrl ? (
-            <>
-              <Image
-                src={court.imageUrls && court.imageUrls.length > 0 ? court.imageUrls[currentImageIndex] : court.imageUrl}
-                alt={court.name}
-                fill
-                className="object-cover rounded-2xl"
-                sizes="(max-width: 768px) 100vw, 50vw"
-                priority
-              />
-              {court.imageUrls && court.imageUrls.length > 1 && (
-                <>
-                  <button
-                    onClick={() => setCurrentImageIndex(prev => prev > 0 ? prev - 1 : court.imageUrls!.length - 1)}
-                    className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-black/70 transition"
-                  >
-                    ‹
-                  </button>
-                  <button
-                    onClick={() => setCurrentImageIndex(prev => prev < court.imageUrls!.length - 1 ? prev + 1 : 0)}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-black/70 transition"
-                  >
-                    ›
-                  </button>
-                  <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex space-x-1">
-                    {court.imageUrls.map((_, index) => (
-                      <button
-                        key={index}
-                        onClick={() => setCurrentImageIndex(index)}
-                        className={`w-2 h-2 rounded-full transition ${
-                          index === currentImageIndex ? 'bg-white' : 'bg-white/50'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                </>
-              )}
-            </>
-          ) : (
-            <div className="w-full h-full bg-gray-200 flex items-center justify-center rounded-2xl">
-              <span className="text-6xl">🎾</span>
-            </div>
-          )}
+    <div className="min-h-screen bg-gradient-subtle">
+      {/* Header */}
+      <div className="bg-background border-b">
+        <div className="container py-4">
+          <Button variant="ghost" size="sm" className="mb-4" onClick={() => router.back()}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Browse
+          </Button>
         </div>
-        <h2 className="text-3xl font-extrabold text-[#286a3a] mb-2 text-center drop-shadow-sm">
-          {court.name}
-        </h2>
-        <p className="text-gray-600 text-center mb-1 text-lg">
-          {court.location}
-        </p>
-        <p className="text-[#286a3a] font-bold text-center text-xl mb-4">
-          ${court.price} <span className="font-medium">/ hour</span>
-        </p>
-        <p className="text-gray-700 text-base mb-6 text-center whitespace-pre-line">
-          {court.description}
-        </p>
-        {/* Booking UI */}
-        {user && isOwner ? (
-          <div className="bg-white p-6 rounded-2xl shadow-md max-w-md mx-auto mt-4 mb-8 space-y-4 border border-[#e3f1e7]">
-            <h3 className="text-xl font-bold text-[#286a3a] mb-2 text-center">
-              Owner Mode Active
-            </h3>
-            <p className="text-gray-600 text-center mb-4">
-              You're currently in owner mode. Switch to player mode to book courts.
-            </p>
-            <button
-              className="w-full bg-[#286a3a] text-white py-3 rounded-lg font-semibold text-lg shadow-md hover:bg-[#20542e] focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition"
-              onClick={() => router.push("/dashboard/owner")}
-            >
-              Go to Owner Dashboard
-            </button>
-          </div>
-        ) : user && !isOwner ? (
-          <div className="bg-white p-6 rounded-2xl shadow-md max-w-md mx-auto mt-4 mb-8 space-y-4 border border-[#e3f1e7]">
-            <h3 className="text-xl font-bold text-[#286a3a] mb-2 text-center">
-              Book This Court
-            </h3>
-            <label className="block">
-              <span className="text-gray-600 font-semibold">Date</span>
-              <DatePicker
-                selected={date}
-                onChange={(d) => {
-                  setDate(d);
-                }}
-                dateFormat="yyyy-MM-dd"
-                placeholderText="Select date"
-                className={`mt-1 block w-full rounded border-gray-300 placeholder:text-gray-400 ${
-                  date ? "text-gray-800" : "text-gray-400"
-                } py-2 px-3`}
-                minDate={new Date()}
-                filterDate={filterBlockedDates}
-                wrapperClassName="w-full"
-                popperPlacement="bottom"
-                calendarClassName="cs-datepicker-calendar"
-                dayClassName={(d) => {
-                  const today = new Date();
-                  const isToday =
-                    d.getDate() === today.getDate() &&
-                    d.getMonth() === today.getMonth() &&
-                    d.getFullYear() === today.getFullYear();
-                  const isBlocked = !filterBlockedDates(d);
-                  return [
-                    "cs-datepicker-day",
-                    isToday ? "cs-datepicker-today" : "",
-                    isBlocked ? "cs-datepicker-blocked" : "",
-                  ].join(" ");
-                }}
-                showPopperArrow={false}
-              />
-            </label>
-            {/* Booked slots section */}
-            {date && blockedTimes.size > 0 && (
-              <div className="text-sm text-gray-500 mb-2">
-                <span className="font-semibold text-gray-700">
-                  Booked slots:
-                </span>
-                <span className="ml-2">
-                  {[...blockedTimes]
-                    .sort((a, b) => parseInt(a) - parseInt(b))
-                    .map((t) => (
-                      <span
-                        key={t}
-                        className="inline-block bg-red-100 text-red-700 rounded px-2 py-0.5 mr-1 mb-1 text-xs font-semibold"
-                      >
-                        {t}
-                      </span>
-                    ))}
-                </span>
-              </div>
-            )}
-            <label className="block">
-              <span className="text-gray-600 font-semibold">Time</span>
-              <select
-                className={`mt-1 block w-full rounded border-gray-300 ${
-                  time ? "text-gray-800" : "text-gray-400"
-                }`}
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-              >
-                <option value="" disabled className="text-gray-400">
-                  Select time
-                </option>
-                {[...Array(13)].map((_, i) => {
-                  const hour = 8 + i;
-                  const label = hour.toString().padStart(2, "0") + ":00";
-                  // Disable if booked or (if today) in the past
-                  const isBooked = blockedTimes.has(label);
-                  let isPast = false;
-                  if (date) {
-                    const today = new Date();
-                    const selectedDate = new Date(date);
-                    if (selectedDate.toDateString() === today.toDateString()) {
-                      const nowHour = today.getHours();
-                      isPast = hour <= nowHour;
-                    }
-                  }
-                  return (
-                    <option
-                      key={label}
-                      value={label}
-                      className={
-                        isBooked
-                          ? "text-red-400 bg-red-50"
-                          : isPast
-                          ? "text-gray-400"
-                          : "text-gray-800"
-                      }
-                      disabled={isBooked || isPast}
+      </div>
+
+      <div className="container py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
+          {/* Court Details */}
+          <div className="space-y-6">
+            {/* Court Image */}
+            <Card className="overflow-hidden shadow-card">
+              <div className="relative h-64 md:h-80">
+                <Image
+                  src={court.imageUrls && court.imageUrls.length > 0 ? court.imageUrls[currentImageIndex] : court.imageUrl}
+                  alt={court.name}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  priority
+                />
+                <div className="absolute top-4 right-4">
+                  <Badge variant="secondary" className="bg-background/90 backdrop-blur-sm">
+                    {court.indoor ? "Indoor" : "Outdoor"}
+                  </Badge>
+                </div>
+                {court.imageUrls && court.imageUrls.length > 1 && (
+                  <>
+                    <button
+                      onClick={() => setCurrentImageIndex(prev => prev > 0 ? prev - 1 : court.imageUrls!.length - 1)}
+                      className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-black/70 transition"
                     >
-                      {label}
-                    </option>
-                  );
-                })}
-              </select>
-            </label>
-            <label className="block">
-              <span className="text-gray-600 font-semibold">
-                Duration (hours)
-              </span>
-              <select
-                value={duration || ""}
-                onChange={(e) => setDuration(Number(e.target.value))}
-                className={`mt-1 block w-full rounded border-gray-300 ${
-                  duration ? "text-gray-800" : "text-gray-400"
-                }`}
-              >
-                <option value="" disabled className="text-gray-400">
-                  Select duration
-                </option>
-                {[1, 2, 3].map((d) => (
-                  <option key={d} value={d} className="text-gray-800">
-                    {d}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              className="w-full bg-[#286a3a] text-white py-3 rounded-lg font-semibold text-lg shadow-md hover:bg-[#20542e] focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition disabled:opacity-60 disabled:cursor-not-allowed mt-2"
-              onClick={handleCheckout}
-              disabled={bookingStatus === "loading" || fetchingBookings}
-            >
-              {bookingStatus === "loading" ? "Processing..." : "Book & Pay"}
-            </button>
-            {bookingStatus === "conflict" && (
-              <p className="text-red-500 text-sm mt-2 text-center">
-                This time slot is already booked. Please choose another.
-              </p>
-            )}
-            {bookingStatus === "error" && (
-              <p className="text-red-500 text-sm mt-2 text-center">
-                Something went wrong. Please try again.
-              </p>
+                      ‹
+                    </button>
+                    <button
+                      onClick={() => setCurrentImageIndex(prev => prev < court.imageUrls!.length - 1 ? prev + 1 : 0)}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-black/70 transition"
+                    >
+                      ›
+                    </button>
+                    <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex space-x-1">
+                      {court.imageUrls.map((_, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setCurrentImageIndex(index)}
+                          className={`w-2 h-2 rounded-full transition ${
+                            index === currentImageIndex ? 'bg-white' : 'bg-white/50'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </Card>
+
+            {/* Court Info */}
+            <Card className="shadow-card">
+              <CardContent className="p-6">
+                <div className="space-y-4">
+                  <div>
+                    <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
+                      {court.name}
+                    </h1>
+                    <div className="flex items-center gap-2 text-muted-foreground mb-3">
+                      <MapPin className="w-4 h-4" />
+                      <span>{court.location}</span>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-1">
+                        <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                        <span className="font-medium">{court.rating || 4.5}</span>
+                        <span className="text-muted-foreground">
+                          ({court.reviewCount || 0} reviews)
+                        </span>
+                      </div>
+                      <Badge variant="outline">{court.surface || "Hard Court"}</Badge>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-2xl font-bold text-primary">
+                        ${court.price}
+                      </span>
+                      <span className="text-muted-foreground">per hour</span>
+                    </div>
+                    <p className="text-muted-foreground">
+                      {court.description}
+                    </p>
+                  </div>
+
+                  {/* Amenities */}
+                  {court.amenities && court.amenities.length > 0 && (
+                    <div className="border-t pt-4">
+                      <h3 className="font-semibold mb-3">Amenities</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {court.amenities.map((amenity) => (
+                          <Badge key={amenity} variant="secondary">
+                            {amenity}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Booking Form */}
+          <div className="lg:sticky lg:top-8">
+            {user && isOwner ? (
+              <Card className="shadow-elegant border-2 border-primary/10">
+                <CardHeader className="bg-gradient-primary text-primary-foreground">
+                  <CardTitle className="text-xl font-bold">Owner Mode Active</CardTitle>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                  <p className="text-center text-muted-foreground">
+                    You're currently in owner mode. Switch to player mode to book courts.
+                  </p>
+                  <Button 
+                    className="w-full bg-gradient-primary hover:bg-primary-glow text-primary-foreground font-semibold py-3 transition-smooth"
+                    size="lg"
+                    onClick={() => router.push("/dashboard/owner")}
+                  >
+                    Go to Owner Dashboard
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : user && !isOwner ? (
+              <Card className="shadow-elegant border-2 border-primary/10">
+                <CardHeader className="bg-gradient-primary text-primary-foreground">
+                  <CardTitle className="text-xl font-bold">Book This Court</CardTitle>
+                </CardHeader>
+                <CardContent className="p-6 space-y-6">
+                  {/* Date Selection */}
+                  <div className="space-y-2">
+                    <Label htmlFor="date" className="text-sm font-medium flex items-center gap-2">
+                      <Calendar className="w-4 h-4" />
+                      Date
+                    </Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !selectedDate && "text-muted-foreground"
+                          )}
+                        >
+                          <Calendar className="mr-2 h-4 w-4" />
+                          {selectedDate ? format(selectedDate, "PPP") : "Select date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={selectedDate}
+                          onSelect={setSelectedDate}
+                          disabled={(date) => date < new Date() || !filterBlockedDates(date)}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+
+                  {/* Time Selection */}
+                  <div className="space-y-2">
+                    <Label htmlFor="time" className="text-sm font-medium flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      Time
+                    </Label>
+                    <Select value={selectedTime} onValueChange={setSelectedTime}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select time" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableTimeSlots.map((time) => (
+                          <SelectItem key={time} value={time}>
+                            {time}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Duration Selection */}
+                  <div className="space-y-2">
+                    <Label htmlFor="duration" className="text-sm font-medium flex items-center gap-2">
+                      <Users className="w-4 h-4" />
+                      Duration (hours)
+                    </Label>
+                    <Select value={duration} onValueChange={setDuration}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {durations.map((dur) => (
+                          <SelectItem key={dur} value={dur}>
+                            {dur} {parseFloat(dur) === 1 ? "hour" : "hours"}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Price Summary */}
+                  <div className="border-t pt-4 space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Court rental ({duration} {parseFloat(duration) === 1 ? "hour" : "hours"})</span>
+                      <span>${totalPrice}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold text-lg border-t pt-2">
+                      <span>Total</span>
+                      <span className="text-primary">${totalPrice}</span>
+                    </div>
+                  </div>
+
+                  {/* Book Button */}
+                  <Button 
+                    className="w-full bg-gradient-primary hover:bg-primary-glow text-primary-foreground font-semibold py-3 transition-smooth"
+                    size="lg"
+                    disabled={!selectedDate || !selectedTime || bookingStatus === "loading" || fetchingBookings}
+                    onClick={handleCheckout}
+                  >
+                    {bookingStatus === "loading" ? "Processing..." : "Book & Pay"}
+                  </Button>
+
+                  {bookingStatus === "conflict" && (
+                    <p className="text-red-500 text-sm text-center">
+                      This time slot is already booked. Please choose another.
+                    </p>
+                  )}
+                  {bookingStatus === "error" && (
+                    <p className="text-red-500 text-sm text-center">
+                      Something went wrong. Please try again.
+                    </p>
+                  )}
+
+                  <p className="text-xs text-muted-foreground text-center">
+                    Secure payment processing. Cancel up to 24 hours before your booking.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="shadow-elegant border-2 border-primary/10">
+                <CardHeader className="bg-gradient-primary text-primary-foreground">
+                  <CardTitle className="text-xl font-bold">Book This Court</CardTitle>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                  <p className="text-center text-muted-foreground">
+                    Log in to book this court.
+                  </p>
+                  <Button 
+                    className="w-full bg-gradient-primary hover:bg-primary-glow text-primary-foreground font-semibold py-3 transition-smooth"
+                    size="lg"
+                    onClick={() => router.push(`/login?redirect=/courts/${id}`)}
+                  >
+                    Log In to Book
+                  </Button>
+                </CardContent>
+              </Card>
             )}
           </div>
-        ) : (
-          <div className="flex flex-col items-center mt-8 mb-8">
-            <p className="text-center text-gray-500 mb-4">
-              Log in to book this court.
-            </p>
-            <button
-              className="bg-[#286a3a] text-white py-2 px-6 rounded-lg font-semibold text-lg shadow-md hover:bg-[#20542e] focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition disabled:opacity-60 disabled:cursor-not-allowed"
-              onClick={() => router.push(`/login?redirect=/courts/${id}`)}
-            >
-              Log In to Book
-            </button>
-          </div>
-        )}
-        <div className="flex justify-center mt-6">
-          <button
-            className="text-[#286a3a] hover:underline text-sm font-semibold"
-            onClick={() => router.back()}
-          >
-            ← Back to Browse
-          </button>
         </div>
       </div>
     </div>
