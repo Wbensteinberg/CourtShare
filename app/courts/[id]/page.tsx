@@ -251,7 +251,7 @@ export default function CourtDetailPage() {
   return (
     <div className="min-h-screen bg-gradient-subtle">
       {/* Header */}
-      <div className="bg-background border-b">
+      <div className="bg-background border-b border-gray-200">
         <div className="container py-4">
           <Button variant="ghost" size="sm" className="mb-4" onClick={() => router.back()}>
             <ArrowLeft className="w-4 h-4 mr-2" />
@@ -265,16 +265,26 @@ export default function CourtDetailPage() {
           {/* Court Details */}
           <div className="space-y-6">
             {/* Court Image */}
-            <Card className="overflow-hidden shadow-card">
-              <div className="relative h-64 md:h-80">
+            <Card className="overflow-hidden shadow-card border-0">
+              <div className="relative h-64 md:h-80 group">
                 <Image
                   src={court.imageUrls && court.imageUrls.length > 0 ? court.imageUrls[currentImageIndex] : court.imageUrl}
                   alt={court.name}
                   fill
-                  className="object-cover"
+                  className="object-cover cursor-pointer transition-transform duration-200 group-hover:scale-105"
                   sizes="(max-width: 768px) 100vw, 50vw"
                   priority
+                  onClick={() => {
+                    const imageUrl = court.imageUrls && court.imageUrls.length > 0 ? court.imageUrls[currentImageIndex] : court.imageUrl;
+                    window.open(imageUrl, '_blank');
+                  }}
                 />
+                {/* Click indicator */}
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 flex items-center justify-center">
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white/90 text-gray-800 px-3 py-1 rounded-full text-sm font-medium">
+                    Click to preview
+                  </div>
+                </div>
                 <div className="absolute top-4 right-4">
                   <Badge variant="secondary" className="bg-background/90 backdrop-blur-sm">
                     {court.indoor ? "Indoor" : "Outdoor"}
@@ -311,14 +321,14 @@ export default function CourtDetailPage() {
             </Card>
 
             {/* Court Info */}
-            <Card className="shadow-card">
-              <CardContent className="p-6">
+            <Card className="shadow-lg border-0 hover:shadow-xl transition-shadow duration-300 cursor-pointer">
+              <CardContent className="p-6 pt-8">
                 <div className="space-y-4">
                   <div>
-                    <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
+                    <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3">
                       {court.name}
                     </h1>
-                    <div className="flex items-center gap-2 text-muted-foreground mb-3">
+                    <div className="flex items-center gap-2 text-gray-500 mb-3">
                       <MapPin className="w-4 h-4" />
                       <span>{court.location}</span>
                     </div>
@@ -326,33 +336,35 @@ export default function CourtDetailPage() {
                       <div className="flex items-center gap-1">
                         <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                         <span className="font-medium">{court.rating || 4.5}</span>
-                        <span className="text-muted-foreground">
+                        <span className="text-gray-500">
                           ({court.reviewCount || 0} reviews)
                         </span>
                       </div>
-                      <Badge variant="outline">{court.surface || "Hard Court"}</Badge>
+                      <Badge variant="outline" className="text-gray-600 border-gray-300">
+                        {court.surface || "Hard Court"}
+                      </Badge>
                     </div>
                   </div>
 
-                  <div className="border-t pt-4">
+                  <div className="border-t border-gray-200 pt-4">
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-2xl font-bold text-primary">
+                      <span className="text-2xl font-bold text-green-600">
                         ${court.price}
                       </span>
-                      <span className="text-muted-foreground">per hour</span>
+                      <span className="text-gray-500">per hour</span>
                     </div>
-                    <p className="text-muted-foreground">
+                    <p className="text-gray-600">
                       {court.description}
                     </p>
                   </div>
 
                   {/* Amenities */}
                   {court.amenities && court.amenities.length > 0 && (
-                    <div className="border-t pt-4">
+                    <div className="border-t border-gray-200 pt-4">
                       <h3 className="font-semibold mb-3">Amenities</h3>
                       <div className="flex flex-wrap gap-2">
                         {court.amenities.map((amenity) => (
-                          <Badge key={amenity} variant="secondary">
+                          <Badge key={amenity} variant="secondary" className="bg-gray-100 text-gray-700">
                             {amenity}
                           </Badge>
                         ))}
@@ -367,8 +379,8 @@ export default function CourtDetailPage() {
           {/* Booking Form */}
           <div className="lg:sticky lg:top-8">
             {user && isOwner ? (
-              <Card className="shadow-elegant border-2 border-primary/10">
-                <CardHeader className="bg-gradient-primary text-primary-foreground">
+              <Card className="shadow-elegant border border-gray-200">
+                <CardHeader className="bg-green-700 text-white border-b border-green-800">
                   <CardTitle className="text-xl font-bold">Owner Mode Active</CardTitle>
                 </CardHeader>
                 <CardContent className="p-6 space-y-4">
@@ -385,11 +397,11 @@ export default function CourtDetailPage() {
                 </CardContent>
               </Card>
             ) : user && !isOwner ? (
-              <Card className="shadow-elegant border-2 border-primary/10">
-                <CardHeader className="bg-gradient-primary text-primary-foreground">
+              <Card className="shadow-elegant border border-gray-200">
+                <CardHeader className="bg-green-700 text-white border-b border-green-800">
                   <CardTitle className="text-xl font-bold">Book This Court</CardTitle>
                 </CardHeader>
-                <CardContent className="p-6 space-y-6">
+                <CardContent className="p-6 pt-8 space-y-6">
                   {/* Date Selection */}
                   <div className="space-y-2">
                     <Label htmlFor="date" className="text-sm font-medium flex items-center gap-2">
@@ -409,7 +421,7 @@ export default function CourtDetailPage() {
                           {selectedDate ? format(selectedDate, "PPP") : "Select date"}
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
+                      <PopoverContent className="w-auto p-0 bg-white border border-gray-200 shadow-lg rounded-lg" align="start">
                         <CalendarComponent
                           mode="single"
                           selected={selectedDate}
@@ -431,9 +443,9 @@ export default function CourtDetailPage() {
                       <SelectTrigger>
                         <SelectValue placeholder="Select time" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-lg">
                         {availableTimeSlots.map((time) => (
-                          <SelectItem key={time} value={time}>
+                          <SelectItem key={time} value={time} className="hover:bg-green-50 cursor-pointer">
                             {time}
                           </SelectItem>
                         ))}
@@ -451,9 +463,9 @@ export default function CourtDetailPage() {
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-lg">
                         {durations.map((dur) => (
-                          <SelectItem key={dur} value={dur}>
+                          <SelectItem key={dur} value={dur} className="hover:bg-green-50 cursor-pointer">
                             {dur} {parseFloat(dur) === 1 ? "hour" : "hours"}
                           </SelectItem>
                         ))}
@@ -462,20 +474,20 @@ export default function CourtDetailPage() {
                   </div>
 
                   {/* Price Summary */}
-                  <div className="border-t pt-4 space-y-2">
+                  <div className="border-t border-gray-200 pt-4 space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Court rental ({duration} {parseFloat(duration) === 1 ? "hour" : "hours"})</span>
                       <span>${totalPrice}</span>
                     </div>
-                    <div className="flex justify-between font-semibold text-lg border-t pt-2">
+                    <div className="flex justify-between font-semibold text-lg border-t border-gray-200 pt-2">
                       <span>Total</span>
-                      <span className="text-primary">${totalPrice}</span>
+                      <span className="text-green-600">${totalPrice}</span>
                     </div>
                   </div>
 
                   {/* Book Button */}
                   <Button 
-                    className="w-full bg-gradient-primary hover:bg-primary-glow text-primary-foreground font-semibold py-3 transition-smooth"
+                    className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3"
                     size="lg"
                     disabled={!selectedDate || !selectedTime || bookingStatus === "loading" || fetchingBookings}
                     onClick={handleCheckout}
@@ -500,8 +512,8 @@ export default function CourtDetailPage() {
                 </CardContent>
               </Card>
             ) : (
-              <Card className="shadow-elegant border-2 border-primary/10">
-                <CardHeader className="bg-gradient-primary text-primary-foreground">
+              <Card className="shadow-elegant border border-gray-200">
+                <CardHeader className="bg-green-700 text-white border-b border-green-800">
                   <CardTitle className="text-xl font-bold">Book This Court</CardTitle>
                 </CardHeader>
                 <CardContent className="p-6 space-y-4">
