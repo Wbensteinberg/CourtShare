@@ -14,12 +14,19 @@ import {
   doc,
 } from "firebase/firestore";
 import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Plus, Edit3, Trash2, Calendar, User, Clock, MapPin } from "lucide-react";
+import AppHeader from "@/components/AppHeader";
 
 interface Court {
   id: string;
   name: string;
   location: string;
   imageUrl: string;
+  surface?: string;
+  indoor?: boolean;
 }
 
 interface Booking {
@@ -102,128 +109,222 @@ export default function OwnerDashboard() {
     }
   };
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "pending":
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Pending</Badge>;
+      case "confirmed":
+        return <Badge className="bg-green-600 text-white">Confirmed</Badge>;
+      case "cancelled":
+        return <Badge variant="destructive">Cancelled</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading courts and bookings...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-500">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#286a3a] px-4">
-      <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl px-8 py-10 flex flex-col gap-8 animate-fade-in my-16">
-        <div className="flex justify-start mb-4">
-          <button
-            className="text-[#286a3a] hover:underline text-sm font-semibold hover:cursor-pointer"
-            onClick={() => router.push("/courts")}
-          >
-            ← Back to Browse
-          </button>
+    <div className="min-h-screen bg-gradient-subtle">
+      <AppHeader />
+      
+      {/* Header */}
+      <div className="bg-white shadow-card border-b">
+        <div className="container py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <button 
+                onClick={() => router.push("/courts")}
+                className="flex items-center text-muted-foreground hover:text-primary transition-colors hover:cursor-pointer"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Browse
+              </button>
+            </div>
+          </div>
         </div>
-        <h1 className="text-3xl font-extrabold text-[#286a3a] mb-2 text-center">
-          Owner Dashboard
-        </h1>
-        <p className="text-gray-600 text-center mb-2">
-          Welcome! Here are your courts and bookings.
-        </p>
-        <div className="flex justify-center mb-4">
-          <button
-            className="bg-[#e3f1e7] text-[#286a3a] px-4 py-2 rounded-lg font-semibold text-sm shadow hover:bg-[#d1e7d6] transition"
+      </div>
+
+      {/* Main Content */}
+      <div className="container py-8">
+        {/* Title Section */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-primary bg-clip-text text-transparent">
+            Owner Dashboard
+          </h1>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            Welcome! Here are your courts and bookings.
+          </p>
+        </div>
+
+        {/* Add New Court Button */}
+        <div className="flex justify-center mb-8">
+          <Button 
             onClick={() => router.push("/create-listing")}
+            className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:cursor-pointer"
+            size="lg"
           >
-            + Add New Court
-          </button>
+            <Plus className="h-5 w-5 mr-2" />
+            Add New Court
+          </Button>
         </div>
-        {loading ? (
-          <p className="text-center text-gray-500">
-            Loading courts and bookings...
-          </p>
-        ) : error ? (
-          <p className="text-center text-red-500">{error}</p>
-        ) : courts.length === 0 ? (
-          <p className="text-center text-gray-500">
-            You have no courts listed yet.
-          </p>
+
+        {/* Courts Section */}
+        {courts.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-500 text-lg">You have no courts listed yet.</p>
+          </div>
         ) : (
           <div className="space-y-8">
             {courts.map((court) => (
-              <div
-                key={court.id}
-                className="bg-[#e3f1e7] rounded-2xl p-6 shadow border border-[#e3f1e7]"
-              >
-                <div className="flex items-center gap-4 mb-3">
-                  <div className="w-20 h-20 relative rounded-xl overflow-hidden shadow">
-                    {court.imageUrl ? (
-                      <Image
-                        src={court.imageUrl}
-                        alt={court.name}
-                        fill
-                        className="object-cover rounded-xl"
-                      />
+              <Card key={court.id} className="overflow-hidden hover:shadow-elegant transition-all duration-300">
+                <CardHeader className="pb-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-4">
+                      <div className="relative w-20 h-20 rounded-lg overflow-hidden">
+                        {court.imageUrl ? (
+                          <Image
+                            src={court.imageUrl}
+                            alt={court.name}
+                            fill
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                            <span className="text-4xl">🎾</span>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-green-600 opacity-10"></div>
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-bold text-foreground">{court.name}</h3>
+                        <div className="flex items-center text-muted-foreground mt-1">
+                          <MapPin className="h-4 w-4 mr-1" />
+                          {court.location}
+                        </div>
+                        {court.surface && (
+                          <Badge variant="outline" className="mt-2">
+                            {court.surface}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="flex space-x-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="gap-2 hover:cursor-pointer"
+                        onClick={() => router.push(`/edit-listing/${court.id}`)}
+                      >
+                        <Edit3 className="h-4 w-4" />
+                        Edit
+                      </Button>
+                      <Button 
+                        variant="destructive" 
+                        size="sm" 
+                        className="gap-2"
+                        onClick={() => handleDelete(court.id)}
+                        disabled={deletingCourtId === court.id}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {deletingCourtId === court.id ? "Deleting..." : "Delete"}
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent>
+                  {/* Bookings Section */}
+                  <div className="space-y-4">
+                    <div className="flex items-center space-x-2 mb-4">
+                      <Calendar className="h-5 w-5 text-green-600" />
+                      <h4 className="text-lg font-semibold text-foreground">Bookings</h4>
+                      <Badge variant="outline" className="ml-auto">
+                        {bookings.filter(b => b.courtId === court.id).length} total
+                      </Badge>
+                    </div>
+
+                    {bookings.filter(b => b.courtId === court.id).length === 0 ? (
+                      <p className="text-gray-400 text-sm text-center py-4">
+                        No bookings for this court yet.
+                      </p>
                     ) : (
-                      <div className="w-full h-full bg-gray-200 flex items-center justify-center rounded-xl">
-                        <span className="text-4xl">🎾</span>
+                      <div className="grid gap-3">
+                        {bookings
+                          .filter(b => b.courtId === court.id)
+                          .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
+                          .map((booking) => (
+                            <Card key={booking.id} className="bg-muted/30 border-border/50">
+                              <CardContent className="p-4">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center space-x-4">
+                                    <div className="flex items-center space-x-2 text-sm">
+                                      <Calendar className="h-4 w-4 text-green-600" />
+                                      <span className="font-medium">{booking.date}</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2 text-sm">
+                                      <Clock className="h-4 w-4 text-green-600" />
+                                      <span>{booking.time} ({booking.duration}h)</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                                      <User className="h-4 w-4" />
+                                      <span className="font-mono text-xs">{booking.userId.slice(0, 12)}...</span>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="flex items-center space-x-3">
+                                    {getStatusBadge(booking.status)}
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
                       </div>
                     )}
                   </div>
-                  <div>
-                    <div className="text-lg font-bold text-[#286a3a]">
-                      {court.name}
-                    </div>
-                    <div className="text-gray-600 text-sm">
-                      {court.location}
-                    </div>
-                  </div>
-                  <div className="flex gap-2 ml-auto">
-                    <button
-                      className="bg-blue-100 text-blue-800 px-3 py-1 rounded font-semibold text-xs shadow hover:bg-blue-200 transition hover:cursor-pointer"
-                      onClick={() => router.push(`/edit-listing/${court.id}`)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="bg-red-100 text-red-700 px-3 py-1 rounded font-semibold text-xs shadow hover:bg-red-200 transition disabled:opacity-60"
-                      onClick={() => handleDelete(court.id)}
-                      disabled={deletingCourtId === court.id}
-                    >
-                      {deletingCourtId === court.id ? "Deleting..." : "Delete"}
-                    </button>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-md font-semibold text-[#286a3a] mb-2">
-                    Bookings
-                  </h3>
-                  {bookings.filter((b) => b.courtId === court.id).length ===
-                  0 ? (
-                    <p className="text-gray-400 text-sm">
-                      No bookings for this court yet.
-                    </p>
-                  ) : (
-                    <ul className="space-y-2">
-                      {bookings
-                        .filter((b) => b.courtId === court.id)
-                        .sort((a, b) =>
-                          (a.date + a.time).localeCompare(b.date + b.time)
-                        )
-                        .map((b) => (
-                          <li
-                            key={b.id}
-                            className="bg-white rounded-lg p-3 shadow border border-[#e3f1e7] flex flex-col sm:flex-row sm:items-center gap-2"
-                          >
-                            <div className="flex-1">
-                              <div className="text-[#286a3a] font-semibold text-sm">
-                                {b.date} at {b.time} ({b.duration}h)
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                Status: {b.status}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                User: {b.userId}
-                              </div>
-                            </div>
-                          </li>
-                        ))}
-                    </ul>
-                  )}
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
         )}
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
+          <Card className="text-center p-6 hover:shadow-card transition-all duration-300">
+            <div className="text-3xl font-bold text-green-600 mb-2">{courts.length}</div>
+            <div className="text-muted-foreground">Active Courts</div>
+          </Card>
+          <Card className="text-center p-6 hover:shadow-card transition-all duration-300">
+            <div className="text-3xl font-bold text-green-600 mb-2">{bookings.length}</div>
+            <div className="text-muted-foreground">Total Bookings</div>
+          </Card>
+          <Card className="text-center p-6 hover:shadow-card transition-all duration-300">
+            <div className="text-3xl font-bold text-green-600 mb-2">
+              {bookings.filter(b => b.status === 'pending').length}
+            </div>
+            <div className="text-muted-foreground">Pending Requests</div>
+          </Card>
+        </div>
       </div>
     </div>
   );
