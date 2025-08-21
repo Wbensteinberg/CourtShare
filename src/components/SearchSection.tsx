@@ -72,23 +72,12 @@ const SearchSection = () => {
                 Date
               </label>
               <div className="relative">
-                <div
-                  className="absolute left-3 top-3 h-4 w-4 flex items-center cursor-pointer z-10"
-                  onClick={() =>
-                    datePickerRef.current && datePickerRef.current.setFocus()
-                  }
-                  tabIndex={0}
-                  role="button"
-                  aria-label="Open calendar"
-                >
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                </div>
                 <ReactDatePicker
                   selected={date}
                   onChange={setDate}
                   dateFormat="MM/dd/yyyy"
                   placeholderText="mm/dd/yyyy"
-                  className="pl-10 border border-gray-300 rounded-lg h-11 w-full cursor-pointer"
+                  className="w-full p-3 border border-gray-300 rounded-lg h-11 cursor-pointer"
                   ref={(r) => {
                     datePickerRef.current = r;
                   }}

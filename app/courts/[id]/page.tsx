@@ -20,11 +20,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import ReactDatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 interface Court {
   name: string;
@@ -53,7 +53,7 @@ export default function CourtDetailPage() {
   const { user, isOwner } = useAuth();
 
   // Booking state
-  const [selectedDate, setSelectedDate] = useState<Date>();
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [duration, setDuration] = useState<string>("1");
   const [bookingStatus, setBookingStatus] = useState<
@@ -74,9 +74,10 @@ export default function CourtDetailPage() {
 
   // Filter function for blocked dates
   const filterBlockedDates = (date: Date) => {
-    if (!court?.blockedDates) return true;
+    if (date < new Date()) return false; // Disable past dates
+    if (!court?.blockedDates) return true; // Enable all future dates if no blocked dates
     const dateString = date.toISOString().split('T')[0];
-    return !court.blockedDates.includes(dateString);
+    return !court.blockedDates.includes(dateString); // Return true to enable, false to disable
   };
 
   // Compute all blocked times for the selected date
@@ -408,29 +409,15 @@ export default function CourtDetailPage() {
                       <Calendar className="w-4 h-4" />
                       Date
                     </Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal",
-                            !selectedDate && "text-muted-foreground"
-                          )}
-                        >
-                          <Calendar className="mr-2 h-4 w-4" />
-                          {selectedDate ? format(selectedDate, "PPP") : "Select date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 bg-white border border-gray-200 shadow-lg rounded-lg" align="start">
-                        <CalendarComponent
-                          mode="single"
-                          selected={selectedDate}
-                          onSelect={setSelectedDate}
-                          disabled={(date) => date < new Date() || !filterBlockedDates(date)}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <ReactDatePicker
+                      selected={selectedDate}
+                      onChange={(date) => setSelectedDate(date)}
+                      dateFormat="MM/dd/yyyy"
+                      placeholderText="Select date"
+                      minDate={new Date()}
+                      filterDate={filterBlockedDates}
+                      className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    />
                   </div>
 
                   {/* Time Selection */}
