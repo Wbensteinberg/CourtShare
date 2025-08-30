@@ -112,7 +112,7 @@ export default function OwnerDashboard() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Pending</Badge>;
+        return <Badge variant="secondary" className="bg-yellow-100 text-green-700 border-yellow-200">Pending</Badge>;
       case "confirmed":
         return <Badge className="bg-green-600 text-white">Confirmed</Badge>;
       case "cancelled":
@@ -124,10 +124,10 @@ export default function OwnerDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading courts and bookings...</p>
+          <p className="text-gray-600">Loading courts and bookings...</p>
         </div>
       </div>
     );
@@ -135,7 +135,7 @@ export default function OwnerDashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-500">{error}</p>
         </div>
@@ -144,17 +144,17 @@ export default function OwnerDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-subtle">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
       <AppHeader />
       
       {/* Header */}
-      <div className="bg-white shadow-card border-b">
-        <div className="container py-6">
+      <div className="bg-white shadow-lg border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <button 
                 onClick={() => router.push("/courts")}
-                className="flex items-center text-muted-foreground hover:text-primary transition-colors hover:cursor-pointer"
+                className="flex items-center text-gray-600 hover:text-green-700 transition-colors hover:cursor-pointer"
               >
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 Back to Browse
@@ -165,13 +165,13 @@ export default function OwnerDashboard() {
       </div>
 
       {/* Main Content */}
-      <div className="container py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Title Section */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-primary bg-clip-text text-transparent">
+          <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
             Owner Dashboard
           </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
             Welcome! Here are your courts and bookings.
           </p>
         </div>
@@ -180,10 +180,10 @@ export default function OwnerDashboard() {
         <div className="flex justify-center mb-8">
           <Button 
             onClick={() => router.push("/create-listing")}
-            className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:cursor-pointer"
+            className="bg-green-600 hover:bg-green-700 text-white font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 hover:cursor-pointer text-lg"
             size="lg"
           >
-            <Plus className="h-5 w-5 mr-2" />
+            <Plus className="h-6 w-6 mr-3" />
             Add New Court
           </Button>
         </div>
@@ -194,13 +194,13 @@ export default function OwnerDashboard() {
             <p className="text-gray-500 text-lg">You have no courts listed yet.</p>
           </div>
         ) : (
-          <div className="space-y-8">
+          <div className="space-y-6">
             {courts.map((court) => (
-              <Card key={court.id} className="overflow-hidden hover:shadow-elegant transition-all duration-300">
-                <CardHeader className="pb-4">
+              <Card key={court.id} className="overflow-hidden hover:shadow-xl transition-all duration-300 border-0 shadow-md bg-white">
+                <CardHeader className="pb-3 px-6 pt-6">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center space-x-4">
-                      <div className="relative w-20 h-20 rounded-lg overflow-hidden">
+                      <div className="relative w-16 h-16 rounded-lg overflow-hidden shadow-md">
                         {court.imageUrl ? (
                           <Image
                             src={court.imageUrl}
@@ -209,20 +209,20 @@ export default function OwnerDashboard() {
                             className="object-cover"
                           />
                         ) : (
-                          <div className="w-full h-full bg-gray-200 flex items-center justify-center">
-                            <span className="text-4xl">🎾</span>
+                          <div className="w-full h-full bg-gradient-to-br from-green-100 to-blue-100 flex items-center justify-center">
+                            <span className="text-3xl">🎾</span>
                           </div>
                         )}
-                        <div className="absolute inset-0 bg-green-600 opacity-10"></div>
+                        <div className="absolute inset-0 bg-gradient-to-br from-green-600/20 to-blue-600/20"></div>
                       </div>
                       <div>
-                        <h3 className="text-2xl font-bold text-foreground">{court.name}</h3>
-                        <div className="flex items-center text-muted-foreground mt-1">
-                          <MapPin className="h-4 w-4 mr-1" />
-                          {court.location}
+                        <h3 className="text-xl font-bold text-gray-900 mb-1">{court.name}</h3>
+                        <div className="flex items-center text-gray-600 mb-2">
+                          <MapPin className="h-4 w-4 mr-2 text-green-600" />
+                          <span className="text-sm">@{court.location}</span>
                         </div>
                         {court.surface && (
-                          <Badge variant="outline" className="mt-2">
+                          <Badge variant="outline" className="text-xs px-2 py-1 border-green-200 text-green-700">
                             {court.surface}
                           </Badge>
                         )}
@@ -233,39 +233,39 @@ export default function OwnerDashboard() {
                       <Button 
                         variant="outline" 
                         size="sm" 
-                        className="gap-2 hover:cursor-pointer"
+                        className="gap-1 hover:cursor-pointer border-gray-300 hover:border-green-500 hover:bg-green-50 text-gray-700 hover:text-green-700 px-3 py-1 text-xs"
                         onClick={() => router.push(`/edit-listing/${court.id}`)}
                       >
-                        <Edit3 className="h-4 w-4" />
+                        <Edit3 className="h-3 w-3" />
                         Edit
                       </Button>
                       <Button 
                         variant="destructive" 
                         size="sm" 
-                        className="gap-2"
+                        className="gap-1 px-3 py-1 text-xs"
                         onClick={() => handleDelete(court.id)}
                         disabled={deletingCourtId === court.id}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 w-3" />
                         {deletingCourtId === court.id ? "Deleting..." : "Delete"}
                       </Button>
                     </div>
                   </div>
                 </CardHeader>
 
-                <CardContent>
+                <CardContent className="px-6 pb-6">
                   {/* Bookings Section */}
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div className="flex items-center space-x-2 mb-4">
                       <Calendar className="h-5 w-5 text-green-600" />
-                      <h4 className="text-lg font-semibold text-foreground">Bookings</h4>
-                      <Badge variant="outline" className="ml-auto">
+                      <h4 className="text-lg font-semibold text-gray-900">Bookings</h4>
+                      <Badge variant="outline" className="ml-auto text-xs px-2 py-1 border-gray-300">
                         {bookings.filter(b => b.courtId === court.id).length} total
                       </Badge>
                     </div>
 
                     {bookings.filter(b => b.courtId === court.id).length === 0 ? (
-                      <p className="text-gray-400 text-sm text-center py-4">
+                      <p className="text-gray-400 text-sm text-center py-4 bg-gray-50 rounded-lg">
                         No bookings for this court yet.
                       </p>
                     ) : (
@@ -274,25 +274,25 @@ export default function OwnerDashboard() {
                           .filter(b => b.courtId === court.id)
                           .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
                           .map((booking) => (
-                            <Card key={booking.id} className="bg-muted/30 border-border/50">
-                              <CardContent className="p-4">
+                            <Card key={booking.id} className="bg-gray-50/80 border border-gray-200 hover:border-gray-300 transition-colors">
+                              <CardContent className="p-3">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center space-x-4">
-                                    <div className="flex items-center space-x-2 text-sm">
-                                      <Calendar className="h-4 w-4 text-green-600" />
-                                      <span className="font-medium">{booking.date}</span>
+                                    <div className="flex items-center space-x-2 text-xs">
+                                      <Calendar className="h-3 w-3 text-green-600" />
+                                      <span className="font-medium text-gray-900">{booking.date}</span>
                                     </div>
-                                    <div className="flex items-center space-x-2 text-sm">
-                                      <Clock className="h-4 w-4 text-green-600" />
-                                      <span>{booking.time} ({booking.duration}h)</span>
+                                    <div className="flex items-center space-x-2 text-xs">
+                                      <Clock className="h-3 w-3 text-green-600" />
+                                      <span className="text-gray-700">{booking.time} ({booking.duration}h)</span>
                                     </div>
-                                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                                      <User className="h-4 w-4" />
+                                    <div className="flex items-center space-x-2 text-xs text-gray-500">
+                                      <User className="h-3 w-3" />
                                       <span className="font-mono text-xs">{booking.userId.slice(0, 12)}...</span>
                                     </div>
                                   </div>
                                   
-                                  <div className="flex items-center space-x-3">
+                                  <div className="flex items-center space-x-2">
                                     {getStatusBadge(booking.status)}
                                   </div>
                                 </div>
@@ -309,20 +309,20 @@ export default function OwnerDashboard() {
         )}
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
-          <Card className="text-center p-6 hover:shadow-card transition-all duration-300">
-            <div className="text-3xl font-bold text-green-600 mb-2">{courts.length}</div>
-            <div className="text-muted-foreground">Active Courts</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16">
+          <Card className="text-center p-8 hover:shadow-xl transition-all duration-300 border-0 shadow-lg bg-white">
+            <div className="text-4xl font-bold text-green-600 mb-3">{courts.length}</div>
+            <div className="text-gray-600 text-lg">Active Courts</div>
           </Card>
-          <Card className="text-center p-6 hover:shadow-card transition-all duration-300">
-            <div className="text-3xl font-bold text-green-600 mb-2">{bookings.length}</div>
-            <div className="text-muted-foreground">Total Bookings</div>
+          <Card className="text-center p-8 hover:shadow-xl transition-all duration-300 border-0 shadow-lg bg-white">
+            <div className="text-4xl font-bold text-green-600 mb-3">{bookings.length}</div>
+            <div className="text-gray-600 text-lg">Total Bookings</div>
           </Card>
-          <Card className="text-center p-6 hover:shadow-card transition-all duration-300">
-            <div className="text-3xl font-bold text-green-600 mb-2">
+          <Card className="text-center p-8 hover:shadow-xl transition-all duration-300 border-0 shadow-lg bg-white">
+            <div className="text-4xl font-bold text-green-600 mb-3">
               {bookings.filter(b => b.status === 'pending').length}
             </div>
-            <div className="text-muted-foreground">Pending Requests</div>
+            <div className="text-gray-600 text-lg">Pending Requests</div>
           </Card>
         </div>
       </div>
