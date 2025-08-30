@@ -19,7 +19,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -62,12 +68,26 @@ export default function CourtDetailPage() {
   const [bookingsForDate, setBookingsForDate] = useState<any[]>([]);
   const [fetchingBookings, setFetchingBookings] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [showImageModal, setShowImageModal] = useState(false);
 
   // Time slots and durations
   const timeSlots = [
-    "6:00 AM", "7:00 AM", "8:00 AM", "9:00 AM", "10:00 AM", "11:00 AM",
-    "12:00 PM", "1:00 PM", "2:00 PM", "3:00 PM", "4:00 PM", "5:00 PM",
-    "6:00 PM", "7:00 PM", "8:00 PM", "9:00 PM"
+    "6:00 AM",
+    "7:00 AM",
+    "8:00 AM",
+    "9:00 AM",
+    "10:00 AM",
+    "11:00 AM",
+    "12:00 PM",
+    "1:00 PM",
+    "2:00 PM",
+    "3:00 PM",
+    "4:00 PM",
+    "5:00 PM",
+    "6:00 PM",
+    "7:00 PM",
+    "8:00 PM",
+    "9:00 PM",
   ];
 
   const durations = ["1", "1.5", "2", "2.5", "3"];
@@ -76,13 +96,13 @@ export default function CourtDetailPage() {
   const filterBlockedDates = (date: Date) => {
     if (date < new Date()) return false; // Disable past dates
     if (!court?.blockedDates) return true; // Enable all future dates if no blocked dates
-    const dateString = date.toISOString().split('T')[0];
+    const dateString = date.toISOString().split("T")[0];
     return !court.blockedDates.includes(dateString); // Return true to enable, false to disable
   };
 
   // Compute all blocked times for the selected date
   const blockedTimes = new Set<string>();
-  
+
   // Add existing bookings
   bookingsForDate.forEach((b) => {
     const startHour = parseInt((b.time || "").split(":")[0], 10);
@@ -94,36 +114,36 @@ export default function CourtDetailPage() {
       }
     }
   });
-  
+
   // Add court's blocked times for the selected date
   if (court && selectedDate && court.blockedTimes) {
-    const dateString = selectedDate.toISOString().split('T')[0];
+    const dateString = selectedDate.toISOString().split("T")[0];
     const courtBlockedTimes = court.blockedTimes[dateString] || [];
-    courtBlockedTimes.forEach(time => {
+    courtBlockedTimes.forEach((time) => {
       blockedTimes.add(time);
     });
   }
 
   // Filter available time slots
-  const availableTimeSlots = timeSlots.filter(time => {
+  const availableTimeSlots = timeSlots.filter((time) => {
     const hour = parseInt(time.split(":")[0], 10);
     const time24 = hour.toString().padStart(2, "0") + ":00";
-    
+
     // Check if time is blocked
     if (blockedTimes.has(time24)) return false;
-    
+
     // Check if time is in the past for today
     if (selectedDate) {
       const today = new Date();
       const selectedDateOnly = new Date(selectedDate.toDateString());
       const todayOnly = new Date(today.toDateString());
-      
+
       if (selectedDateOnly.getTime() === todayOnly.getTime()) {
         const nowHour = today.getHours();
         return hour > nowHour;
       }
     }
-    
+
     return true;
   });
 
@@ -164,7 +184,9 @@ export default function CourtDetailPage() {
           where(
             "date",
             "==",
-            selectedDate instanceof Date ? selectedDate.toISOString().slice(0, 10) : selectedDate
+            selectedDate instanceof Date
+              ? selectedDate.toISOString().slice(0, 10)
+              : selectedDate
           )
         );
         const snap = await getDocs(q);
@@ -197,7 +219,10 @@ export default function CourtDetailPage() {
         body: JSON.stringify({
           courtId: id,
           userId: user.uid,
-          date: selectedDate instanceof Date ? selectedDate.toISOString().slice(0, 10) : selectedDate,
+          date:
+            selectedDate instanceof Date
+              ? selectedDate.toISOString().slice(0, 10)
+              : selectedDate,
           time: selectedTime,
           duration: parseFloat(duration),
           price: court?.price || 0,
@@ -254,7 +279,12 @@ export default function CourtDetailPage() {
       {/* Header */}
       <div className="bg-background border-b border-gray-200">
         <div className="container py-4">
-          <Button variant="ghost" size="sm" className="mb-4" onClick={() => router.back()}>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="mb-4"
+            onClick={() => router.back()}
+          >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Browse
           </Button>
@@ -269,38 +299,44 @@ export default function CourtDetailPage() {
             <Card className="overflow-hidden shadow-card border-0">
               <div className="relative h-64 md:h-80 group">
                 <Image
-                  src={court.imageUrls && court.imageUrls.length > 0 ? court.imageUrls[currentImageIndex] : court.imageUrl}
+                  src={
+                    court.imageUrls && court.imageUrls.length > 0
+                      ? court.imageUrls[currentImageIndex]
+                      : court.imageUrl
+                  }
                   alt={court.name}
                   fill
                   className="object-cover cursor-pointer transition-transform duration-200 group-hover:scale-105"
                   sizes="(max-width: 768px) 100vw, 50vw"
                   priority
-                  onClick={() => {
-                    const imageUrl = court.imageUrls && court.imageUrls.length > 0 ? court.imageUrls[currentImageIndex] : court.imageUrl;
-                    window.open(imageUrl, '_blank');
-                  }}
+                  onClick={() => setShowImageModal(true)}
                 />
-                {/* Click indicator */}
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 flex items-center justify-center">
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-white/90 text-gray-800 px-3 py-1 rounded-full text-sm font-medium">
-                    Click to preview
-                  </div>
-                </div>
                 <div className="absolute top-4 right-4">
-                  <Badge variant="secondary" className="bg-background/90 backdrop-blur-sm">
+                  <Badge
+                    variant="secondary"
+                    className="bg-background/90 backdrop-blur-sm"
+                  >
                     {court.indoor ? "Indoor" : "Outdoor"}
                   </Badge>
                 </div>
                 {court.imageUrls && court.imageUrls.length > 1 && (
                   <>
                     <button
-                      onClick={() => setCurrentImageIndex(prev => prev > 0 ? prev - 1 : court.imageUrls!.length - 1)}
+                      onClick={() =>
+                        setCurrentImageIndex((prev) =>
+                          prev > 0 ? prev - 1 : court.imageUrls!.length - 1
+                        )
+                      }
                       className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-black/70 transition"
                     >
                       ‹
                     </button>
                     <button
-                      onClick={() => setCurrentImageIndex(prev => prev < court.imageUrls!.length - 1 ? prev + 1 : 0)}
+                      onClick={() =>
+                        setCurrentImageIndex((prev) =>
+                          prev < court.imageUrls!.length - 1 ? prev + 1 : 0
+                        )
+                      }
                       className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-black/70 transition"
                     >
                       ›
@@ -311,7 +347,9 @@ export default function CourtDetailPage() {
                           key={index}
                           onClick={() => setCurrentImageIndex(index)}
                           className={`w-2 h-2 rounded-full transition ${
-                            index === currentImageIndex ? 'bg-white' : 'bg-white/50'
+                            index === currentImageIndex
+                              ? "bg-white"
+                              : "bg-white/50"
                           }`}
                         />
                       ))}
@@ -336,12 +374,17 @@ export default function CourtDetailPage() {
                     <div className="flex items-center gap-4">
                       <div className="flex items-center gap-1">
                         <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                        <span className="font-medium">{court.rating || 4.5}</span>
+                        <span className="font-medium">
+                          {court.rating || 4.5}
+                        </span>
                         <span className="text-gray-500">
                           ({court.reviewCount || 0} reviews)
                         </span>
                       </div>
-                      <Badge variant="outline" className="text-gray-600 border-gray-300">
+                      <Badge
+                        variant="outline"
+                        className="text-gray-600 border-gray-300"
+                      >
                         {court.surface || "Hard Court"}
                       </Badge>
                     </div>
@@ -354,9 +397,7 @@ export default function CourtDetailPage() {
                       </span>
                       <span className="text-gray-500">per hour</span>
                     </div>
-                    <p className="text-gray-600">
-                      {court.description}
-                    </p>
+                    <p className="text-gray-600">{court.description}</p>
                   </div>
 
                   {/* Amenities */}
@@ -365,7 +406,11 @@ export default function CourtDetailPage() {
                       <h3 className="font-semibold mb-3">Amenities</h3>
                       <div className="flex flex-wrap gap-2">
                         {court.amenities.map((amenity) => (
-                          <Badge key={amenity} variant="secondary" className="bg-gray-100 text-gray-700">
+                          <Badge
+                            key={amenity}
+                            variant="secondary"
+                            className="bg-gray-100 text-gray-700"
+                          >
                             {amenity}
                           </Badge>
                         ))}
@@ -382,13 +427,16 @@ export default function CourtDetailPage() {
             {user && isOwner ? (
               <Card className="shadow-elegant border border-gray-200">
                 <CardHeader className="bg-green-700 text-white border-b border-green-800">
-                  <CardTitle className="text-xl font-bold">Owner Mode Active</CardTitle>
+                  <CardTitle className="text-xl font-bold">
+                    Owner Mode Active
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6 space-y-4">
                   <p className="text-center text-muted-foreground">
-                    You're currently in owner mode. Switch to player mode to book courts.
+                    You're currently in owner mode. Switch to player mode to
+                    book courts.
                   </p>
-                  <Button 
+                  <Button
                     className="w-full bg-gradient-primary hover:bg-primary-glow text-primary-foreground font-semibold py-3 transition-smooth"
                     size="lg"
                     onClick={() => router.push("/dashboard/owner")}
@@ -400,12 +448,17 @@ export default function CourtDetailPage() {
             ) : user && !isOwner ? (
               <Card className="shadow-elegant border border-gray-200">
                 <CardHeader className="bg-green-700 text-white border-b border-green-800">
-                  <CardTitle className="text-xl font-bold">Book This Court</CardTitle>
+                  <CardTitle className="text-xl font-bold">
+                    Book This Court
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6 pt-8 space-y-6">
                   {/* Date Selection */}
                   <div className="space-y-2">
-                    <Label htmlFor="date" className="text-sm font-medium flex items-center gap-2">
+                    <Label
+                      htmlFor="date"
+                      className="text-sm font-medium flex items-center gap-2"
+                    >
                       <Calendar className="w-4 h-4" />
                       Date
                     </Label>
@@ -422,17 +475,27 @@ export default function CourtDetailPage() {
 
                   {/* Time Selection */}
                   <div className="space-y-2">
-                    <Label htmlFor="time" className="text-sm font-medium flex items-center gap-2">
+                    <Label
+                      htmlFor="time"
+                      className="text-sm font-medium flex items-center gap-2"
+                    >
                       <Clock className="w-4 h-4" />
                       Time
                     </Label>
-                    <Select value={selectedTime} onValueChange={setSelectedTime}>
+                    <Select
+                      value={selectedTime}
+                      onValueChange={setSelectedTime}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select time" />
                       </SelectTrigger>
                       <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-lg">
                         {availableTimeSlots.map((time) => (
-                          <SelectItem key={time} value={time} className="hover:bg-green-50 cursor-pointer">
+                          <SelectItem
+                            key={time}
+                            value={time}
+                            className="hover:bg-green-50 cursor-pointer"
+                          >
                             {time}
                           </SelectItem>
                         ))}
@@ -442,7 +505,10 @@ export default function CourtDetailPage() {
 
                   {/* Duration Selection */}
                   <div className="space-y-2">
-                    <Label htmlFor="duration" className="text-sm font-medium flex items-center gap-2">
+                    <Label
+                      htmlFor="duration"
+                      className="text-sm font-medium flex items-center gap-2"
+                    >
                       <Users className="w-4 h-4" />
                       Duration (hours)
                     </Label>
@@ -452,7 +518,11 @@ export default function CourtDetailPage() {
                       </SelectTrigger>
                       <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-lg">
                         {durations.map((dur) => (
-                          <SelectItem key={dur} value={dur} className="hover:bg-green-50 cursor-pointer">
+                          <SelectItem
+                            key={dur}
+                            value={dur}
+                            className="hover:bg-green-50 cursor-pointer"
+                          >
                             {dur} {parseFloat(dur) === 1 ? "hour" : "hours"}
                           </SelectItem>
                         ))}
@@ -463,7 +533,10 @@ export default function CourtDetailPage() {
                   {/* Price Summary */}
                   <div className="border-t border-gray-200 pt-4 space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span>Court rental ({duration} {parseFloat(duration) === 1 ? "hour" : "hours"})</span>
+                      <span>
+                        Court rental ({duration}{" "}
+                        {parseFloat(duration) === 1 ? "hour" : "hours"})
+                      </span>
                       <span>${totalPrice}</span>
                     </div>
                     <div className="flex justify-between font-semibold text-lg border-t border-gray-200 pt-2">
@@ -473,13 +546,20 @@ export default function CourtDetailPage() {
                   </div>
 
                   {/* Book Button */}
-                  <Button 
+                  <Button
                     className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3"
                     size="lg"
-                    disabled={!selectedDate || !selectedTime || bookingStatus === "loading" || fetchingBookings}
+                    disabled={
+                      !selectedDate ||
+                      !selectedTime ||
+                      bookingStatus === "loading" ||
+                      fetchingBookings
+                    }
                     onClick={handleCheckout}
                   >
-                    {bookingStatus === "loading" ? "Processing..." : "Book & Pay"}
+                    {bookingStatus === "loading"
+                      ? "Processing..."
+                      : "Book & Pay"}
                   </Button>
 
                   {bookingStatus === "conflict" && (
@@ -494,20 +574,23 @@ export default function CourtDetailPage() {
                   )}
 
                   <p className="text-xs text-muted-foreground text-center">
-                    Secure payment processing. Cancel up to 24 hours before your booking.
+                    Secure payment processing. Cancel up to 24 hours before your
+                    booking.
                   </p>
                 </CardContent>
               </Card>
             ) : (
               <Card className="shadow-elegant border border-gray-200">
                 <CardHeader className="bg-green-700 text-white border-b border-green-800">
-                  <CardTitle className="text-xl font-bold">Book This Court</CardTitle>
+                  <CardTitle className="text-xl font-bold">
+                    Book This Court
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6 space-y-4">
                   <p className="text-center text-muted-foreground">
                     Log in to book this court.
                   </p>
-                  <Button 
+                  <Button
                     className="w-full bg-gradient-primary hover:bg-primary-glow text-primary-foreground font-semibold py-3 transition-smooth"
                     size="lg"
                     onClick={() => router.push(`/login?redirect=/courts/${id}`)}
@@ -520,6 +603,45 @@ export default function CourtDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Image Modal */}
+      {showImageModal && (
+        <div
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+          onClick={() => setShowImageModal(false)}
+        >
+          <div className="relative max-w-4xl max-h-full">
+            <Image
+              src={
+                court.imageUrls && court.imageUrls.length > 0
+                  ? court.imageUrls[currentImageIndex]
+                  : court.imageUrl
+              }
+              alt={court.name}
+              width={800}
+              height={600}
+              className="max-w-full max-h-full object-contain rounded-lg"
+              onClick={(e) => e.stopPropagation()}
+            />
+            {court.imageUrls && court.imageUrls.length > 1 && (
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
+                {court.imageUrls.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentImageIndex(index);
+                    }}
+                    className={`w-3 h-3 rounded-full transition ${
+                      index === currentImageIndex ? "bg-white" : "bg-white/50"
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
