@@ -132,7 +132,7 @@ export default function AppHeader() {
                 className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
                 onClick={() => router.push("/create-listing")}
               >
-                Add New Listing
+                Create New Listing
               </Button>
             </>
           )}
@@ -269,7 +269,7 @@ export default function AppHeader() {
                     setMenuOpen(false);
                   }}
                 >
-                  Add New Listing
+                  Create New Listing
                 </Button>
               </>
             )}

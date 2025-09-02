@@ -1,11 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { db, getStorageInstance } from "@/lib/firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { useAuth } from "@/lib/AuthContext";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Upload, Calendar as CalendarIcon, Clock, Trophy, Edit3 } from "lucide-react";
+import { useForm } from "react-hook-form";
+import { format } from "date-fns";
+import AppHeader from "@/components/AppHeader";
+import ReactDatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
 interface Court {
   id: string;
@@ -20,6 +32,15 @@ interface Court {
   ownerId: string;
   blockedDates?: string[]; // Array of date strings in YYYY-MM-DD format
   blockedTimes?: { [date: string]: string[] }; // Object with date as key and array of time strings as value
+}
+
+interface CourtFormData {
+  courtName: string;
+  location: string;
+  fullAddress: string;
+  accessInstructions: string;
+  pricePerHour: string;
+  description: string;
 }
 
 export default function EditListingPage() {
@@ -48,8 +69,26 @@ export default function EditListingPage() {
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<string>("");
   
+  // New state for the beautiful UI
+  const [date, setDate] = useState<Date | null>(null);
+  const [blockTimeDate, setBlockTimeDate] = useState<Date | null>(null);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const router = useRouter();
   const { user } = useAuth();
+
+  const form = useForm<CourtFormData>({
+    defaultValues: {
+      courtName: "",
+      location: "",
+      fullAddress: "",
+      accessInstructions: "",
+      pricePerHour: "",
+      description: ""
+    }
+  });
 
   useEffect(() => {
     if (!courtId || !user) return;
@@ -94,6 +133,14 @@ export default function EditListingPage() {
         setBlockedDates(courtData.blockedDates || []);
         setBlockedTimes(courtData.blockedTimes || {});
         
+        // Update form default values
+        form.setValue("courtName", courtData.name);
+        form.setValue("location", courtData.location);
+        form.setValue("fullAddress", courtData.address || "");
+        form.setValue("accessInstructions", courtData.accessInstructions || "");
+        form.setValue("pricePerHour", courtData.price.toString());
+        form.setValue("description", courtData.description);
+        
       } catch (err: any) {
         setError(err.message || "Failed to fetch court details");
       } finally {
@@ -102,7 +149,7 @@ export default function EditListingPage() {
     };
     
     fetchCourt();
-  }, [courtId, user]);
+  }, [courtId, user, form]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -130,6 +177,22 @@ export default function EditListingPage() {
     if (imageIndex <= mainImageIndex) {
       setMainImageIndex(Math.max(0, mainImageIndex - 1));
     }
+  };
+
+  // New file handling functions for the beautiful UI
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      const files = Array.from(event.target.files);
+      setSelectedFiles(prev => [...prev, ...files]);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
   };
 
   // Availability management functions
@@ -168,6 +231,32 @@ export default function EditListingPage() {
     }));
   };
 
+  // New availability management functions for the beautiful UI
+  const handleBlockDay = () => {
+    if (date) {
+      const dateString = format(date, "yyyy-MM-dd");
+      if (!blockedDates.includes(dateString)) {
+        setBlockedDates(prev => [...prev, dateString]);
+        setDate(null);
+      }
+    }
+  };
+
+  const handleBlockTime = () => {
+    if (blockTimeDate && selectedTimeSlot) {
+      const dateString = format(blockTimeDate, "yyyy-MM-dd");
+      const dateTimes = blockedTimes[dateString] || [];
+      if (!dateTimes.includes(selectedTimeSlot)) {
+        setBlockedTimes(prev => ({
+          ...prev,
+          [dateString]: [...dateTimes, selectedTimeSlot]
+        }));
+        setBlockTimeDate(null);
+        setSelectedTimeSlot("");
+      }
+    }
+  };
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { 
@@ -178,12 +267,16 @@ export default function EditListingPage() {
     });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const timeSlots = [
+    "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", 
+    "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"
+  ];
+
+  const onSubmit = async (data: CourtFormData) => {
     setError("");
     setSuccess(false);
     
-    if (!name || !location || !address || !price || !description) {
+    if (!data.courtName || !data.location || !data.fullAddress || !data.pricePerHour || !data.description) {
       setError("Please fill in all required fields.");
       return;
     }
@@ -220,12 +313,12 @@ export default function EditListingPage() {
       
       // Update court data in Firestore
       await updateDoc(doc(db, "courts", courtId as string), {
-        name,
-        location,
-        address,
-        accessInstructions,
-        price: Number(price),
-        description,
+        name: data.courtName,
+        location: data.location,
+        address: data.fullAddress,
+        accessInstructions: data.accessInstructions,
+        price: Number(data.pricePerHour),
+        description: data.description,
         imageUrl: mainImageUrl, // Use selected main image
         imageUrls: finalImageUrls,
         blockedDates,
@@ -294,356 +387,492 @@ export default function EditListingPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#286a3a] px-4">
-      <div className="w-full max-w-lg my-12">
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white rounded-2xl shadow-2xl px-8 py-10 flex flex-col gap-6 animate-fade-in"
-        >
-          <div className="flex flex-col items-center mb-2">
-            <div className="w-16 h-16 bg-[#e3f1e7] rounded-full flex items-center justify-center mb-2 shadow-md">
-              <span className="text-3xl font-bold text-[#286a3a]">✏️</span>
+    <div className="min-h-screen bg-background">
+      <AppHeader />
+      
+      {/* Hero Section with Background */}
+      <section className="relative py-20 bg-gradient-to-br from-green-600 to-green-800 overflow-hidden">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48Y2lyY2xlIGN4PSIzMCIgY3k9IjMwIiByPSIyIi8+PC9nPjwvZz48L3N2Zz4=')] opacity-10"></div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center text-white">
+            <div className="flex items-center justify-center mb-4">
+              <Edit3 className="h-12 w-12 mr-4" />
             </div>
-            <h2 className="text-2xl font-extrabold text-gray-800 tracking-tight mb-1">
+            <h1 className="text-4xl md:text-5xl font-bold mb-4">
               Edit Court Listing
-            </h2>
-            <p className="text-gray-500 text-sm">
-              Update your court details below
+            </h1>
+            <p className="text-xl text-white/90 max-w-2xl mx-auto">
+              Update your court details below to keep your listing current
             </p>
           </div>
-          
-          <input
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900"
-            type="text"
-            placeholder="Court Name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-          
-          <input
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900"
-            type="text"
-            placeholder="Location"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            required
-          />
-          
-          <input
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900"
-            type="text"
-            placeholder="Full Address"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            required
-          />
-          
-          <textarea
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900 resize-none"
-            placeholder="Access Instructions (e.g., gate code, building access, parking info)"
-            value={accessInstructions}
-            onChange={(e) => setAccessInstructions(e.target.value)}
-            rows={3}
-          />
-          
-          <input
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900"
-            type="number"
-            placeholder="Price per hour (USD)"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            min={0}
-            required
-          />
-          
-          <textarea
-            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 placeholder-gray-400 text-gray-900 caret-gray-900 resize-none"
-            placeholder="Description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={4}
-            required
-          />
-          
-          {/* Existing Images */}
-          {existingImages.length > 0 && (
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Current Images ({existingImages.length})
-              </label>
-              <p className="text-xs text-gray-500 mb-2">
-                Click "Set as Main" to choose which photo appears first in your listing
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {existingImages.map((imageUrl, index) => (
-                  <div key={index} className="relative">
-                    <img
-                      src={imageUrl}
-                      alt={`Current ${index + 1}`}
-                      className={`w-full h-24 object-cover rounded-lg ${mainImageIndex === index ? 'ring-2 ring-[#286a3a]' : ''}`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeExistingImage(imageUrl)}
-                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-                    >
-                      ×
-                    </button>
-                    {mainImageIndex === index && (
-                      <div className="absolute -top-2 -left-2 bg-[#286a3a] text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">
-                        ★
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setMainImageIndex(index)}
-                      className={`absolute bottom-1 left-1 px-2 py-1 rounded text-xs font-medium transition ${
-                        mainImageIndex === index 
-                          ? 'bg-[#286a3a] text-white' 
-                          : 'bg-white/90 text-gray-700 hover:bg-[#286a3a] hover:text-white'
-                      }`}
-                    >
-                      {mainImageIndex === index ? 'Main Photo' : 'Set as Main'}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          
-          {/* New Images */}
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {images.length === 0 ? "Add New Images" : `Add More Images (${images.length} selected)`}
-            </label>
-            <input
-              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition mb-2 text-gray-900 caret-gray-900 file:bg-[#e3f1e7] file:border-0 file:rounded-lg file:px-4 file:py-2 file:text-[#286a3a] file:font-semibold"
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleImageChange}
-            />
-          </div>
+        </div>
+      </section>
 
-          {/* Availability Management */}
-          <div className="space-y-4 border-t pt-6">
-            <h3 className="text-lg font-semibold text-gray-800">Availability Management</h3>
-            <div className="space-y-6">
-                {/* Block Entire Days */}
-                <div className="space-y-3">
-                  <h4 className="font-medium text-gray-700">Block Entire Days</h4>
-                  <div className="flex gap-2">
-                    <input
-                      type="date"
-                      value={selectedDate}
-                      onChange={(e) => setSelectedDate(e.target.value)}
-                      className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition"
-                      min={new Date().toISOString().split('T')[0]}
-                    />
-                    <button
-                      type="button"
-                      onClick={addBlockedDate}
-                      disabled={!selectedDate}
-                      className="px-4 py-2 bg-[#286a3a] text-white rounded-lg font-medium hover:bg-[#20542e] transition disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer"
-                    >
-                      Block Day
-                    </button>
-                  </div>
-                  
-                  {blockedDates.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-sm text-gray-600">Blocked Days:</p>
-                      <div className="space-y-1">
-                        {blockedDates.map((date) => (
-                          <div key={date} className="flex items-center justify-between bg-red-50 p-2 rounded-lg">
-                            <span className="text-sm text-gray-700">{formatDate(date)}</span>
-                            <button
-                              type="button"
-                              onClick={() => removeBlockedDate(date)}
-                              className="text-red-600 hover:text-red-800 text-sm font-medium hover:cursor-pointer"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+      {/* Main Content */}
+      <section className="py-12 -mt-10 relative z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="max-w-4xl mx-auto">
+            <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
+              <CardHeader className="space-y-1 pb-8">
+                <CardTitle className="text-2xl font-bold text-center">Court Details</CardTitle>
+                <CardDescription className="text-center text-muted-foreground">
+                  Please update the information about your tennis court
+                </CardDescription>
+              </CardHeader>
+              
+              <CardContent className="space-y-8">
+                <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                    {/* Basic Information */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <FormField
+                        control={form.control}
+                        name="courtName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-semibold">Court Name</FormLabel>
+                            <FormControl>
+                              <Input 
+                                placeholder="Enter court name" 
+                                className="h-12 border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200"
+                                {...field} 
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      
+                      <FormField
+                        control={form.control}
+                        name="location"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-semibold">Location</FormLabel>
+                            <FormControl>
+                              <Input 
+                                placeholder="City, State" 
+                                className="h-12 border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200"
+                                {...field} 
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
-                  )}
-                </div>
 
-                {/* Block Specific Times */}
-                <div className="space-y-3">
-                  <h4 className="font-medium text-gray-700">Block Specific Times</h4>
-                  <div className="flex gap-2">
-                    <input
-                      type="date"
-                      value={selectedDate}
-                      onChange={(e) => setSelectedDate(e.target.value)}
-                      className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition"
-                      min={new Date().toISOString().split('T')[0]}
+                    <FormField
+                      control={form.control}
+                      name="fullAddress"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm font-semibold">Full Address</FormLabel>
+                          <FormControl>
+                            <Input 
+                              placeholder="Complete street address" 
+                              className="h-12 border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200"
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
-                    <select
-                      value={selectedTime}
-                      onChange={(e) => setSelectedTime(e.target.value)}
-                      className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition"
-                    >
-                      <option value="">Select Time</option>
-                      {Array.from({ length: 13 }, (_, i) => i + 8).map((hour) => (
-                        <option key={hour} value={`${hour.toString().padStart(2, '0')}:00`}>
-                          {hour}:00
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={addBlockedTime}
-                      disabled={!selectedDate || !selectedTime}
-                      className="px-4 py-2 bg-[#286a3a] text-white rounded-lg font-medium hover:bg-[#20542e] transition disabled:opacity-50 disabled:cursor-not-allowed hover:cursor-pointer"
-                    >
-                      Block Time
-                    </button>
-                  </div>
-                  
-                  {Object.keys(blockedTimes).length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-sm text-gray-600">Blocked Times:</p>
-                      <div className="space-y-2">
-                        {Object.entries(blockedTimes).map(([date, times]) => (
-                          <div key={date} className="bg-orange-50 p-3 rounded-lg">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="font-medium text-gray-700">{formatDate(date)}</span>
+
+                    <FormField
+                      control={form.control}
+                      name="accessInstructions"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm font-semibold">Access Instructions</FormLabel>
+                          <FormControl>
+                            <Textarea 
+                              placeholder="Gate code, building access, parking info..."
+                              className="min-h-[100px] border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200 resize-none"
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <FormField
+                        control={form.control}
+                        name="pricePerHour"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-semibold">Price per Hour (USD)</FormLabel>
+                            <FormControl>
+                              <Input 
+                                placeholder="25.00" 
+                                type="number"
+                                step="0.01"
+                                className="h-12 border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200"
+                                {...field} 
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm font-semibold">Description</FormLabel>
+                          <FormControl>
+                            <Textarea 
+                              placeholder="Describe your court's features, amenities, surface type..."
+                              className="min-h-[120px] border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200 resize-none"
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* Existing Images */}
+                    {existingImages.length > 0 && (
+                      <div className="space-y-4">
+                        <FormLabel className="text-sm font-semibold">Current Images ({existingImages.length})</FormLabel>
+                        <p className="text-xs text-gray-500">
+                          Click "Set as Main" to choose which photo appears first in your listing
+                        </p>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {existingImages.map((imageUrl, index) => (
+                            <div key={index} className="relative group">
+                              <img
+                                src={imageUrl}
+                                alt={`Current ${index + 1}`}
+                                className={`w-full h-24 object-cover rounded-lg border border-gray-200 ${mainImageIndex === index ? 'ring-2 ring-green-600' : ''}`}
+                              />
                               <button
                                 type="button"
-                                onClick={() => removeBlockedDate(date)}
-                                className="text-red-600 hover:text-red-800 text-sm font-medium hover:cursor-pointer"
+                                onClick={() => removeExistingImage(imageUrl)}
+                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
                               >
-                                Remove All
+                                ×
+                              </button>
+                              {mainImageIndex === index && (
+                                <div className="absolute -top-2 -left-2 bg-green-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">
+                                  ★
+                                </div>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setMainImageIndex(index)}
+                                className={`absolute bottom-1 left-1 px-2 py-1 rounded text-xs font-medium transition ${
+                                  mainImageIndex === index 
+                                    ? 'bg-green-600 text-white' 
+                                    : 'bg-white/90 text-gray-700 hover:bg-green-600 hover:text-white'
+                                }`}
+                              >
+                                {mainImageIndex === index ? 'Main Photo' : 'Set as Main'}
                               </button>
                             </div>
-                            <div className="flex flex-wrap gap-1">
-                              {times.map((time) => (
-                                <span
-                                  key={time}
-                                  className="inline-flex items-center gap-1 bg-orange-100 text-orange-800 px-2 py-1 rounded text-sm"
-                                >
-                                  {time}
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Image Upload Section */}
+                    <div className="space-y-4">
+                      <FormLabel className="text-sm font-semibold">Upload New Images</FormLabel>
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-green-500/50 transition-colors">
+                        <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                        <div className="space-y-2">
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            multiple
+                            accept="image/*"
+                            onChange={handleImageChange}
+                            className="hidden"
+                          />
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            className="border-green-500/20 hover:bg-green-50 text-green-700 hover:border-green-500 cursor-pointer"
+                            onClick={triggerFileInput}
+                          >
+                            Choose Files
+                          </Button>
+                          <p className="text-sm text-gray-500">
+                            {images.length === 0 ? "No new files chosen" : `${images.length} new file(s) selected`}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {/* Display new images */}
+                      {images.length > 0 && (
+                        <div className="space-y-3">
+                          <p className="text-sm font-medium text-gray-700">New Images ({images.length}):</p>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            {images.map((image, index) => {
+                              const newImageIndex = existingImages.length + index;
+                              return (
+                                <div key={index} className="relative group">
+                                  <img
+                                    src={URL.createObjectURL(image)}
+                                    alt={`New ${index + 1}`}
+                                    className={`w-full h-24 object-cover rounded-lg border border-gray-200 ${mainImageIndex === newImageIndex ? 'ring-2 ring-green-600' : ''}`}
+                                  />
                                   <button
                                     type="button"
-                                    onClick={() => removeBlockedTime(date, time)}
-                                    className="text-orange-600 hover:text-orange-800 hover:cursor-pointer"
+                                    onClick={() => removeImage(index)}
+                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
                                   >
                                     ×
                                   </button>
-                                </span>
-                              ))}
-                            </div>
+                                  {mainImageIndex === newImageIndex && (
+                                    <div className="absolute -top-2 -left-2 bg-green-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">
+                                      ★
+                                    </div>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => setMainImageIndex(newImageIndex)}
+                                    className={`absolute bottom-1 left-1 px-2 py-1 rounded text-xs font-medium transition ${
+                                      mainImageIndex === newImageIndex 
+                                        ? 'bg-green-600 text-white' 
+                                        : 'bg-white/90 text-gray-700 hover:bg-green-600 hover:text-white'
+                                    }`}
+                                  >
+                                    {mainImageIndex === newImageIndex ? 'Main Photo' : 'Set as Main'}
+                                  </button>
+                                </div>
+                              );
+                            })}
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-          </div>
-          
-          {images.length > 0 && (
-            <div className="space-y-2">
-              <p className="text-sm text-gray-600">New images ({images.length}):</p>
-              <div className="grid grid-cols-2 gap-2">
-                {images.map((image, index) => {
-                  const newImageIndex = existingImages.length + index;
-                  return (
-                    <div key={index} className="relative">
-                      <img
-                        src={URL.createObjectURL(image)}
-                        alt={`New ${index + 1}`}
-                        className={`w-full h-24 object-cover rounded-lg ${mainImageIndex === newImageIndex ? 'ring-2 ring-[#286a3a]' : ''}`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeImage(index)}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-                      >
-                        ×
-                      </button>
-                      {mainImageIndex === newImageIndex && (
-                        <div className="absolute -top-2 -left-2 bg-[#286a3a] text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">
-                          ★
                         </div>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => setMainImageIndex(newImageIndex)}
-                        className={`absolute bottom-1 left-1 px-2 py-1 rounded text-xs font-medium transition ${
-                          mainImageIndex === newImageIndex 
-                            ? 'bg-[#286a3a] text-white' 
-                            : 'bg-white/90 text-gray-700 hover:bg-[#286a3a] hover:text-white'
-                        }`}
-                      >
-                        {mainImageIndex === newImageIndex ? 'Main Photo' : 'Set as Main'}
-                      </button>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          
-          {error && (
-            <p className="text-red-500 text-sm mb-2 text-center">{error}</p>
-          )}
-          
-          {success && (
-            <p className="text-green-600 text-sm mb-2 text-center">
-              Court updated successfully! Redirecting to dashboard...
-            </p>
-          )}
-          
-          <div className="flex gap-4">
-            <button
-              type="button"
-              onClick={() => router.push("/dashboard/owner")}
-              className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-lg font-semibold text-lg shadow-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-300 transition hover:cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              className="flex-1 bg-[#286a3a] text-white py-3 rounded-lg font-semibold text-lg shadow-md hover:bg-[#20542e] focus:outline-none focus:ring-2 focus:ring-[#286a3a] transition disabled:opacity-60 disabled:cursor-not-allowed hover:cursor-pointer"
-              type="submit"
-              disabled={saving}
-            >
-              {saving ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg
-                    className="animate-spin h-5 w-5 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8v8z"
-                    ></path>
-                  </svg>
-                  Updating...
-                </span>
-              ) : (
-                "Update Listing"
-              )}
-            </button>
+
+                    {/* Simple Div Separator */}
+                    <div className="my-8 border-t border-gray-200"></div>
+
+                    {/* Availability Management */}
+                    <div className="space-y-6">
+                      <div>
+                        <h3 className="text-lg font-semibold mb-2">Availability Management</h3>
+                        <p className="text-sm text-gray-600">
+                          Manage when your court is available for booking
+                        </p>
+                      </div>
+
+                      {/* Block Entire Days */}
+                      <Card className="border-gray-200">
+                        <CardHeader className="pb-4">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <CalendarIcon className="h-4 w-4" />
+                            Block Entire Days
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="flex flex-col sm:flex-row gap-4 items-end">
+                            <div className="flex-1">
+                              <FormLabel className="text-sm">Select Date</FormLabel>
+                              <ReactDatePicker
+                                selected={date}
+                                onChange={(date) => setDate(date)}
+                                dateFormat="MM/dd/yyyy"
+                                placeholderText="Select date"
+                                minDate={new Date()}
+                                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent h-12"
+                              />
+                            </div>
+                            <Button 
+                              type="button"
+                              onClick={handleBlockDay}
+                              className="h-12 px-6 bg-green-600 hover:bg-green-700 transition-colors text-white"
+                              disabled={!date}
+                            >
+                              Block Day
+                            </Button>
+                          </div>
+                          
+                          {blockedDates.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-sm text-gray-600">Blocked Days:</p>
+                              <div className="space-y-1">
+                                {blockedDates.map((dateStr) => (
+                                  <div key={dateStr} className="flex items-center justify-between bg-red-50 p-2 rounded-lg">
+                                    <span className="text-sm text-gray-700">{formatDate(dateStr)}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeBlockedDate(dateStr)}
+                                      className="text-red-600 hover:text-red-800 text-sm font-medium hover:cursor-pointer"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      {/* Block Specific Times */}
+                      <Card className="border-gray-200">
+                        <CardHeader className="pb-4">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <Clock className="h-4 w-4" />
+                            Block Specific Times
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="flex flex-col lg:flex-row gap-4 items-end">
+                            <div className="flex-1">
+                              <FormLabel className="text-sm">Select Date</FormLabel>
+                              <ReactDatePicker
+                                selected={blockTimeDate}
+                                onChange={(date) => setBlockTimeDate(date)}
+                                dateFormat="MM/dd/yyyy"
+                                placeholderText="Select date"
+                                minDate={new Date()}
+                                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent h-12"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <FormLabel className="text-sm">Select Time</FormLabel>
+                              <Select value={selectedTimeSlot} onValueChange={setSelectedTimeSlot}>
+                                <SelectTrigger className="h-12 mt-2 border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20">
+                                  <SelectValue placeholder="Select time" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-lg">
+                                  {timeSlots.map((time) => (
+                                    <SelectItem 
+                                      key={time} 
+                                      value={time}
+                                      className="hover:bg-green-50 hover:text-green-700 cursor-pointer transition-colors duration-150 focus:bg-green-100 focus:text-green-800"
+                                    >
+                                      {time}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <Button 
+                              type="button"
+                              onClick={handleBlockTime}
+                              className="h-12 px-6 bg-green-600 hover:bg-green-700 transition-colors text-white"
+                              disabled={!blockTimeDate || !selectedTimeSlot}
+                            >
+                              Block Time
+                            </Button>
+                          </div>
+                          
+                          {Object.keys(blockedTimes).length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-sm text-gray-600">Blocked Times:</p>
+                              <div className="space-y-2">
+                                {Object.entries(blockedTimes).map(([dateStr, times]) => (
+                                  <div key={dateStr} className="bg-orange-50 p-3 rounded-lg">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="font-medium text-gray-700">{formatDate(dateStr)}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => removeBlockedDate(dateStr)}
+                                        className="text-red-600 hover:text-red-800 text-sm font-medium hover:cursor-pointer"
+                                      >
+                                        Remove All
+                                      </button>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1">
+                                      {times.map((time) => (
+                                        <span
+                                          key={time}
+                                          className="inline-flex items-center gap-1 bg-orange-100 text-orange-800 px-2 py-1 rounded text-sm"
+                                        >
+                                          {time}
+                                          <button
+                                            type="button"
+                                            onClick={() => removeBlockedTime(dateStr, time)}
+                                            className="text-orange-600 hover:text-orange-800 hover:cursor-pointer"
+                                          >
+                                            ×
+                                          </button>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Error and Success Messages */}
+                    {error && (
+                      <p className="text-red-500 text-sm text-center">{error}</p>
+                    )}
+                    
+                    {success && (
+                      <p className="text-green-600 text-sm text-center">
+                        Court updated successfully! Redirecting to dashboard...
+                      </p>
+                    )}
+
+                    {/* Submit Buttons */}
+                    <div className="pt-6 flex gap-4">
+                      <Button 
+                        type="button"
+                        onClick={() => router.push("/dashboard/owner")}
+                        className="flex-1 h-14 text-lg font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        type="submit" 
+                        className="flex-1 h-14 text-lg font-semibold bg-green-600 hover:bg-green-700 transition-colors text-white"
+                        disabled={saving}
+                      >
+                        {saving ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <svg
+                              className="animate-spin h-5 w-5 text-white"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="4"
+                              ></circle>
+                              <path
+                                className="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8v8z"
+                              ></path>
+                            </svg>
+                            Updating...
+                          </span>
+                        ) : (
+                          "Update Listing"
+                        )}
+                      </Button>
+                    </div>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
           </div>
-        </form>
-      </div>
+        </div>
+      </section>
     </div>
   );
-} 
+}
