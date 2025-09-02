@@ -22,6 +22,7 @@ interface CourtCardProps {
     indoor: boolean;
     amenities: string[];
     availability: string;
+    distance?: number;
   };
 }
 
@@ -68,6 +69,11 @@ const CourtCard = ({ court }: CourtCardProps) => {
             <div className="flex items-center text-sm text-gray-500 mt-1">
               <MapPin className="h-4 w-4 mr-1" />
               {court.location}
+              {court.distance && (
+                <span className="ml-2 text-green-600 font-medium">
+                  • {court.distance} mi away
+                </span>
+              )}
             </div>
           </div>
 

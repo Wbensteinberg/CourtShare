@@ -11,16 +11,26 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, MapPin, Calendar, Clock, Filter, X } from "lucide-react";
+import { Search, MapPin, Calendar, Clock, Filter, X, Navigation } from "lucide-react";
 import ReactDatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { getCurrentLocation, type Coordinates } from "@/lib/geolocation";
 
-const SearchSection = () => {
+interface SearchSectionProps {
+  onLocationChange?: (location: string, coords: Coordinates | null) => void;
+  onDistanceChange?: (distance: number | null) => void;
+}
+
+const SearchSection = ({ onLocationChange, onDistanceChange }: SearchSectionProps) => {
   const [location, setLocation] = useState("");
   const [date, setDate] = useState<Date | null>(null);
   const datePickerRef = useRef<any>(null);
   const [time, setTime] = useState("");
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
+  const [distanceFilter, setDistanceFilter] = useState<string>("");
+  const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState("");
 
   const popularFilters = [
     "Indoor Courts",
@@ -44,12 +54,51 @@ const SearchSection = () => {
     setActiveFilters((prev) => prev.filter((f) => f !== filter));
   };
 
+  const handleGetCurrentLocation = async () => {
+    setLocationLoading(true);
+    setLocationError("");
+    
+    try {
+      const coords = await getCurrentLocation();
+      setUserLocation(coords);
+      setLocation("Current Location");
+      setLocationError("");
+      onLocationChange?.("Current Location", coords);
+    } catch (error: any) {
+      setLocationError(error.message);
+      setUserLocation(null);
+      onLocationChange?.("", null);
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  const clearLocation = () => {
+    setLocation("");
+    setUserLocation(null);
+    setLocationError("");
+    onLocationChange?.("", null);
+  };
+
+  const handleLocationInputChange = (value: string) => {
+    setLocation(value);
+    // For manual location input, we don't have coordinates yet
+    // This would need geocoding in a real implementation
+    onLocationChange?.(value, null);
+  };
+
+  const handleDistanceChange = (value: string) => {
+    setDistanceFilter(value);
+    const distance = value && value !== "any" ? parseFloat(value) : null;
+    onDistanceChange?.(distance);
+  };
+
   return (
     <div className="w-full space-y-6 -mt-12 md:-mt-16 z-10 relative flex flex-col items-center mt-8" data-search-section>
       {/* Main Search Card */}
       <Card className="bg-white border border-gray-300 shadow-md rounded-xl w-full max-w-6xl">
         <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {/* Location */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
@@ -60,10 +109,53 @@ const SearchSection = () => {
                 <Input
                   placeholder="Enter city or zip code"
                   value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="pl-10 border-gray-300"
+                  onChange={(e) => handleLocationInputChange(e.target.value)}
+                  className="pl-10 pr-20 border-gray-300"
                 />
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                  {location && (
+                    <button
+                      onClick={clearLocation}
+                      className="p-1 hover:bg-gray-100 rounded"
+                      type="button"
+                    >
+                      <X className="h-3 w-3 text-gray-500" />
+                    </button>
+                  )}
+                  <button
+                    onClick={handleGetCurrentLocation}
+                    disabled={locationLoading}
+                    className="p-1 hover:bg-gray-100 rounded disabled:opacity-50"
+                    type="button"
+                    title="Use current location"
+                  >
+                    <Navigation className="h-3 w-3 text-green-600" />
+                  </button>
+                </div>
               </div>
+              {locationError && (
+                <p className="text-xs text-red-500">{locationError}</p>
+              )}
+            </div>
+
+            {/* Distance Filter */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Within
+              </label>
+              <Select value={distanceFilter} onValueChange={handleDistanceChange}>
+                <SelectTrigger className="border border-gray-300 rounded-lg h-11 pl-3 cursor-pointer">
+                  <SelectValue placeholder="Any distance" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any distance</SelectItem>
+                  <SelectItem value="5">5 miles</SelectItem>
+                  <SelectItem value="10">10 miles</SelectItem>
+                  <SelectItem value="15">15 miles</SelectItem>
+                  <SelectItem value="25">25 miles</SelectItem>
+                  <SelectItem value="50">50 miles</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Date */}

@@ -21,6 +21,8 @@ interface CourtFormData {
   accessInstructions: string;
   pricePerHour: string;
   description: string;
+  latitude: string;
+  longitude: string;
 }
 
 const CreateListing = () => {
@@ -37,7 +39,9 @@ const CreateListing = () => {
       fullAddress: "",
       accessInstructions: "",
       pricePerHour: "",
-      description: ""
+      description: "",
+      latitude: "",
+      longitude: ""
     }
   });
 
@@ -232,6 +236,54 @@ const CreateListing = () => {
                         </FormItem>
                       )}
                     />
+
+                    {/* Location Coordinates */}
+                    <div className="space-y-4">
+                      <FormLabel className="text-sm font-semibold">Location Coordinates (Optional)</FormLabel>
+                      <p className="text-sm text-gray-600">
+                        Add precise coordinates to enable distance-based search. You can find these on Google Maps.
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <FormField
+                          control={form.control}
+                          name="latitude"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-sm font-semibold">Latitude</FormLabel>
+                              <FormControl>
+                                <Input 
+                                  placeholder="34.0522" 
+                                  type="number"
+                                  step="any"
+                                  className="h-12 border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200"
+                                  {...field} 
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="longitude"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-sm font-semibold">Longitude</FormLabel>
+                              <FormControl>
+                                <Input 
+                                  placeholder="-118.2437" 
+                                  type="number"
+                                  step="any"
+                                  className="h-12 border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200"
+                                  {...field} 
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </div>
 
                     {/* Image Upload Section */}
                     <div className="space-y-4">

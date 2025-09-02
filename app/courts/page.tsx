@@ -12,6 +12,7 @@ import AppHeader from "@/components/AppHeader";
 import HeroSection from "@/components/HeroSection";
 import SearchSection from "@/components/SearchSection";
 import CourtCard from "@/components/CourtCard";
+import { calculateDistance, formatDistance, type Coordinates } from "@/lib/geolocation";
 
 interface Court {
   id: string;
@@ -20,16 +21,22 @@ interface Court {
   price: number;
   description: string;
   imageUrl: string;
+  latitude?: number;
+  longitude?: number;
+  distance?: number; // Will be calculated and added
 }
 
 export default function CourtsPage() {
   const [courts, setCourts] = useState<Court[]>([]);
+  const [filteredCourts, setFilteredCourts] = useState<Court[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const { user, loading: authLoading, isOwner, setIsOwner } = useAuth();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
+  const [maxDistance, setMaxDistance] = useState<number | null>(null);
 
   useEffect(() => {
     // Remove redirect to /login for unauthenticated users
@@ -60,6 +67,34 @@ export default function CourtsPage() {
       fetchCourts();
     }
   }, [authLoading]);
+
+  // Function to filter courts by distance
+  const filterCourtsByDistance = (courts: Court[], userCoords: Coordinates, maxDist: number) => {
+    return courts
+      .map(court => {
+        if (court.latitude && court.longitude) {
+          const distance = calculateDistance(userCoords, {
+            latitude: court.latitude,
+            longitude: court.longitude
+          });
+          return { ...court, distance };
+        }
+        return court;
+      })
+      .filter(court => !court.latitude || !court.longitude || (court.distance && court.distance <= maxDist))
+      .sort((a, b) => {
+        // Sort by distance if both have coordinates, otherwise keep original order
+        if (a.distance && b.distance) {
+          return a.distance - b.distance;
+        }
+        return 0;
+      });
+  };
+
+  // Initialize filtered courts with all courts
+  useEffect(() => {
+    setFilteredCourts(courts);
+  }, [courts]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -96,7 +131,14 @@ export default function CourtsPage() {
       </div>
       <main className="w-full bg-white">
         <div className="container mx-auto px-4 py-8">
-          <SearchSection />
+          <SearchSection 
+          onLocationChange={(location, coords) => {
+            setUserLocation(coords);
+          }}
+          onDistanceChange={(distance) => {
+            setMaxDistance(distance);
+          }}
+        />
           {isOwner ? (
             <div className="text-center py-12">
               <div className="max-w-md mx-auto">
@@ -130,7 +172,7 @@ export default function CourtsPage() {
               )}
               {error && <p className="text-center text-red-500 mt-8">{error}</p>}
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 mt-8">
-                {courts.map((court) => (
+                {filteredCourts.map((court) => (
                   <CourtCard
                     key={court.id}
                     court={{
@@ -147,12 +189,13 @@ export default function CourtsPage() {
                       indoor: false, // Default or fetch if available
                       amenities: ["Parking", "WiFi"], // Default or fetch if available
                       availability: "Available", // Default or fetch if available
+                      distance: court.distance, // Pass calculated distance
                     }}
                     // Optionally, add onClick handlers for View Details/Book Now
                   />
                 ))}
               </div>
-              {!loading && courts.length === 0 && !error && (
+              {!loading && filteredCourts.length === 0 && !error && (
                 <p className="text-center text-gray-500 mt-12">No courts found.</p>
               )}
             </>
