@@ -14,6 +14,26 @@ export default function AppHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const [profileImageUrl, setProfileImageUrl] = useState<string>("");
+  const [currentPath, setCurrentPath] = useState("");
+
+  // Get current path to determine if we should hide the toggle
+  useEffect(() => {
+    setCurrentPath(window.location.pathname);
+  }, []);
+
+  // Update path when router changes
+  useEffect(() => {
+    const handleRouteChange = () => {
+      setCurrentPath(window.location.pathname);
+    };
+
+    // Listen for navigation events
+    window.addEventListener("popstate", handleRouteChange);
+
+    return () => {
+      window.removeEventListener("popstate", handleRouteChange);
+    };
+  }, []);
 
   // Close menu on outside click
   useEffect(() => {
@@ -43,6 +63,14 @@ export default function AppHeader() {
     setMenuOpen(false);
   };
 
+  // Check if we should show the role toggle (hide on owner-specific pages)
+  const shouldShowRoleToggle = () => {
+    return (
+      !currentPath.startsWith("/dashboard/owner") &&
+      !currentPath.startsWith("/create-listing")
+    );
+  };
+
   // Fetch user profile image
   useEffect(() => {
     const fetchProfileImage = async () => {
@@ -50,7 +78,7 @@ export default function AppHeader() {
         setProfileImageUrl("");
         return;
       }
-      
+
       try {
         const userRef = doc(db, "users", user.uid);
         const userSnap = await getDoc(userRef);
@@ -63,7 +91,7 @@ export default function AppHeader() {
         setProfileImageUrl("");
       }
     };
-    
+
     fetchProfileImage();
   }, [user]);
 
@@ -104,7 +132,7 @@ export default function AppHeader() {
                 className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
                 onClick={() => router.push("/create-listing")}
               >
-                List Your Court
+                Add New Listing
               </Button>
             </>
           )}
@@ -132,34 +160,40 @@ export default function AppHeader() {
             </>
           ) : (
             <>
-                                            <Button
-                 variant="ghost"
-                 size="sm"
-                 onClick={handleToggleRole}
-                 className="cursor-pointer hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
-               >
-                 Switch to {isOwner ? "Player" : "Owner"} Mode
-               </Button>
-                               <Button
+              {shouldShowRoleToggle() && (
+                <Button
                   variant="ghost"
-                  size="icon"
-                  className="cursor-pointer p-0 overflow-hidden rounded-full w-8 h-8"
-                  onClick={() => router.push("/profile")}
-                  aria-label="Profile"
+                  size="sm"
+                  onClick={handleToggleRole}
+                  className="cursor-pointer hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
                 >
-                 {profileImageUrl ? (
-                   <img
-                     src={profileImageUrl}
-                     alt="Profile"
-                     className="w-full h-full rounded-full object-cover"
-                     onError={(e) => {
-                       e.currentTarget.style.display = 'none';
-                       e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                     }}
-                   />
-                 ) : null}
-                 <User className={`h-4 w-4 ${profileImageUrl ? 'hidden' : ''}`} />
-               </Button>
+                  Switch to {isOwner ? "Player" : "Owner"} Mode
+                </Button>
+              )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="cursor-pointer p-0 overflow-hidden rounded-full w-8 h-8"
+                onClick={() => router.push("/profile")}
+                aria-label="Profile"
+              >
+                {profileImageUrl ? (
+                  <img
+                    src={profileImageUrl}
+                    alt="Profile"
+                    className="w-full h-full rounded-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                      e.currentTarget.nextElementSibling?.classList.remove(
+                        "hidden"
+                      );
+                    }}
+                  />
+                ) : null}
+                <User
+                  className={`h-4 w-4 ${profileImageUrl ? "hidden" : ""}`}
+                />
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -203,9 +237,11 @@ export default function AppHeader() {
                 className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
                 onClick={() => {
                   // Scroll to search section
-                  const searchSection = document.querySelector('[data-search-section]');
+                  const searchSection = document.querySelector(
+                    "[data-search-section]"
+                  );
                   if (searchSection) {
-                    searchSection.scrollIntoView({ behavior: 'smooth' });
+                    searchSection.scrollIntoView({ behavior: "smooth" });
                   }
                   setMenuOpen(false);
                 }}
@@ -233,7 +269,7 @@ export default function AppHeader() {
                     setMenuOpen(false);
                   }}
                 >
-                  List Your Court
+                  Add New Listing
                 </Button>
               </>
             )}
@@ -266,37 +302,43 @@ export default function AppHeader() {
               </>
             ) : (
               <>
-                                                  <Button
-                   variant="ghost"
-                   size="sm"
-                   onClick={handleToggleRole}
-                   className="cursor-pointer hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
-                 >
-                   Switch to {isOwner ? "Player" : "Owner"} Mode
-                 </Button>
-                                   <Button
+                {shouldShowRoleToggle() && (
+                  <Button
                     variant="ghost"
-                    size="icon"
-                    className="cursor-pointer p-0 overflow-hidden rounded-full w-8 h-8"
-                    onClick={() => {
-                      router.push("/profile");
-                      setMenuOpen(false);
-                    }}
-                    aria-label="Profile"
+                    size="sm"
+                    onClick={handleToggleRole}
+                    className="cursor-pointer hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
                   >
-                   {profileImageUrl ? (
-                     <img
-                       src={profileImageUrl}
-                       alt="Profile"
-                       className="w-full h-full rounded-full object-cover"
-                       onError={(e) => {
-                         e.currentTarget.style.display = 'none';
-                         e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                       }}
-                     />
-                   ) : null}
-                   <User className={`h-4 w-4 ${profileImageUrl ? 'hidden' : ''}`} />
-                 </Button>
+                    Switch to {isOwner ? "Player" : "Owner"} Mode
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="cursor-pointer p-0 overflow-hidden rounded-full w-8 h-8"
+                  onClick={() => {
+                    router.push("/profile");
+                    setMenuOpen(false);
+                  }}
+                  aria-label="Profile"
+                >
+                  {profileImageUrl ? (
+                    <img
+                      src={profileImageUrl}
+                      alt="Profile"
+                      className="w-full h-full rounded-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                        e.currentTarget.nextElementSibling?.classList.remove(
+                          "hidden"
+                        );
+                      }}
+                    />
+                  ) : null}
+                  <User
+                    className={`h-4 w-4 ${profileImageUrl ? "hidden" : ""}`}
+                  />
+                </Button>
                 <Button
                   variant="ghost"
                   size="sm"
