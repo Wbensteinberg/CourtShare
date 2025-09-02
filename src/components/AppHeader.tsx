@@ -63,10 +63,11 @@ export default function AppHeader() {
     setMenuOpen(false);
   };
 
-  // Check if we should show the role toggle (hide on owner-specific pages)
+  // Check if we should show the role toggle (hide on dashboard pages and create-listing)
   const shouldShowRoleToggle = () => {
     return (
       !currentPath.startsWith("/dashboard/owner") &&
+      !currentPath.startsWith("/dashboard/player") &&
       !currentPath.startsWith("/create-listing")
     );
   };
@@ -110,13 +111,22 @@ export default function AppHeader() {
         {/* Center: Navigation (absolutely centered on desktop) */}
         <nav className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 space-x-8">
           {!isOwner && (
-            <Button
-              variant="ghost"
-              className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
-              onClick={() => router.push("/courts")}
-            >
-              Find Courts
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
+                onClick={() => router.push("/courts")}
+              >
+                Find Courts
+              </Button>
+              <Button
+                variant="ghost"
+                className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
+                onClick={() => router.push("/dashboard/player")}
+              >
+                Dashboard
+              </Button>
+            </>
           )}
           {isOwner && (
             <>
@@ -232,22 +242,34 @@ export default function AppHeader() {
         <div className="container py-4 space-y-4" ref={menuRef}>
           <nav className="flex flex-col space-y-3">
             {!isOwner && (
-              <Button
-                variant="ghost"
-                className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
-                onClick={() => {
-                  // Scroll to search section
-                  const searchSection = document.querySelector(
-                    "[data-search-section]"
-                  );
-                  if (searchSection) {
-                    searchSection.scrollIntoView({ behavior: "smooth" });
-                  }
-                  setMenuOpen(false);
-                }}
-              >
-                Find Courts
-              </Button>
+              <>
+                <Button
+                  variant="ghost"
+                  className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
+                  onClick={() => {
+                    // Scroll to search section
+                    const searchSection = document.querySelector(
+                      "[data-search-section]"
+                    );
+                    if (searchSection) {
+                      searchSection.scrollIntoView({ behavior: "smooth" });
+                    }
+                    setMenuOpen(false);
+                  }}
+                >
+                  Find Courts
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
+                  onClick={() => {
+                    router.push("/dashboard/player");
+                    setMenuOpen(false);
+                  }}
+                >
+                  Dashboard
+                </Button>
+              </>
             )}
             {isOwner && (
               <>

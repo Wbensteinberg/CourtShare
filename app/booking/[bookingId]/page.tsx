@@ -6,6 +6,7 @@ import { db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useAuth } from "@/lib/AuthContext";
 import Image from "next/image";
+import GoogleMapsLink from "@/components/GoogleMapsLink";
 
 interface Booking {
   id: string;
@@ -224,14 +225,7 @@ export default function BookingDetailsPage() {
             <div className="bg-gray-50 rounded-2xl p-6">
               <p className="text-gray-900 text-center mb-4">{court.address}</p>
               <div className="text-center">
-                <a
-                  href={`https://maps.google.com/?q=${encodeURIComponent(court.address)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center bg-[#286a3a] text-white py-2 px-4 rounded-lg hover:bg-[#20542e] transition hover:cursor-pointer"
-                >
-                  📍 Open in Google Maps
-                </a>
+                <GoogleMapsLink address={court.address} variant="button" />
               </div>
             </div>
           </div>

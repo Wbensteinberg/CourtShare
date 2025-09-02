@@ -14,6 +14,13 @@ import {
   getDoc,
   deleteDoc,
 } from "firebase/firestore";
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, Calendar, Clock, MapPin, User, X } from "lucide-react";
+import AppHeader from "@/components/AppHeader";
+import GoogleMapsLink from "@/components/GoogleMapsLink";
 
 interface Booking {
   id: string;
@@ -29,7 +36,10 @@ interface Court {
   id: string;
   name: string;
   location: string;
+  address?: string;
   imageUrl: string;
+  surface?: string;
+  indoor?: boolean;
 }
 
 export default function PlayerDashboard() {
@@ -104,6 +114,19 @@ export default function PlayerDashboard() {
     }
   };
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "pending":
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 border-yellow-200">Pending</Badge>;
+      case "confirmed":
+        return <Badge className="bg-green-600 text-white">Confirmed</Badge>;
+      case "cancelled":
+        return <Badge variant="destructive">Cancelled</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
   // Split bookings into upcoming and past
   const now = new Date();
   const upcoming = bookings.filter((b) => {
@@ -115,149 +138,347 @@ export default function PlayerDashboard() {
     return bookingDate < now || b.status === "cancelled";
   });
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-[#286a3a] px-4">
-      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl px-8 py-10 flex flex-col gap-8 animate-fade-in my-16">
-        <div className="flex justify-start mb-4">
-          <button
-            className="text-[#286a3a] hover:underline text-sm font-semibold hover:cursor-pointer"
-            onClick={() => router.push("/courts")}
-          >
-            ← Browse More Courts
-          </button>
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your bookings...</p>
         </div>
-        <h1 className="text-3xl font-extrabold text-[#286a3a] mb-2 text-center">
-          Player Dashboard
-        </h1>
-        <p className="text-gray-600 text-center mb-2">
-          Welcome! Here are your bookings.
-        </p>
-        {loading ? (
-          <p className="text-center text-gray-500">Loading bookings...</p>
-        ) : error ? (
-          <p className="text-center text-red-500">{error}</p>
-        ) : (
-          <>
-            <div>
-              <h2 className="text-xl font-bold text-[#286a3a] mb-2">
-                Upcoming Bookings
-              </h2>
-              {upcoming.length === 0 ? (
-                <p className="text-gray-400 text-sm">No upcoming bookings.</p>
-              ) : (
-                <ul className="space-y-3">
-                  {upcoming.map((b) => {
-                    const court = courts[b.courtId];
-                    return (
-                      <li
-                        key={b.id}
-                        className="bg-[#e3f1e7] rounded-xl p-4 shadow flex flex-col sm:flex-row sm:items-center gap-4 border border-[#e3f1e7] cursor-pointer hover:bg-[#d0e8d8] transition-colors"
-                        onClick={() => router.push(`/booking/${b.id}`)}
-                      >
-                        <div className="flex-1">
-                          <div className="text-[#286a3a] font-semibold text-sm">
-                            {b.date} at {b.time} ({b.duration}h)
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            Court: {court ? court.name : b.courtId} (
-                            {court ? court.location : ""})
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            Status: {b.status}
-                          </div>
-                        </div>
-                        {court?.imageUrl && (
-                          <div className="flex-shrink-0">
-                            <img
-                              src={court.imageUrl}
-                              alt={court.name}
-                              className="w-16 h-16 object-cover rounded-lg shadow-sm"
-                            />
-                          </div>
-                        )}
-                        <div className="flex gap-2">
-                          <button
-                            className="bg-[#286a3a] text-white px-3 py-1 rounded font-semibold text-xs shadow hover:bg-[#20542e] transition hover:cursor-pointer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              router.push(`/booking/${b.id}`);
-                            }}
-                          >
-                            View Details
-                          </button>
-                          {b.status !== "cancelled" && (
-                            <button
-                              className="bg-red-100 text-red-700 px-3 py-1 rounded font-semibold text-xs shadow hover:bg-red-200 transition disabled:opacity-60 hover:cursor-pointer"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCancel(b.id);
-                              }}
-                              disabled={cancelling === b.id}
-                            >
-                              {cancelling === b.id ? "Cancelling..." : "Cancel"}
-                            </button>
-                          )}
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-500">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
+      <AppHeader />
+      
+      {/* Header */}
+      <div className="bg-white shadow-lg border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <button 
+                onClick={() => router.push("/courts")}
+                className="flex items-center text-gray-600 hover:text-green-700 transition-colors hover:cursor-pointer"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Browse
+              </button>
             </div>
-            <div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Title Section */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+            Player Dashboard
+          </h1>
+          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            Welcome! Here are your court bookings.
+          </p>
+        </div>
+
+        {/* Upcoming Bookings Section */}
+        <div className="space-y-6 mb-12">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-gray-900 flex items-center">
+              <Calendar className="h-6 w-6 mr-3 text-green-600" />
+              Upcoming Bookings
+            </h2>
+            <Badge variant="outline" className="text-sm px-3 py-1 border-gray-300">
+              {upcoming.length} total
+            </Badge>
+          </div>
+
+          {upcoming.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-24 h-24 mx-auto mb-4 bg-gradient-to-br from-green-100 to-blue-100 rounded-full flex items-center justify-center">
+                <Calendar className="h-12 w-12 text-green-600" />
+              </div>
+              <p className="text-gray-500 text-lg mb-4">No upcoming bookings</p>
+              <Button 
+                onClick={() => router.push("/courts")}
+                className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 hover:cursor-pointer"
+              >
+                Browse Courts
+              </Button>
+            </div>
+          ) : (
+            <div className="grid gap-6">
+              {upcoming.map((booking) => {
+                const court = courts[booking.courtId];
+                return (
+                  <Card key={booking.id} className="overflow-hidden hover:shadow-xl transition-all duration-300 border-0 shadow-md bg-white">
+                    <CardHeader className="pb-3 px-6 pt-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center space-x-4">
+                          <div className="relative w-16 h-16 rounded-lg overflow-hidden shadow-md">
+                            {court?.imageUrl ? (
+                              <Image
+                                src={court.imageUrl}
+                                alt={court.name}
+                                fill
+                                className="object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-gradient-to-br from-green-100 to-blue-100 flex items-center justify-center">
+                                <span className="text-3xl">🎾</span>
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-gradient-to-br from-green-600/20 to-blue-600/20"></div>
+                          </div>
+                          <div>
+                            <h3 className="text-xl font-bold text-gray-900 mb-1">
+                              {court ? court.name : booking.courtId}
+                            </h3>
+                            <div className="flex items-center text-gray-600 mb-2">
+                              <MapPin className="h-4 w-4 mr-2 text-green-600" />
+                              <span className="text-sm">@{court ? court.location : "Unknown Location"}</span>
+                            </div>
+                            {court?.surface && (
+                              <Badge variant="outline" className="text-xs px-2 py-1 border-green-200 text-green-700">
+                                {court.surface}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="flex space-x-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="gap-1 hover:cursor-pointer border-gray-300 hover:border-green-500 hover:bg-green-50 text-gray-700 hover:text-green-700 px-3 py-1 text-xs"
+                            onClick={() => router.push(`/booking/${booking.id}`)}
+                          >
+                            <User className="h-3 w-3" />
+                            View Details
+                          </Button>
+                          <Button 
+                            variant="destructive" 
+                            size="sm" 
+                            className="gap-1 px-3 py-1 text-xs"
+                            onClick={() => handleCancel(booking.id)}
+                            disabled={cancelling === booking.id}
+                          >
+                            <X className="h-3 w-3" />
+                            {cancelling === booking.id ? "Cancelling..." : "Cancel"}
+                          </Button>
+                        </div>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="px-6 pb-6">
+                      {/* Booking Details */}
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-2 mb-4">
+                          <Calendar className="h-5 w-5 text-green-600" />
+                          <h4 className="text-lg font-semibold text-gray-900">Booking Details</h4>
+                        </div>
+
+                        <Card className="bg-gray-50/80 border border-gray-200 hover:border-gray-300 transition-colors">
+                          <CardContent className="p-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div className="flex items-center space-x-2">
+                                <Calendar className="h-4 w-4 text-green-600" />
+                                <div>
+                                  <p className="text-xs text-gray-500">Date</p>
+                                  <p className="font-medium text-gray-900">{booking.date}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Clock className="h-4 w-4 text-green-600" />
+                                <div>
+                                  <p className="text-xs text-gray-500">Time & Duration</p>
+                                  <p className="font-medium text-gray-900">{booking.time} ({booking.duration}h)</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <div className="h-4 w-4 flex items-center justify-center">
+                                  <div className="w-2 h-2 rounded-full bg-green-600"></div>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-gray-500">Status</p>
+                                  <div className="flex items-center">
+                                    {getStatusBadge(booking.status)}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Address */}
+                            {court?.address && (
+                              <div className="mt-4 pt-4 border-t border-gray-200">
+                                <div className="flex items-center space-x-2">
+                                  <MapPin className="h-4 w-4 text-green-600" />
+                                  <div className="flex-1">
+                                    <p className="text-xs text-gray-500">Address</p>
+                                    <GoogleMapsLink 
+                                      address={court.address} 
+                                      variant="link"
+                                      className="text-sm font-medium"
+                                    >
+                                      📍 {court.address}
+                                    </GoogleMapsLink>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Past Bookings Section */}
+        {past.length > 0 && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
               <button
                 onClick={() => setShowPastBookings(!showPastBookings)}
-                className="flex items-center justify-between w-full text-xl font-bold text-[#286a3a] mt-8 mb-2 p-2 rounded-lg hover:bg-gray-50 transition-colors hover:cursor-pointer"
+                className="flex items-center text-2xl font-bold text-gray-900 hover:text-green-700 transition-colors hover:cursor-pointer"
               >
-                <span>Past Bookings</span>
-                <span className={`transform transition-transform ${showPastBookings ? 'rotate-180' : ''}`}>
+                <Calendar className="h-6 w-6 mr-3 text-green-600" />
+                Past Bookings
+                <span className={`ml-3 transform transition-transform ${showPastBookings ? 'rotate-180' : ''}`}>
                   ▼
                 </span>
               </button>
-              {showPastBookings && (
-                <>
-                  {past.length === 0 ? (
-                    <p className="text-gray-400 text-sm">No past bookings.</p>
-                  ) : (
-                    <ul className="space-y-3">
-                      {past.map((b) => {
-                        const court = courts[b.courtId];
-                        return (
-                          <li
-                            key={b.id}
-                            className="bg-gray-50 rounded-xl p-4 shadow flex flex-col sm:flex-row sm:items-center gap-4 border border-gray-100 opacity-70 cursor-pointer hover:bg-gray-100 transition-colors"
-                            onClick={() => router.push(`/booking/${b.id}`)}
-                          >
-                            <div className="flex-1">
-                              <div className="text-gray-900 font-semibold text-sm">
-                                {b.date} at {b.time} ({b.duration}h)
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                Court: {court ? court.name : b.courtId} (
-                                {court ? court.location : ""})
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                Status: {b.status}
-                              </div>
-                            </div>
-                            {court?.imageUrl && (
-                              <div className="flex-shrink-0">
-                                <img
+              <Badge variant="outline" className="text-sm px-3 py-1 border-gray-300">
+                {past.length} total
+              </Badge>
+            </div>
+
+            {showPastBookings && (
+              <div className="grid gap-6">
+                {past.map((booking) => {
+                  const court = courts[booking.courtId];
+                  return (
+                    <Card key={booking.id} className="overflow-hidden border-0 shadow-md bg-white opacity-75">
+                      <CardHeader className="pb-3 px-6 pt-6">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center space-x-4">
+                            <div className="relative w-16 h-16 rounded-lg overflow-hidden shadow-md">
+                              {court?.imageUrl ? (
+                                <Image
                                   src={court.imageUrl}
                                   alt={court.name}
-                                  className="w-16 h-16 object-cover rounded-lg shadow-sm opacity-70"
+                                  fill
+                                  className="object-cover"
                                 />
+                              ) : (
+                                <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                                  <span className="text-3xl">🎾</span>
+                                </div>
+                              )}
+                              <div className="absolute inset-0 bg-gradient-to-br from-gray-600/20 to-gray-600/20"></div>
+                            </div>
+                            <div>
+                              <h3 className="text-xl font-bold text-gray-900 mb-1">
+                                {court ? court.name : booking.courtId}
+                              </h3>
+                              <div className="flex items-center text-gray-600 mb-2">
+                                <MapPin className="h-4 w-4 mr-2 text-gray-500" />
+                                <span className="text-sm">@{court ? court.location : "Unknown Location"}</span>
+                              </div>
+                              {court?.surface && (
+                                <Badge variant="outline" className="text-xs px-2 py-1 border-gray-300 text-gray-600">
+                                  {court.surface}
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="flex space-x-2">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="gap-1 hover:cursor-pointer border-gray-300 hover:border-gray-500 hover:bg-gray-50 text-gray-700 hover:text-gray-900 px-3 py-1 text-xs"
+                              onClick={() => router.push(`/booking/${booking.id}`)}
+                            >
+                              <User className="h-3 w-3" />
+                              View Details
+                            </Button>
+                          </div>
+                        </div>
+                      </CardHeader>
+
+                      <CardContent className="px-6 pb-6">
+                        <Card className="bg-gray-50/80 border border-gray-200">
+                          <CardContent className="p-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <div className="flex items-center space-x-2">
+                                <Calendar className="h-4 w-4 text-gray-500" />
+                                <div>
+                                  <p className="text-xs text-gray-500">Date</p>
+                                  <p className="font-medium text-gray-900">{booking.date}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Clock className="h-4 w-4 text-gray-500" />
+                                <div>
+                                  <p className="text-xs text-gray-500">Time & Duration</p>
+                                  <p className="font-medium text-gray-900">{booking.time} ({booking.duration}h)</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <div className="h-4 w-4 flex items-center justify-center">
+                                  <div className="w-2 h-2 rounded-full bg-gray-500"></div>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-gray-500">Status</p>
+                                  <div className="flex items-center">
+                                    {getStatusBadge(booking.status)}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Address */}
+                            {court?.address && (
+                              <div className="mt-4 pt-4 border-t border-gray-200">
+                                <div className="flex items-center space-x-2">
+                                  <MapPin className="h-4 w-4 text-gray-500" />
+                                  <div className="flex-1">
+                                    <p className="text-xs text-gray-500">Address</p>
+                                    <GoogleMapsLink 
+                                      address={court.address} 
+                                      variant="link"
+                                      className="text-sm font-medium"
+                                    >
+                                      📍 {court.address}
+                                    </GoogleMapsLink>
+                                  </div>
+                                </div>
                               </div>
                             )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </>
-              )}
-            </div>
-          </>
+                          </CardContent>
+                        </Card>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>
