@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { MutableRefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,11 +23,15 @@ interface SearchSectionProps {
 
 const SearchSection = ({ onLocationChange, onDistanceChange }: SearchSectionProps) => {
   const [location, setLocation] = useState("");
-  const [date, setDate] = useState<Date | null>(null);
+  const [date, setDate] = useState<Date | null>(() => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow;
+  });
   const datePickerRef = useRef<any>(null);
-  const [time, setTime] = useState("");
+  const [time, setTime] = useState("anytime");
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
-  const [distanceFilter, setDistanceFilter] = useState<string>("");
+  const [distanceFilter, setDistanceFilter] = useState<string>("10");
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationError, setLocationError] = useState("");
@@ -93,6 +97,11 @@ const SearchSection = ({ onLocationChange, onDistanceChange }: SearchSectionProp
     onDistanceChange?.(distance);
   };
 
+  // Initialize default distance filter on mount
+  useEffect(() => {
+    onDistanceChange?.(10); // Default to 10 miles
+  }, [onDistanceChange]);
+
   return (
     <div className="w-full space-y-6 -mt-12 md:-mt-16 z-10 relative flex flex-col items-center mt-8" data-search-section>
       {/* Main Search Card */}
@@ -144,16 +153,28 @@ const SearchSection = ({ onLocationChange, onDistanceChange }: SearchSectionProp
                 Within
               </label>
               <Select value={distanceFilter} onValueChange={handleDistanceChange}>
-                <SelectTrigger className="border border-gray-300 rounded-lg h-11 pl-3 cursor-pointer">
+                <SelectTrigger>
                   <SelectValue placeholder="Any distance" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="any">Any distance</SelectItem>
-                  <SelectItem value="5">5 miles</SelectItem>
-                  <SelectItem value="10">10 miles</SelectItem>
-                  <SelectItem value="15">15 miles</SelectItem>
-                  <SelectItem value="25">25 miles</SelectItem>
-                  <SelectItem value="50">50 miles</SelectItem>
+                <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-lg">
+                  <SelectItem value="any" className="hover:bg-green-50 cursor-pointer">
+                    Any distance
+                  </SelectItem>
+                  <SelectItem value="5" className="hover:bg-green-50 cursor-pointer">
+                    5 miles
+                  </SelectItem>
+                  <SelectItem value="10" className="hover:bg-green-50 cursor-pointer">
+                    10 miles
+                  </SelectItem>
+                  <SelectItem value="15" className="hover:bg-green-50 cursor-pointer">
+                    15 miles
+                  </SelectItem>
+                  <SelectItem value="25" className="hover:bg-green-50 cursor-pointer">
+                    25 miles
+                  </SelectItem>
+                  <SelectItem value="50" className="hover:bg-green-50 cursor-pointer">
+                    50 miles
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -187,19 +208,25 @@ const SearchSection = ({ onLocationChange, onDistanceChange }: SearchSectionProp
                 Time
               </label>
               <Select value={time} onValueChange={setTime}>
-                <SelectTrigger className="border border-gray-300 rounded-lg h-11 pl-3 cursor-pointer">
+                <SelectTrigger>
                   <div className="flex items-center">
                     <Clock className="h-4 w-4 text-muted-foreground mr-2" />
                     <SelectValue placeholder="Select time" />
                   </div>
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="morning">Morning (6AM - 12PM)</SelectItem>
-                  <SelectItem value="afternoon">
+                <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-lg">
+                  <SelectItem value="morning" className="hover:bg-green-50 cursor-pointer">
+                    Morning (6AM - 12PM)
+                  </SelectItem>
+                  <SelectItem value="afternoon" className="hover:bg-green-50 cursor-pointer">
                     Afternoon (12PM - 6PM)
                   </SelectItem>
-                  <SelectItem value="evening">Evening (6PM - 10PM)</SelectItem>
-                  <SelectItem value="anytime">Anytime</SelectItem>
+                  <SelectItem value="evening" className="hover:bg-green-50 cursor-pointer">
+                    Evening (6PM - 10PM)
+                  </SelectItem>
+                  <SelectItem value="anytime" className="hover:bg-green-50 cursor-pointer">
+                    Anytime
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>

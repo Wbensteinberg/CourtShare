@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import AppHeader from "@/components/AppHeader";
 import ReactDatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 
 interface CourtFormData {
   courtName: string;
@@ -166,12 +167,20 @@ const CreateListing = () => {
                       name="fullAddress"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel className="text-sm font-semibold">Full Address</FormLabel>
                           <FormControl>
-                            <Input 
-                              placeholder="Complete street address" 
+                            <AddressAutocomplete
+                              value={field.value}
+                              onChange={(address, coordinates) => {
+                                field.onChange(address);
+                                // Auto-populate coordinates if available
+                                if (coordinates) {
+                                  form.setValue('latitude', coordinates.lat.toString());
+                                  form.setValue('longitude', coordinates.lng.toString());
+                                }
+                              }}
+                              placeholder="Complete street address"
                               className="h-12 border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200"
-                              {...field} 
+                              label="Full Address"
                             />
                           </FormControl>
                           <FormMessage />

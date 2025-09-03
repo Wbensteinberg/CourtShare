@@ -202,6 +202,143 @@ export default function CourtsPage() {
           )}
         </div>
       </main>
+
+      {/* How It Works Section */}
+      <section className="py-16 bg-gray-50">
+        <div className="container mx-auto px-4">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-gray-800">
+              How It Works
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Booking your perfect tennis court is simple and hassle-free
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-green-600 flex items-center justify-center mx-auto text-white text-2xl font-bold">
+                1
+              </div>
+              <h3 className="text-xl font-semibold text-gray-800">Search & Browse</h3>
+              <p className="text-gray-600">
+                Find courts near you with our advanced search filters. Browse by location, price and availability.
+              </p>
+            </div>
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-green-600 flex items-center justify-center mx-auto text-white text-2xl font-bold">
+                2
+              </div>
+              <h3 className="text-xl font-semibold text-gray-800">Book Instantly</h3>
+              <p className="text-gray-600">
+                Select your preferred time slot and book instantly. Real-time availability ensures you get the court you want.
+              </p>
+            </div>
+            <div className="text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-green-600 flex items-center justify-center mx-auto text-white text-2xl font-bold">
+                3
+              </div>
+              <h3 className="text-xl font-semibold text-gray-800">Play & Enjoy</h3>
+              <p className="text-gray-600">
+                Show up and play! All bookings come with confirmation details and easy check-in process.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-16 bg-green-700 text-white">
+        <div className="container mx-auto px-4 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+            Ready to Book Your Court?
+          </h2>
+          <p className="text-xl mb-8 max-w-2xl mx-auto text-white/90">
+            Join thousands of tennis players who trust CourtShare for their court reservations
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            {!user && (
+              <button 
+                onClick={() => router.push("/signup")}
+                className="bg-white text-green-700 hover:bg-gray-100 px-8 py-3 rounded-lg font-semibold transition-colors cursor-pointer"
+              >
+                Sign Up Free
+              </button>
+            )}
+            <button 
+              onClick={() => {
+                const searchSection = document.querySelector('[data-search-section]');
+                if (searchSection) {
+                  searchSection.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+              className="border border-white/30 text-white hover:bg-white/10 px-8 py-3 rounded-lg font-semibold transition-colors cursor-pointer"
+            >
+              Browse Courts
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-green-800 text-white py-12">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div className="space-y-4">
+              <h3 className="font-bold text-lg">CourtShare</h3>
+              <p className="text-sm text-white/80">
+                The leading platform for tennis court bookings across the nation.
+              </p>
+            </div>
+            <div className="space-y-4">
+              <h4 className="font-semibold">For Players</h4>
+              <ul className="space-y-2 text-sm text-white/80">
+                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">Find Courts</a></li>
+                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">How It Works</a></li>
+                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">Pricing</a></li>
+                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">Mobile App</a></li>
+              </ul>
+            </div>
+            <div className="space-y-4">
+              <h4 className="font-semibold">For Court Owners</h4>
+              <ul className="space-y-2 text-sm text-white/80">
+                <li>
+                  <button 
+                    onClick={async () => {
+                      if (!user) {
+                        router.push("/signup");
+                        return;
+                      }
+                      if (!isOwner) {
+                        await handleToggleRole();
+                      }
+                      router.push("/create-listing");
+                    }}
+                    className="hover:text-white transition-colors cursor-pointer text-left"
+                  >
+                    List Your Court
+                  </button>
+                </li>
+                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">Pricing</a></li>
+                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">Resources</a></li>
+                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">Support</a></li>
+              </ul>
+            </div>
+            <div className="space-y-4">
+              <h4 className="font-semibold">Company</h4>
+              <ul className="space-y-2 text-sm text-white/80">
+                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">About</a></li>
+                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">Contact</a></li>
+                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">Privacy</a></li>
+                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">Terms</a></li>
+              </ul>
+            </div>
+          </div>
+          <div className="border-t border-white/20 mt-8 pt-8 text-center text-sm text-white/80">
+            <p>&copy; 2025 CourtShare. All rights reserved.</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
