@@ -70,6 +70,8 @@ export default function CourtsPage() {
 
   // Function to filter courts by distance
   const filterCourtsByDistance = (courts: Court[], userCoords: Coordinates, maxDist: number) => {
+    console.log('Filtering courts by distance:', { userCoords, maxDist, totalCourts: courts.length });
+    
     return courts
       .map(court => {
         if (court.latitude && court.longitude) {
@@ -77,13 +79,24 @@ export default function CourtsPage() {
             latitude: court.latitude,
             longitude: court.longitude
           });
+          console.log(`Court ${court.name}: ${distance} miles away`);
           return { ...court, distance };
         }
+        console.log(`Court ${court.name}: No coordinates available`);
         return court;
       })
-      .filter(court => !court.latitude || !court.longitude || (court.distance && court.distance <= maxDist))
+      .filter(court => {
+        // Only show courts that have coordinates AND are within the distance limit
+        // Courts without coordinates are hidden when distance filtering is active
+        const hasCoordinates = court.latitude && court.longitude;
+        const withinDistance = court.distance && court.distance <= maxDist;
+        const shouldShow = hasCoordinates && withinDistance;
+        
+        console.log(`Court ${court.name}: hasCoordinates=${hasCoordinates}, withinDistance=${withinDistance}, shouldShow=${shouldShow}`);
+        return shouldShow;
+      })
       .sort((a, b) => {
-        // Sort by distance if both have coordinates, otherwise keep original order
+        // Sort by distance
         if (a.distance && b.distance) {
           return a.distance - b.distance;
         }

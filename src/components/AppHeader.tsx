@@ -115,7 +115,16 @@ export default function AppHeader() {
               <Button
                 variant="ghost"
                 className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
-                onClick={() => router.push("/courts")}
+                onClick={() => {
+                  router.push("/courts");
+                  // Auto-scroll to search section after navigation
+                  setTimeout(() => {
+                    const searchSection = document.getElementById("search-section");
+                    if (searchSection) {
+                      searchSection.scrollIntoView({ behavior: "smooth" });
+                    }
+                  }, 100);
+                }}
               >
                 Find Courts
               </Button>

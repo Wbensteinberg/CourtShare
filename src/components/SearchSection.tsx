@@ -15,6 +15,7 @@ import { Search, MapPin, Calendar, Clock, Filter, X, Navigation } from "lucide-r
 import ReactDatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { getCurrentLocation, type Coordinates } from "@/lib/geolocation";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 
 interface SearchSectionProps {
   onLocationChange?: (location: string, coords: Coordinates | null) => void;
@@ -110,37 +111,37 @@ const SearchSection = ({ onLocationChange, onDistanceChange }: SearchSectionProp
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {/* Location */}
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                Location
-              </label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Enter city or zip code"
-                  value={location}
-                  onChange={(e) => handleLocationInputChange(e.target.value)}
-                  className="pl-10 pr-20 border-gray-300"
-                />
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
-                  {location && (
-                    <button
-                      onClick={clearLocation}
-                      className="p-1 hover:bg-gray-100 rounded"
-                      type="button"
-                    >
-                      <X className="h-3 w-3 text-gray-500" />
-                    </button>
-                  )}
+              <AddressAutocomplete
+                value={location}
+                onChange={(address, coordinates) => {
+                  handleLocationInputChange(address);
+                  if (coordinates) {
+                    setUserLocation(coordinates);
+                  }
+                }}
+                placeholder="Enter city or zip code"
+                className="border-gray-300"
+                label="Location"
+              />
+              <div className="flex gap-2 mt-2">
+                {location && (
                   <button
-                    onClick={handleGetCurrentLocation}
-                    disabled={locationLoading}
-                    className="p-1 hover:bg-gray-100 rounded disabled:opacity-50"
+                    onClick={clearLocation}
+                    className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors cursor-pointer"
                     type="button"
-                    title="Use current location"
                   >
-                    <Navigation className="h-3 w-3 text-green-600" />
+                    Clear
                   </button>
-                </div>
+                )}
+                <button
+                  onClick={handleGetCurrentLocation}
+                  disabled={locationLoading}
+                  className="px-3 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded transition-colors disabled:opacity-50 cursor-pointer"
+                  type="button"
+                  title="Use current location"
+                >
+                  {locationLoading ? "Getting..." : "Current Location"}
+                </button>
               </div>
               {locationError && (
                 <p className="text-xs text-red-500">{locationError}</p>
@@ -248,7 +249,8 @@ const SearchSection = ({ onLocationChange, onDistanceChange }: SearchSectionProp
         </CardContent>
       </Card>
 
-      {/* Filters Section */}
+      {/* Filters Section - COMMENTED OUT FOR FUTURE USE */}
+      {/* 
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">Popular Filters</h3>
@@ -258,7 +260,6 @@ const SearchSection = ({ onLocationChange, onDistanceChange }: SearchSectionProp
           </Button>
         </div>
 
-        {/* Filter Tags */}
         <div className="flex flex-wrap gap-2">
           {popularFilters.map((filter) => (
             <Badge
@@ -276,7 +277,6 @@ const SearchSection = ({ onLocationChange, onDistanceChange }: SearchSectionProp
           ))}
         </div>
 
-        {/* Active Filters */}
         {activeFilters.length > 0 && (
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">Active filters:</p>
@@ -310,6 +310,7 @@ const SearchSection = ({ onLocationChange, onDistanceChange }: SearchSectionProp
           </div>
         )}
       </div>
+      */}
     </div>
   );
 };
