@@ -246,11 +246,6 @@ export default function ProfilePage() {
       // Clear the file input
       setProfileImage(null);
       
-      // Redirect to courts page after successful save
-      setTimeout(() => {
-        router.push("/courts");
-      }, 1000);
-      
     } catch (err: any) {
       setError(err.message || "Failed to update profile");
     } finally {
@@ -561,16 +556,6 @@ export default function ProfilePage() {
                   </Card>
                 )}
                 
-                {success && (
-                  <Card className="border-green-200 bg-green-50">
-                    <CardContent className="p-4">
-                      <div className="flex items-center space-x-3">
-                        <CheckCircle className="h-5 w-5 text-green-500" />
-                        <p className="text-green-700">Profile updated successfully! Redirecting to courts...</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
 
                 {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row gap-4 pt-6">
