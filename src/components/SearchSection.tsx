@@ -199,6 +199,8 @@ const SearchSection = ({ onLocationChange, onDistanceChange }: SearchSectionProp
                   calendarClassName="z-50"
                   wrapperClassName="w-full"
                   showPopperArrow={false}
+                  minDate={new Date()}
+                  excludeDates={[]}
                 />
               </div>
             </div>
