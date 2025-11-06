@@ -283,7 +283,7 @@ export default function CourtDetailPage() {
             variant="ghost"
             size="sm"
             className="mb-4"
-            onClick={() => router.back()}
+            onClick={() => router.push("/courts")}
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Browse

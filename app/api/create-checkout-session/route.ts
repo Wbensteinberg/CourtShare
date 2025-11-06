@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
         duration,
       },
       success_url: `${req.nextUrl.origin}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${req.nextUrl.origin}/cancel`,
+      cancel_url: `${req.nextUrl.origin}/courts/${courtId}`,
     });
 
     return NextResponse.json({ url: session.url });
