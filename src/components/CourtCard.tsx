@@ -113,7 +113,7 @@ const CourtCard = ({ court }: CourtCardProps) => {
         </div>
       </CardContent>
 
-      <CardFooter className="p-0 pt-4">
+      <CardFooter className="px-4 pb-4 pt-4">
         <div className="flex w-full gap-2">
           <Button
             variant="outline"
