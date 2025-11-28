@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
@@ -9,21 +9,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  LogIn, 
-  Mail, 
-  Lock, 
-  Eye, 
-  EyeOff, 
-  ArrowRight, 
+import {
+  LogIn,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  ArrowRight,
   Trophy,
   MapPin,
   Calendar,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
 } from "lucide-react";
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -68,7 +68,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-white flex items-center justify-center">
       <div className="w-full max-w-lg px-4">
-                  <Card className="border border-gray-200 shadow-lg rounded-xl overflow-hidden">
+        <Card className="border border-gray-200 shadow-lg rounded-xl overflow-hidden">
           <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-full bg-green-700 flex items-center justify-center">
@@ -76,7 +76,9 @@ export default function LoginPage() {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-gray-800">Sign In</h2>
-                <p className="text-gray-600">Enter your credentials to continue</p>
+                <p className="text-gray-600">
+                  Enter your credentials to continue
+                </p>
               </div>
             </div>
           </CardHeader>
@@ -122,7 +124,11 @@ export default function LoginPage() {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -157,8 +163,8 @@ export default function LoginPage() {
 
               {/* Links */}
               <div className="text-center space-y-3">
-                <a 
-                  href="#" 
+                <a
+                  href="#"
                   className="text-green-700 hover:text-green-800 text-sm font-medium hover:underline"
                 >
                   Forgot your password?
@@ -166,8 +172,8 @@ export default function LoginPage() {
                 <div className="border-t border-gray-200 pt-4">
                   <p className="text-gray-600 text-sm">
                     Don't have an account?{" "}
-                    <a 
-                      href="/signup" 
+                    <a
+                      href="/signup"
                       className="text-green-700 hover:text-green-800 font-medium hover:underline"
                     >
                       Sign up here
@@ -180,5 +186,22 @@ export default function LoginPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-white flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-700 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <LoginForm />
+    </Suspense>
   );
 }
