@@ -4,6 +4,12 @@ import { useState, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { MapPin } from "lucide-react";
 
+declare global {
+  interface Window {
+    google: any;
+  }
+}
+
 interface AddressSuggestion {
   description: string;
   place_id: string;
@@ -15,7 +21,10 @@ interface AddressSuggestion {
 
 interface AddressAutocompleteProps {
   value: string;
-  onChange: (address: string, coordinates?: { lat: number; lng: number }) => void;
+  onChange: (
+    address: string,
+    coordinates?: { latitude: number; longitude: number }
+  ) => void;
   placeholder?: string;
   className?: string;
   label?: string;
@@ -26,13 +35,13 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   onChange,
   placeholder = "Enter address",
   className = "",
-  label = "Address"
+  label = "Address",
 }) => {
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load Google Places API script
   useEffect(() => {
@@ -43,7 +52,9 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       }
 
       // Check if script already exists
-      const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
+      const existingScript = document.querySelector(
+        'script[src*="maps.googleapis.com"]'
+      );
       if (existingScript) {
         return;
       }
@@ -51,23 +62,27 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       // Check if API key is available
       const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
       if (!apiKey) {
-        console.warn('Google Maps API key not found. Please add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to your .env.local file');
+        console.warn(
+          "Google Maps API key not found. Please add NEXT_PUBLIC_GOOGLE_MAPS_API_KEY to your .env.local file"
+        );
         return;
       }
 
-      const script = document.createElement('script');
+      const script = document.createElement("script");
       script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
       script.async = true;
       script.defer = true;
-      script.id = 'google-maps-script';
+      script.id = "google-maps-script";
       document.head.appendChild(script);
 
       script.onload = () => {
-        console.log('Google Places API loaded successfully');
+        console.log("Google Places API loaded successfully");
       };
 
       script.onerror = () => {
-        console.error('Failed to load Google Places API. Please check your API key and billing settings.');
+        console.error(
+          "Failed to load Google Places API. Please check your API key and billing settings."
+        );
       };
     };
 
@@ -99,14 +114,18 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
 
   const searchPlaces = (query: string) => {
     if (!window.google || !window.google.maps || !window.google.maps.places) {
-      console.warn('Google Places API not loaded. Please check your API key configuration.');
+      console.warn(
+        "Google Places API not loaded. Please check your API key configuration."
+      );
       setIsLoading(false);
       return;
     }
 
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
     if (!apiKey) {
-      console.warn('Google Maps API key not configured. Address autocomplete will not work.');
+      console.warn(
+        "Google Maps API key not configured. Address autocomplete will not work."
+      );
       setIsLoading(false);
       return;
     }
@@ -116,18 +135,25 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     const service = new window.google.maps.places.AutocompleteService();
     const request = {
       input: query,
-      types: ['address'],
-      componentRestrictions: { country: 'us' } // Restrict to US addresses
+      types: ["address"],
+      componentRestrictions: { country: "us" }, // Restrict to US addresses
     };
 
-    service.getPlacePredictions(request, (predictions, status) => {
+    service.getPlacePredictions(request, (predictions: any, status: any) => {
       setIsLoading(false);
-      
-      if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
+
+      if (
+        status === window.google.maps.places.PlacesServiceStatus.OK &&
+        predictions
+      ) {
         setSuggestions(predictions);
         setShowSuggestions(true);
-      } else if (status === window.google.maps.places.PlacesServiceStatus.REQUEST_DENIED) {
-        console.error('Google Places API request denied. Please check your API key and billing settings.');
+      } else if (
+        status === window.google.maps.places.PlacesServiceStatus.REQUEST_DENIED
+      ) {
+        console.error(
+          "Google Places API request denied. Please check your API key and billing settings."
+        );
         setSuggestions([]);
         setShowSuggestions(false);
       } else {
@@ -145,15 +171,18 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     // Get coordinates for the selected place
     if (window.google && window.google.maps && window.google.maps.places) {
       const geocoder = new window.google.maps.Geocoder();
-      geocoder.geocode({ placeId: suggestion.place_id }, (results, status) => {
-        if (status === 'OK' && results && results[0]) {
-          const location = results[0].geometry.location;
-          onChange(suggestion.description, {
-            lat: location.lat(),
-            lng: location.lng()
-          });
+      geocoder.geocode(
+        { placeId: suggestion.place_id },
+        (results: any, status: any) => {
+          if (status === "OK" && results && results[0]) {
+            const location = results[0].geometry.location;
+            onChange(suggestion.description, {
+              latitude: location.lat(),
+              longitude: location.lng(),
+            });
+          }
         }
-      });
+      );
     }
   };
 
