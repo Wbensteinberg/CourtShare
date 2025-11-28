@@ -6,25 +6,30 @@ import { db, getStorageInstance } from "@/lib/firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuth } from "@/lib/AuthContext";
-import ReactCrop, { Crop, PixelCrop, centerCrop, makeAspectCrop } from 'react-image-crop';
-import 'react-image-crop/dist/ReactCrop.css';
+import ReactCrop, {
+  Crop,
+  PixelCrop,
+  centerCrop,
+  makeAspectCrop,
+} from "react-image-crop";
+import "react-image-crop/dist/ReactCrop.css";
 import AppHeader from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  User, 
-  Camera, 
-  Edit3, 
-  Save, 
-  ArrowLeft, 
-  CheckCircle, 
+import {
+  User,
+  Camera,
+  Edit3,
+  Save,
+  ArrowLeft,
+  CheckCircle,
   AlertCircle,
   Trophy,
   MapPin,
   Calendar,
-  Star
+  Star,
 } from "lucide-react";
 
 interface UserProfile {
@@ -39,21 +44,21 @@ interface UserProfile {
 function centerAspectCrop(
   mediaWidth: number,
   mediaHeight: number,
-  aspect: number,
+  aspect: number
 ) {
   return centerCrop(
     makeAspectCrop(
       {
-        unit: '%',
+        unit: "%",
         width: 90,
       },
       aspect,
       mediaWidth,
-      mediaHeight,
+      mediaHeight
     ),
     mediaWidth,
-    mediaHeight,
-  )
+    mediaHeight
+  );
 }
 
 export default function ProfilePage() {
@@ -62,20 +67,20 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  
+
   // Form state
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [profileImagePreview, setProfileImagePreview] = useState<string>("");
-  
+
   // Cropping state
   const [crop, setCrop] = useState<Crop>();
   const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
   const [showCropModal, setShowCropModal] = useState(false);
   const [originalImageUrl, setOriginalImageUrl] = useState<string>("");
   const imgRef = useRef<HTMLImageElement>(null);
-  
+
   const router = useRouter();
   const { user } = useAuth();
 
@@ -84,15 +89,15 @@ export default function ProfilePage() {
       router.push("/login");
       return;
     }
-    
+
     const fetchProfile = async () => {
       setLoading(true);
       setError("");
-      
+
       try {
         const userRef = doc(db, "users", user.uid);
         const userSnap = await getDoc(userRef);
-        
+
         if (userSnap.exists()) {
           const userData = userSnap.data() as UserProfile;
           setProfile(userData);
@@ -117,7 +122,7 @@ export default function ProfilePage() {
         setLoading(false);
       }
     };
-    
+
     fetchProfile();
   }, [user, router]);
 
@@ -139,13 +144,13 @@ export default function ProfilePage() {
 
   const getCroppedImg = (
     image: HTMLImageElement,
-    crop: PixelCrop,
+    crop: PixelCrop
   ): Promise<Blob> => {
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
 
     if (!ctx) {
-      throw new Error('No 2d context');
+      throw new Error("No 2d context");
     }
 
     const scaleX = image.naturalWidth / image.width;
@@ -154,7 +159,7 @@ export default function ProfilePage() {
     canvas.width = crop.width;
     canvas.height = crop.height;
 
-    ctx.imageSmoothingQuality = 'high';
+    ctx.imageSmoothingQuality = "high";
 
     ctx.drawImage(
       image,
@@ -165,15 +170,19 @@ export default function ProfilePage() {
       0,
       0,
       crop.width,
-      crop.height,
+      crop.height
     );
 
     return new Promise((resolve) => {
-      canvas.toBlob((blob) => {
-        if (blob) {
-          resolve(blob);
-        }
-      }, 'image/jpeg', 0.9);
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob);
+          }
+        },
+        "image/jpeg",
+        0.9
+      );
     });
   };
 
@@ -182,16 +191,18 @@ export default function ProfilePage() {
 
     try {
       const croppedBlob = await getCroppedImg(imgRef.current, completedCrop);
-      const croppedFile = new File([croppedBlob], 'cropped-profile.jpg', { type: 'image/jpeg' });
-      
+      const croppedFile = new File([croppedBlob], "cropped-profile.jpg", {
+        type: "image/jpeg",
+      });
+
       setProfileImage(croppedFile);
       setProfileImagePreview(URL.createObjectURL(croppedBlob));
       setShowCropModal(false);
       setCrop(undefined);
       setCompletedCrop(undefined);
     } catch (error) {
-      console.error('Error cropping image:', error);
-      setError('Failed to crop image');
+      console.error("Error cropping image:", error);
+      setError("Failed to crop image");
     }
   };
 
@@ -207,45 +218,54 @@ export default function ProfilePage() {
     e.preventDefault();
     setError("");
     setSuccess(false);
-    
+
     if (!user) {
       setError("You must be logged in to update your profile.");
       return;
     }
-    
+
     setSaving(true);
-    
+
     try {
       let profileImageUrl = profile?.profileImageUrl || "";
-      
+
       // Upload new profile image if selected
       if (profileImage) {
         const storage = getStorageInstance();
-        const imageRef = ref(storage, `profiles/${user.uid}_${Date.now()}_${profileImage.name}`);
+        const imageRef = ref(
+          storage,
+          `profiles/${user.uid}_${Date.now()}_${profileImage.name}`
+        );
         await uploadBytes(imageRef, profileImage);
         profileImageUrl = await getDownloadURL(imageRef);
       }
-      
+
       // Update user profile in Firestore
       await updateDoc(doc(db, "users", user.uid), {
         displayName,
         bio,
         profileImageUrl,
       });
-      
+
       setSuccess(true);
-      
+
       // Update local state
-      setProfile(prev => prev ? {
-        ...prev,
-        displayName,
-        bio,
-        profileImageUrl,
-      } : null);
-      
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              displayName,
+              bio,
+              profileImageUrl,
+            }
+          : null
+      );
+
       // Clear the file input
       setProfileImage(null);
-      
+
+      // Redirect to courts page after successful save
+      router.push("/courts");
     } catch (err: any) {
       setError(err.message || "Failed to update profile");
     } finally {
@@ -295,16 +315,19 @@ export default function ProfilePage() {
     <>
       <div className="min-h-screen bg-white">
         <AppHeader />
-        
-                 {/* Hero Section */}
-         <section className="relative overflow-hidden w-full bg-green-700 text-white">
+
+        {/* Hero Section */}
+        <section className="relative overflow-hidden w-full bg-green-700 text-white">
           {/* Subtle pattern overlay for texture */}
           <div className="absolute inset-0 opacity-5">
-            <div className="absolute inset-0" style={{
-              backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-            }} />
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+              }}
+            />
           </div>
-          
+
           <div className="relative w-full flex flex-col items-center py-8 md:py-12">
             <div className="max-w-4xl w-full mx-auto text-center space-y-4">
               {/* Badge */}
@@ -320,8 +343,9 @@ export default function ProfilePage() {
                   <span className="block text-yellow-300">Profile</span>
                 </h1>
                 <p className="text-xl text-white/90 max-w-2xl mx-auto leading-relaxed">
-                  Customize your profile to enhance your tennis court booking experience. 
-                  Add your photo, update your information, and make your profile uniquely yours.
+                  Customize your profile to enhance your tennis court booking
+                  experience. Add your photo, update your information, and make
+                  your profile uniquely yours.
                 </p>
               </div>
 
@@ -348,8 +372,6 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-          
-
         </section>
 
         {/* Main Content */}
@@ -359,7 +381,6 @@ export default function ProfilePage() {
           <div className="container mx-auto px-4 py-12">
             <div className="max-w-4xl mx-auto">
               <form onSubmit={handleSubmit} className="space-y-8">
-                
                 {/* Profile Photo Section */}
                 <Card className="border border-gray-200 shadow-lg rounded-xl overflow-hidden">
                   <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
@@ -368,8 +389,12 @@ export default function ProfilePage() {
                         <Camera className="h-5 w-5 text-white" />
                       </div>
                       <div>
-                        <h2 className="text-xl font-bold text-gray-800">Profile Photo</h2>
-                        <p className="text-gray-600">Add a professional photo to personalize your profile</p>
+                        <h2 className="text-xl font-bold text-gray-800">
+                          Profile Photo
+                        </h2>
+                        <p className="text-gray-600">
+                          Add a professional photo to personalize your profile
+                        </p>
                       </div>
                     </div>
                   </CardHeader>
@@ -383,7 +408,8 @@ export default function ProfilePage() {
                             alt="Profile"
                             className="w-full h-full object-cover"
                             onError={(e) => {
-                              e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23d1d5db'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
+                              e.currentTarget.src =
+                                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23d1d5db'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
                             }}
                           />
                         </div>
@@ -393,7 +419,7 @@ export default function ProfilePage() {
                           </div>
                         )}
                       </div>
-                      
+
                       {/* Upload Section */}
                       <div className="flex-1 space-y-4">
                         <div>
@@ -405,7 +431,11 @@ export default function ProfilePage() {
                               type="button"
                               variant="outline"
                               className="border-2 border-dashed border-gray-300 hover:border-[#286a3a] hover:bg-gray-50"
-                              onClick={() => document.getElementById('profile-image-input')?.click()}
+                              onClick={() =>
+                                document
+                                  .getElementById("profile-image-input")
+                                  ?.click()
+                              }
                             >
                               <Camera className="h-4 w-4 mr-2" />
                               Choose Photo
@@ -422,17 +452,26 @@ export default function ProfilePage() {
                             </span>
                           </div>
                         </div>
-                        
+
                         <div className="flex flex-wrap gap-2">
-                          <Badge variant="secondary" className="bg-blue-50 text-blue-700">
+                          <Badge
+                            variant="secondary"
+                            className="bg-blue-50 text-blue-700"
+                          >
                             <Camera className="h-3 w-3 mr-1" />
                             Professional
                           </Badge>
-                          <Badge variant="secondary" className="bg-green-50 text-green-700">
+                          <Badge
+                            variant="secondary"
+                            className="bg-green-50 text-green-700"
+                          >
                             <CheckCircle className="h-3 w-3 mr-1" />
                             High Quality
                           </Badge>
-                          <Badge variant="secondary" className="bg-purple-50 text-purple-700">
+                          <Badge
+                            variant="secondary"
+                            className="bg-purple-50 text-purple-700"
+                          >
                             <User className="h-3 w-3 mr-1" />
                             Clear Face
                           </Badge>
@@ -450,8 +489,12 @@ export default function ProfilePage() {
                         <Edit3 className="h-5 w-5 text-white" />
                       </div>
                       <div>
-                        <h2 className="text-xl font-bold text-gray-800">Personal Information</h2>
-                        <p className="text-gray-600">Update your basic profile information</p>
+                        <h2 className="text-xl font-bold text-gray-800">
+                          Personal Information
+                        </h2>
+                        <p className="text-gray-600">
+                          Update your basic profile information
+                        </p>
                       </div>
                     </div>
                   </CardHeader>
@@ -469,7 +512,7 @@ export default function ProfilePage() {
                           className="border-gray-300 focus:border-[#286a3a] focus:ring-[#286a3a]"
                         />
                       </div>
-                      
+
                       <div className="space-y-2">
                         <label className="block text-sm font-medium text-gray-700">
                           Email Address
@@ -480,10 +523,12 @@ export default function ProfilePage() {
                           disabled
                           className="border-gray-300 bg-gray-50 text-gray-500"
                         />
-                        <p className="text-xs text-gray-500">Email cannot be changed</p>
+                        <p className="text-xs text-gray-500">
+                          Email cannot be changed
+                        </p>
                       </div>
                     </div>
-                    
+
                     <div className="space-y-2">
                       <label className="block text-sm font-medium text-gray-700">
                         Bio
@@ -496,7 +541,8 @@ export default function ProfilePage() {
                         className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] focus:border-[#286a3a] resize-none"
                       />
                       <p className="text-xs text-gray-500">
-                        Share your tennis story, experience level, or what you're looking for in a court
+                        Share your tennis story, experience level, or what
+                        you're looking for in a court
                       </p>
                     </div>
                   </CardContent>
@@ -510,8 +556,12 @@ export default function ProfilePage() {
                         <Trophy className="h-5 w-5 text-white" />
                       </div>
                       <div>
-                        <h2 className="text-xl font-bold text-gray-800">Account Status</h2>
-                        <p className="text-gray-600">Your current account information and privileges</p>
+                        <h2 className="text-xl font-bold text-gray-800">
+                          Account Status
+                        </h2>
+                        <p className="text-gray-600">
+                          Your current account information and privileges
+                        </p>
                       </div>
                     </div>
                   </CardHeader>
@@ -521,23 +571,33 @@ export default function ProfilePage() {
                         <div className="w-12 h-12 rounded-full bg-[#286a3a] flex items-center justify-center mx-auto mb-3">
                           <User className="h-6 w-6 text-white" />
                         </div>
-                        <h3 className="font-semibold text-gray-800">Account Type</h3>
-                        <p className="text-sm text-gray-600">{profile?.isOwner ? "Court Owner" : "Tennis Player"}</p>
+                        <h3 className="font-semibold text-gray-800">
+                          Account Type
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          {profile?.isOwner ? "Court Owner" : "Tennis Player"}
+                        </p>
                       </div>
-                      
+
                       <div className="text-center p-4 bg-gray-50 rounded-lg">
                         <div className="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center mx-auto mb-3">
                           <MapPin className="h-6 w-6 text-white" />
                         </div>
-                        <h3 className="font-semibold text-gray-800">Location</h3>
-                        <p className="text-sm text-gray-600">Nationwide Access</p>
+                        <h3 className="font-semibold text-gray-800">
+                          Location
+                        </h3>
+                        <p className="text-sm text-gray-600">
+                          Nationwide Access
+                        </p>
                       </div>
-                      
+
                       <div className="text-center p-4 bg-gray-50 rounded-lg">
                         <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center mx-auto mb-3">
                           <Star className="h-6 w-6 text-white" />
                         </div>
-                        <h3 className="font-semibold text-gray-800">Member Since</h3>
+                        <h3 className="font-semibold text-gray-800">
+                          Member Since
+                        </h3>
                         <p className="text-sm text-gray-600">Active Member</p>
                       </div>
                     </div>
@@ -555,7 +615,6 @@ export default function ProfilePage() {
                     </CardContent>
                   </Card>
                 )}
-                
 
                 {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row gap-4 pt-6">
@@ -601,10 +660,11 @@ export default function ProfilePage() {
                 Crop Your Profile Picture
               </h3>
               <p className="text-gray-600">
-                Drag and resize the crop area to frame your profile picture perfectly
+                Drag and resize the crop area to frame your profile picture
+                perfectly
               </p>
             </div>
-            
+
             <div className="flex justify-center mb-6">
               <div className="max-w-md w-full">
                 <ReactCrop
@@ -624,7 +684,7 @@ export default function ProfilePage() {
                 </ReactCrop>
               </div>
             </div>
-            
+
             <div className="flex gap-4 justify-center">
               <Button
                 variant="outline"
@@ -645,4 +705,4 @@ export default function ProfilePage() {
       )}
     </>
   );
-} 
+}
