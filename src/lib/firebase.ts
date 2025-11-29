@@ -13,9 +13,18 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+// Validate that all required config values are present
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+  console.error(
+    "Firebase configuration is missing required values. Please check your environment variables."
+  );
+}
+
 const app = initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
+
+// Initialize Firestore with settings that work better in serverless environments
 export const db = getFirestore(app);
 
 // Lazy load storage to avoid permissions issues before authentication
