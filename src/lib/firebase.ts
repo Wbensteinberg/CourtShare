@@ -13,10 +13,17 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Validate that all required config values are present
-if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+// Validate that all required config values are present (only in browser, not during build)
+if (
+  typeof window !== "undefined" &&
+  (!firebaseConfig.apiKey || !firebaseConfig.projectId)
+) {
   console.error(
-    "Firebase configuration is missing required values. Please check your environment variables."
+    "Firebase configuration is missing required values. Please check your environment variables.",
+    {
+      hasApiKey: !!firebaseConfig.apiKey,
+      hasProjectId: !!firebaseConfig.projectId,
+    }
   );
 }
 
