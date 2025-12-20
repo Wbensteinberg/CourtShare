@@ -119,7 +119,8 @@ export default function AppHeader() {
                   router.push("/courts");
                   // Auto-scroll to search section after navigation
                   setTimeout(() => {
-                    const searchSection = document.getElementById("search-section");
+                    const searchSection =
+                      document.getElementById("search-section");
                     if (searchSection) {
                       searchSection.scrollIntoView({ behavior: "smooth" });
                     }
@@ -224,21 +225,71 @@ export default function AppHeader() {
             </>
           )}
         </div>
-        {/* Hamburger menu always visible on mobile, never hidden by flex */}
-        <div className="md:hidden flex items-center justify-end flex-shrink-0 ml-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-white"
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-label="Open menu"
-          >
-            {menuOpen ? (
-              <X className="h-5 w-5" />
-            ) : (
-              <Menu className="h-5 w-5" />
-            )}
-          </Button>
+        {/* Mobile: Auth buttons (when not logged in) or Profile + Hamburger menu */}
+        <div className="md:hidden flex items-center justify-end gap-2 flex-shrink-0 ml-auto">
+          {!user ? (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
+                onClick={() => router.push("/login")}
+              >
+                Sign In
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="bg-green-700 text-white hover:bg-green-800 transition-colors duration-200 font-medium hover:cursor-pointer"
+                onClick={() => router.push("/signup")}
+              >
+                Sign Up
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="cursor-pointer p-0 overflow-hidden rounded-full w-8 h-8"
+                onClick={() => router.push("/profile")}
+                aria-label="Profile"
+              >
+                {profileImageUrl ? (
+                  <img
+                    src={profileImageUrl}
+                    alt="Profile"
+                    className="w-full h-full rounded-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                      e.currentTarget.nextElementSibling?.classList.remove(
+                        "hidden"
+                      );
+                    }}
+                  />
+                ) : null}
+                <User
+                  className={`h-5 w-5 ${profileImageUrl ? "hidden" : ""}`}
+                />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen((prev) => !prev);
+                }}
+                aria-label={menuOpen ? "Close menu" : "Open menu"}
+                className="cursor-pointer"
+              >
+                {menuOpen ? (
+                  <X className="h-5 w-5" />
+                ) : (
+                  <Menu className="h-5 w-5" />
+                )}
+              </Button>
+            </>
+          )}
         </div>
       </div>
       {/* Mobile Menu */}
@@ -305,82 +356,28 @@ export default function AppHeader() {
               </>
             )}
           </nav>
-          <div className="flex flex-col space-y-2 pt-4 border-t">
-            {!user ? (
-              <>
+          {user && (
+            <div className="flex flex-col space-y-2 pt-4 border-t">
+              {shouldShowRoleToggle() && (
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="justify-start hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
-                  onClick={() => {
-                    router.push("/login");
-                    setMenuOpen(false);
-                  }}
-                >
-                  Sign In
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="bg-green-700 text-white hover:bg-green-800 transition-colors duration-200 font-medium hover:cursor-pointer"
-                  onClick={() => {
-                    router.push("/signup");
-                    setMenuOpen(false);
-                  }}
-                >
-                  Sign Up
-                </Button>
-              </>
-            ) : (
-              <>
-                {shouldShowRoleToggle() && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleToggleRole}
-                    className="cursor-pointer hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
-                  >
-                    Switch to {isOwner ? "Player" : "Owner"} Mode
-                  </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="cursor-pointer p-0 overflow-hidden rounded-full w-8 h-8"
-                  onClick={() => {
-                    router.push("/profile");
-                    setMenuOpen(false);
-                  }}
-                  aria-label="Profile"
-                >
-                  {profileImageUrl ? (
-                    <img
-                      src={profileImageUrl}
-                      alt="Profile"
-                      className="w-full h-full rounded-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                        e.currentTarget.nextElementSibling?.classList.remove(
-                          "hidden"
-                        );
-                      }}
-                    />
-                  ) : null}
-                  <User
-                    className={`h-4 w-4 ${profileImageUrl ? "hidden" : ""}`}
-                  />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleLogout}
+                  onClick={handleToggleRole}
                   className="cursor-pointer hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
                 >
-                  Log Out
+                  Switch to {isOwner ? "Player" : "Owner"} Mode
                 </Button>
-              </>
-            )}
-          </div>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLogout}
+                className="cursor-pointer hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
+              >
+                Log Out
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </header>

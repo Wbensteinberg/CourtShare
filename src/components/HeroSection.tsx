@@ -7,8 +7,8 @@ const HeroSection = () => {
       {/* Background Pattern */}
       {/* Optionally, add a subtle green/gray pattern here if desired */}
 
-      <div className="relative w-full flex flex-col items-center py-20 md:py-32">
-        <div className="max-w-4xl w-full mx-auto text-center space-y-8">
+      <div className="relative w-full flex flex-col items-center py-12 md:py-20 lg:py-32 px-4">
+        <div className="max-w-4xl w-full mx-auto text-center space-y-6 md:space-y-8">
           {/* Badge */}
           <div className="inline-flex items-center rounded-full bg-white/10 px-6 py-2 text-sm font-medium border border-white/20 text-white">
             <Trophy className="h-4 w-4 mr-2" />
@@ -21,7 +21,7 @@ const HeroSection = () => {
               Book Your Perfect
               <span className="block text-yellow-300">Tennis Court</span>
             </h1>
-            <p className="text-xl md:text-2xl text-white/90 max-w-2xl mx-auto leading-relaxed">
+            <p className="text-base md:text-xl lg:text-2xl text-white/90 max-w-2xl mx-auto leading-relaxed px-4">
               Discover and book premium tennis courts in your area. From clay to
               hard courts, indoor to outdoor - find your ideal playing
               experience.
@@ -29,7 +29,7 @@ const HeroSection = () => {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-8 max-w-md mx-auto">
+          <div className="grid grid-cols-3 gap-4 md:gap-8 max-w-md mx-auto px-4">
             <div className="text-center">
               <div className="text-2xl md:text-3xl font-bold text-white">
                 1,200+
@@ -51,7 +51,7 @@ const HeroSection = () => {
           </div>
 
           {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 px-4">
             <Button
               variant="secondary"
               size="xl"
@@ -72,7 +72,7 @@ const HeroSection = () => {
           </div>
 
           {/* Features */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-12 max-w-3xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 pt-8 md:pt-12 max-w-3xl mx-auto px-4">
             <div className="text-center space-y-2">
               <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mx-auto">
                 <Calendar className="h-6 w-6 text-white" />
@@ -105,7 +105,7 @@ const HeroSection = () => {
       </div>
 
       {/* Bottom wave */}
-      <div className="absolute left-1/2 -translate-x-1/2 bottom-0 max-w-4xl w-full mx-auto z-0">
+      <div className="absolute left-1/2 -translate-x-1/2 bottom-[-32px] max-w-4xl w-full mx-auto z-10">
         <svg viewBox="0 0 1440 120" className="w-full h-20 md:h-28">
           <path
             fill="#fff"
