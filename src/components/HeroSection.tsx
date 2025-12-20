@@ -21,15 +21,16 @@ const HeroSection = () => {
               Book Your Perfect
               <span className="block text-yellow-300">Tennis Court</span>
             </h1>
-            <p className="text-base md:text-xl lg:text-2xl text-white/90 max-w-2xl mx-auto leading-relaxed px-4">
+            {/* Paragraph - commented out for now */}
+            {/* <p className="text-base md:text-xl lg:text-2xl text-white/90 max-w-2xl mx-auto leading-relaxed px-4">
               Discover and book premium tennis courts in your area. From clay to
               hard courts, indoor to outdoor - find your ideal playing
               experience.
-            </p>
+            </p> */}
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 md:gap-8 max-w-md mx-auto px-4">
+          {/* Stats - commented out for now */}
+          {/* <div className="grid grid-cols-3 gap-4 md:gap-8 max-w-md mx-auto px-4">
             <div className="text-center">
               <div className="text-2xl md:text-3xl font-bold text-white">
                 1,200+
@@ -48,10 +49,10 @@ const HeroSection = () => {
               </div>
               <div className="text-sm text-white/80">Average Rating</div>
             </div>
-          </div>
+          </div> */}
 
-          {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 px-4">
+          {/* CTA Buttons - commented out for now */}
+          {/* <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 px-4">
             <Button
               variant="secondary"
               size="xl"
@@ -69,7 +70,7 @@ const HeroSection = () => {
               <Play className="h-5 w-5 mr-2" />
               Watch Demo
             </Button>
-          </div>
+          </div> */}
 
           {/* Features */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 pt-8 md:pt-12 max-w-3xl mx-auto px-4">
