@@ -92,6 +92,35 @@ export default function CourtDetailPage() {
 
   const durations = ["1", "1.5", "2", "2.5", "3"];
 
+  // Helper function to convert time string (e.g., "2:00 PM") to minutes from midnight
+  const timeToMinutes = (timeStr: string): number => {
+    const [time, period] = timeStr.split(" ");
+    const [hours, minutes] = time.split(":").map(Number);
+    let totalMinutes = hours * 60 + (minutes || 0);
+    if (period === "PM" && hours !== 12) {
+      totalMinutes += 12 * 60;
+    } else if (period === "AM" && hours === 12) {
+      totalMinutes -= 12 * 60;
+    }
+    return totalMinutes;
+  };
+
+  // Helper function to check if two time ranges overlap
+  const timeRangesOverlap = (
+    start1: string,
+    duration1: number,
+    start2: string,
+    duration2: number
+  ): boolean => {
+    const start1Minutes = timeToMinutes(start1);
+    const end1Minutes = start1Minutes + duration1 * 60;
+    const start2Minutes = timeToMinutes(start2);
+    const end2Minutes = start2Minutes + duration2 * 60;
+
+    // Two ranges overlap if one starts before the other ends
+    return start1Minutes < end2Minutes && start2Minutes < end1Minutes;
+  };
+
   // Filter function for blocked dates
   const filterBlockedDates = (date: Date) => {
     if (date < new Date()) return false; // Disable past dates
@@ -126,11 +155,26 @@ export default function CourtDetailPage() {
 
   // Filter available time slots
   const availableTimeSlots = timeSlots.filter((time) => {
+    // Check if time is in blocked times (for court's blocked times)
     const hour = parseInt(time.split(":")[0], 10);
     const time24 = hour.toString().padStart(2, "0") + ":00";
-
-    // Check if time is blocked
     if (blockedTimes.has(time24)) return false;
+
+    // Check if a booking starting at this time with selected duration would conflict
+    // with any existing bookings
+    if (selectedDate && duration) {
+      const bookingDuration = parseFloat(duration);
+      const wouldConflict = bookingsForDate.some((b) => {
+        const existingDuration = Number(b.duration) || 1;
+        return timeRangesOverlap(
+          time,
+          bookingDuration,
+          b.time,
+          existingDuration
+        );
+      });
+      if (wouldConflict) return false;
+    }
 
     // Check if time is in the past for today
     if (selectedDate) {
@@ -210,8 +254,19 @@ export default function CourtDetailPage() {
       alert("Please fill out all fields.");
       return;
     }
-    // Prevent double booking
-    if (bookingsForDate.some((b) => b.time === selectedTime)) {
+    // Prevent double booking - check for time range overlaps including duration
+    const bookingDuration = parseFloat(duration);
+    const hasConflict = bookingsForDate.some((b) => {
+      const existingDuration = Number(b.duration) || 1;
+      return timeRangesOverlap(
+        selectedTime,
+        bookingDuration,
+        b.time,
+        existingDuration
+      );
+    });
+
+    if (hasConflict) {
       setBookingStatus("conflict");
       return;
     }
