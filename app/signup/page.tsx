@@ -9,20 +9,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { 
-  UserPlus, 
-  Mail, 
-  Lock, 
-  Eye, 
-  EyeOff, 
-  ArrowRight, 
+import {
+  UserPlus,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  ArrowRight,
   Trophy,
   MapPin,
   Calendar,
   AlertCircle,
   CheckCircle,
   Shield,
-  Star
+  Star,
 } from "lucide-react";
 
 function SignupForm() {
@@ -82,7 +82,9 @@ function SignupForm() {
                 <UserPlus className="h-5 w-5 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-800">Create Account</h2>
+                <h2 className="text-xl font-bold text-gray-800">
+                  Create Account
+                </h2>
                 <p className="text-gray-600">Join the CourtShare community</p>
               </div>
             </div>
@@ -129,7 +131,11 @@ function SignupForm() {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
                   </button>
                 </div>
                 <p className="text-xs text-gray-500">
@@ -158,7 +164,11 @@ function SignupForm() {
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
                   >
-                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
                   </button>
                 </div>
               </div>
@@ -170,11 +180,13 @@ function SignupForm() {
                   <p className="text-red-700 text-sm">{error}</p>
                 </div>
               )}
-              
+
               {success && (
                 <div className="flex items-center space-x-3 p-3 bg-green-50 border border-green-200 rounded-lg">
                   <CheckCircle className="h-5 w-5 text-green-500" />
-                  <p className="text-green-700 text-sm">Account created successfully!</p>
+                  <p className="text-green-700 text-sm">
+                    Account created successfully!
+                  </p>
                 </div>
               )}
 
@@ -202,15 +214,23 @@ function SignupForm() {
               <div className="text-center space-y-3">
                 <p className="text-gray-500 text-xs">
                   By creating an account, you agree to our{" "}
-                  <a href="#" className="text-green-700 hover:underline">Terms of Service</a>
-                  {" "}and{" "}
-                  <a href="#" className="text-green-700 hover:underline">Privacy Policy</a>
+                  <a href="#" className="text-green-700 hover:underline">
+                    Terms of Service
+                  </a>{" "}
+                  and{" "}
+                  <a href="#" className="text-green-700 hover:underline">
+                    Privacy Policy
+                  </a>
                 </p>
                 <div className="border-t border-gray-200 pt-4">
                   <p className="text-gray-600 text-sm">
                     Already have an account?{" "}
-                    <a 
-                      href={redirect ? `/login?redirect=${encodeURIComponent(redirect)}` : "/login"}
+                    <a
+                      href={
+                        redirect
+                          ? `/login?redirect=${encodeURIComponent(redirect)}`
+                          : "/login"
+                      }
                       className="text-green-700 hover:text-green-800 font-medium hover:underline"
                     >
                       Sign in here
