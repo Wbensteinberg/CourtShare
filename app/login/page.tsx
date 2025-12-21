@@ -172,8 +172,8 @@ function LoginForm() {
                 <div className="border-t border-gray-200 pt-4">
                   <p className="text-gray-600 text-sm">
                     Don't have an account?{" "}
-                    <a
-                      href="/signup"
+                    <a 
+                      href={redirect ? `/signup?redirect=${encodeURIComponent(redirect)}` : "/signup"}
                       className="text-green-700 hover:text-green-800 font-medium hover:underline"
                     >
                       Sign up here

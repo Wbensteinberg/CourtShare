@@ -18,11 +18,20 @@ const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
 
 // Firebase config (use env vars, not NEXT_PUBLIC_*)
 const firebaseConfig = {
-  apiKey: process.env.FIREBASE_API_KEY || process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.FIREBASE_AUTH_DOMAIN || process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  apiKey:
+    process.env.FIREBASE_API_KEY || process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain:
+    process.env.FIREBASE_AUTH_DOMAIN ||
+    process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId:
+    process.env.FIREBASE_PROJECT_ID ||
+    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket:
+    process.env.FIREBASE_STORAGE_BUCKET ||
+    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId:
+    process.env.FIREBASE_MESSAGING_SENDER_ID ||
+    process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.FIREBASE_APP_ID || process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
@@ -36,10 +45,13 @@ export async function POST(req: NextRequest) {
     "[WEBHOOK] Stripe webhook POST handler called at",
     new Date().toISOString()
   );
-  
+
   // Log all headers for debugging
-  console.log("[WEBHOOK] Request headers:", Object.fromEntries(req.headers.entries()));
-  
+  console.log(
+    "[WEBHOOK] Request headers:",
+    Object.fromEntries(req.headers.entries())
+  );
+
   const sig = req.headers.get("stripe-signature");
   let event: Stripe.Event;
 
@@ -82,18 +94,23 @@ export async function POST(req: NextRequest) {
       );
       try {
         // Add booking to Firestore
+        // Status is "confirmed" because payment was successful (webhook only fires after payment)
         const bookingData = {
           courtId: metadata.courtId,
           userId: metadata.userId,
           date: metadata.date,
           time: metadata.time,
           duration: Number(metadata.duration) || 1,
-          status: "pending",
+          status: "confirmed", // Changed from "pending" - payment succeeded, so booking is confirmed
           createdAt: new Date(),
           sessionId: session.id,
+          paymentStatus: "paid",
         };
         console.log("[WEBHOOK] Booking data to write:", bookingData);
-        const bookingRef = await addDoc(collection(db, "bookings"), bookingData);
+        const bookingRef = await addDoc(
+          collection(db, "bookings"),
+          bookingData
+        );
         console.log(
           "[WEBHOOK] Booking created in Firestore for session:",
           session.id,

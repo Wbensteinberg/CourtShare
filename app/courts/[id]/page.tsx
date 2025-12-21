@@ -201,7 +201,11 @@ export default function CourtDetailPage() {
   }, [id, selectedDate]);
 
   const handleCheckout = async () => {
-    if (!user) return;
+    // Require authentication before booking
+    if (!user) {
+      router.push(`/login?redirect=/courts/${id}`);
+      return;
+    }
     if (!selectedDate || !selectedTime || !duration) {
       alert("Please fill out all fields.");
       return;
@@ -445,7 +449,7 @@ export default function CourtDetailPage() {
                   </Button>
                 </CardContent>
               </Card>
-            ) : user && !isOwner ? (
+            ) : (
               <Card className="shadow-elegant border border-gray-200">
                 <CardHeader className="bg-green-700 text-white border-b border-green-800">
                   <CardTitle className="text-xl font-bold">
@@ -577,26 +581,6 @@ export default function CourtDetailPage() {
                     Secure payment processing. Cancel up to 24 hours before your
                     booking.
                   </p>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card className="shadow-elegant border border-gray-200">
-                <CardHeader className="bg-green-700 text-white border-b border-green-800">
-                  <CardTitle className="text-xl font-bold">
-                    Book This Court
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6 space-y-4">
-                  <p className="text-center text-muted-foreground">
-                    Log in to book this court.
-                  </p>
-                  <Button
-                    className="w-full bg-gradient-primary hover:bg-primary-glow text-primary-foreground font-semibold py-3 transition-smooth"
-                    size="lg"
-                    onClick={() => router.push(`/login?redirect=/courts/${id}`)}
-                  >
-                    Log In to Book
-                  </Button>
                 </CardContent>
               </Card>
             )}

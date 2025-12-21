@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { doc, setDoc } from "firebase/firestore";
@@ -25,7 +25,7 @@ import {
   Star
 } from "lucide-react";
 
-export default function SignupPage() {
+function SignupForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -35,6 +35,8 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirect = searchParams.get("redirect");
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,7 +60,11 @@ export default function SignupPage() {
         isOwner: false,
       });
       setSuccess(true);
-      router.push("/courts");
+      if (redirect) {
+        router.push(redirect);
+      } else {
+        router.push("/courts");
+      }
     } catch (err: any) {
       setError(err.message || "Signup failed");
     } finally {
@@ -204,7 +210,7 @@ export default function SignupPage() {
                   <p className="text-gray-600 text-sm">
                     Already have an account?{" "}
                     <a 
-                      href="/login" 
+                      href={redirect ? `/login?redirect=${encodeURIComponent(redirect)}` : "/login"}
                       className="text-green-700 hover:text-green-800 font-medium hover:underline"
                     >
                       Sign in here
@@ -217,5 +223,22 @@ export default function SignupPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-white flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-700 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <SignupForm />
+    </Suspense>
   );
 }
