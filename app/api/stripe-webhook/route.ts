@@ -94,14 +94,14 @@ export async function POST(req: NextRequest) {
       );
       try {
         // Add booking to Firestore
-        // Status is "confirmed" because payment was successful (webhook only fires after payment)
+        // Status is "pending" - requires host approval before confirmation
         const bookingData = {
           courtId: metadata.courtId,
           userId: metadata.userId,
           date: metadata.date,
           time: metadata.time,
           duration: Number(metadata.duration) || 1,
-          status: "confirmed", // Changed from "pending" - payment succeeded, so booking is confirmed
+          status: "pending", // Requires host approval
           createdAt: new Date(),
           sessionId: session.id,
           paymentStatus: "paid",

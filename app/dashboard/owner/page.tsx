@@ -12,12 +12,13 @@ import {
   orderBy,
   deleteDoc,
   doc,
+  updateDoc,
 } from "firebase/firestore";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Edit3, Trash2, Calendar, User, Clock, MapPin } from "lucide-react";
+import { ArrowLeft, Plus, Edit3, Trash2, Calendar, User, Clock, MapPin, Check, X } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 
 interface Court {
@@ -47,6 +48,7 @@ export default function OwnerDashboard() {
   const [error, setError] = useState("");
   const router = useRouter();
   const [deletingCourtId, setDeletingCourtId] = useState<string | null>(null);
+  const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -109,12 +111,50 @@ export default function OwnerDashboard() {
     }
   };
 
+  const handleAcceptBooking = async (bookingId: string) => {
+    setUpdatingBookingId(bookingId);
+    try {
+      await updateDoc(doc(db, "bookings", bookingId), { status: "confirmed" });
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === bookingId ? { ...b, status: "confirmed" } : b
+        )
+      );
+    } catch (err: any) {
+      alert(err.message || "Failed to accept booking");
+    } finally {
+      setUpdatingBookingId(null);
+    }
+  };
+
+  const handleRejectBooking = async (bookingId: string) => {
+    if (!window.confirm("Are you sure you want to reject this booking? The payment will be refunded.")) {
+      return;
+    }
+    setUpdatingBookingId(bookingId);
+    try {
+      await updateDoc(doc(db, "bookings", bookingId), { status: "rejected" });
+      setBookings((prev) =>
+        prev.map((b) =>
+          b.id === bookingId ? { ...b, status: "rejected" } : b
+        )
+      );
+      // TODO: Process refund via Stripe
+    } catch (err: any) {
+      alert(err.message || "Failed to reject booking");
+    } finally {
+      setUpdatingBookingId(null);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
-        return <Badge variant="secondary" className="bg-yellow-100 text-green-700 border-yellow-200">Pending</Badge>;
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 border-yellow-200">Pending</Badge>;
       case "confirmed":
         return <Badge className="bg-green-600 text-white">Confirmed</Badge>;
+      case "rejected":
+        return <Badge variant="destructive">Rejected</Badge>;
       case "cancelled":
         return <Badge variant="destructive">Cancelled</Badge>;
       default:
@@ -294,6 +334,29 @@ export default function OwnerDashboard() {
                                   
                                   <div className="flex items-center space-x-2">
                                     {getStatusBadge(booking.status)}
+                                    {booking.status === "pending" && (
+                                      <>
+                                        <Button
+                                          size="sm"
+                                          className="h-7 px-3 bg-green-600 hover:bg-green-700 text-white text-xs cursor-pointer"
+                                          onClick={() => handleAcceptBooking(booking.id)}
+                                          disabled={updatingBookingId === booking.id}
+                                        >
+                                          <Check className="h-3 w-3 mr-1" />
+                                          Accept
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="destructive"
+                                          className="h-7 px-3 text-xs cursor-pointer"
+                                          onClick={() => handleRejectBooking(booking.id)}
+                                          disabled={updatingBookingId === booking.id}
+                                        >
+                                          <X className="h-3 w-3 mr-1" />
+                                          Reject
+                                        </Button>
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                               </CardContent>

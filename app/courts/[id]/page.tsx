@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import Image from "next/image";
 import {
@@ -56,7 +56,7 @@ export default function CourtDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const router = useRouter();
-  const { user, isOwner } = useAuth();
+  const { user, loading: authLoading, isOwner } = useAuth();
 
   // Booking state
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -245,11 +245,31 @@ export default function CourtDetailPage() {
   }, [id, selectedDate]);
 
   const handleCheckout = async () => {
-    // Require authentication before booking
-    if (!user) {
+    // Wait for auth to finish loading before checking
+    if (authLoading) {
+      console.log("[BOOKING] Auth still loading, waiting...");
+      return; // Don't do anything while auth is loading
+    }
+
+    // Double-check auth state directly from Firebase
+    const currentUser = auth.currentUser;
+    if (!user && !currentUser) {
+      console.log(
+        "[BOOKING] No user found in context or auth, redirecting to login"
+      );
       router.push(`/login?redirect=/courts/${id}`);
       return;
     }
+
+    // Use currentUser if user from context is null (race condition fix)
+    const activeUser = user || currentUser;
+    if (!activeUser) {
+      console.log("[BOOKING] No active user, redirecting to login");
+      router.push(`/login?redirect=/courts/${id}`);
+      return;
+    }
+
+    console.log("[BOOKING] User authenticated:", activeUser.uid);
     if (!selectedDate || !selectedTime || !duration) {
       alert("Please fill out all fields.");
       return;
@@ -277,7 +297,7 @@ export default function CourtDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           courtId: id,
-          userId: user.uid,
+          userId: activeUser.uid,
           date:
             selectedDate instanceof Date
               ? selectedDate.toISOString().slice(0, 10)
@@ -612,7 +632,8 @@ export default function CourtDetailPage() {
                       !selectedDate ||
                       !selectedTime ||
                       bookingStatus === "loading" ||
-                      fetchingBookings
+                      fetchingBookings ||
+                      authLoading
                     }
                     onClick={handleCheckout}
                   >

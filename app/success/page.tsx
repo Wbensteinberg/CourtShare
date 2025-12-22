@@ -12,27 +12,13 @@ function SuccessContent() {
   const { user } = useAuth();
 
   useEffect(() => {
-    if (!user) {
-      router.push("/login");
-      return;
-    }
-
     // Get session_id from URL params
     const sessionId = searchParams.get("session_id");
 
-    if (!sessionId) {
-      // No session ID, redirect to dashboard
-      router.push("/dashboard/player");
-      return;
-    }
-
-    // For now, we'll redirect to dashboard
-    // In a real implementation, you'd fetch the booking by session ID
-    // and then redirect to the booking details page
-    setTimeout(() => {
-      router.push("/dashboard/player");
-    }, 3000);
-  }, [user, router, searchParams]);
+    // Immediately redirect to dashboard (no delay, no flash)
+    // The booking will show up once the webhook processes it
+    router.push("/dashboard/player");
+  }, [router, searchParams]);
 
   return (
     <div className="min-h-screen bg-[#286a3a] px-4 py-12 flex items-center justify-center">

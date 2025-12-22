@@ -58,41 +58,57 @@ export default function PlayerDashboard() {
     }
   }, [user, authLoading, router]);
 
-  useEffect(() => {
+  const fetchBookings = async () => {
     if (!user) return;
     setLoading(true);
     setError("");
-    const fetchBookings = async () => {
-      try {
-        // Fetch bookings for this user
-        const bookingsSnap = await getDocs(
-          query(collection(db, "bookings"), where("userId", "==", user.uid))
+    try {
+      // Fetch bookings for this user
+      console.log("[PLAYER DASHBOARD] Fetching bookings for user:", user.uid);
+      const bookingsSnap = await getDocs(
+        query(collection(db, "bookings"), where("userId", "==", user.uid))
+      );
+      console.log(
+        "[PLAYER DASHBOARD] Found",
+        bookingsSnap.docs.length,
+        "bookings"
+      );
+      const bookingsData: Booking[] = bookingsSnap.docs.map((doc) => {
+        const data = doc.data();
+        console.log(
+          "[PLAYER DASHBOARD] Booking:",
+          doc.id,
+          "userId:",
+          data.userId,
+          "status:",
+          data.status
         );
-        const bookingsData: Booking[] = bookingsSnap.docs.map((doc) => ({
+        return {
           id: doc.id,
-          ...doc.data(),
-        })) as Booking[];
-        setBookings(bookingsData);
-        // Fetch all courts for these bookings
-        const courtIds = Array.from(
-          new Set(bookingsData.map((b) => b.courtId))
-        );
-        const courtsMap: Record<string, Court> = {};
-        await Promise.all(
-          courtIds.map(async (courtId) => {
-            const courtDoc = await getDoc(doc(db, "courts", courtId));
-            if (courtDoc.exists()) {
-              courtsMap[courtId] = { id: courtId, ...courtDoc.data() } as Court;
-            }
-          })
-        );
-        setCourts(courtsMap);
-      } catch (err: any) {
-        setError(err.message || "Failed to fetch bookings");
-      } finally {
-        setLoading(false);
-      }
-    };
+          ...data,
+        };
+      }) as Booking[];
+      setBookings(bookingsData);
+      // Fetch all courts for these bookings
+      const courtIds = Array.from(new Set(bookingsData.map((b) => b.courtId)));
+      const courtsMap: Record<string, Court> = {};
+      await Promise.all(
+        courtIds.map(async (courtId) => {
+          const courtDoc = await getDoc(doc(db, "courts", courtId));
+          if (courtDoc.exists()) {
+            courtsMap[courtId] = { id: courtId, ...courtDoc.data() } as Court;
+          }
+        })
+      );
+      setCourts(courtsMap);
+    } catch (err: any) {
+      setError(err.message || "Failed to fetch bookings");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchBookings();
   }, [user]);
 
@@ -117,9 +133,18 @@ export default function PlayerDashboard() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 border-yellow-200">Pending</Badge>;
+        return (
+          <Badge
+            variant="secondary"
+            className="bg-yellow-100 text-yellow-700 border-yellow-200"
+          >
+            Pending Approval
+          </Badge>
+        );
       case "confirmed":
         return <Badge className="bg-green-600 text-white">Confirmed</Badge>;
+      case "rejected":
+        return <Badge variant="destructive">Rejected</Badge>;
       case "cancelled":
         return <Badge variant="destructive">Cancelled</Badge>;
       default:
@@ -127,15 +152,59 @@ export default function PlayerDashboard() {
     }
   };
 
+  // Helper function to parse date and time (handles "1:00 PM" format)
+  const parseBookingDateTime = (dateStr: string, timeStr: string): Date => {
+    // Parse time string like "1:00 PM" to 24-hour format
+    const [time, period] = timeStr.split(" ");
+    const [hours, minutes] = time.split(":").map(Number);
+    let hour24 = hours;
+    if (period === "PM" && hours !== 12) {
+      hour24 = hours + 12;
+    } else if (period === "AM" && hours === 12) {
+      hour24 = 0;
+    }
+    // Create date string in ISO format
+    const dateTimeStr = `${dateStr}T${hour24
+      .toString()
+      .padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:00`;
+    return new Date(dateTimeStr);
+  };
+
   // Split bookings into upcoming and past
   const now = new Date();
   const upcoming = bookings.filter((b) => {
-    const bookingDate = new Date(b.date + "T" + b.time);
-    return bookingDate >= now && b.status !== "cancelled";
+    try {
+      const bookingDate = parseBookingDateTime(b.date, b.time);
+      return (
+        bookingDate >= now &&
+        b.status !== "cancelled" &&
+        b.status !== "rejected"
+      );
+    } catch (e) {
+      console.error(
+        "[PLAYER DASHBOARD] Error parsing booking date:",
+        b.date,
+        b.time,
+        e
+      );
+      return false;
+    }
   });
   const past = bookings.filter((b) => {
-    const bookingDate = new Date(b.date + "T" + b.time);
-    return bookingDate < now || b.status === "cancelled";
+    try {
+      const bookingDate = parseBookingDateTime(b.date, b.time);
+      return (
+        bookingDate < now || b.status === "cancelled" || b.status === "rejected"
+      );
+    } catch (e) {
+      console.error(
+        "[PLAYER DASHBOARD] Error parsing booking date:",
+        b.date,
+        b.time,
+        e
+      );
+      return true; // If we can't parse, treat as past
+    }
   });
 
   if (loading) {
@@ -162,13 +231,13 @@ export default function PlayerDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
       <AppHeader />
-      
+
       {/* Header */}
       <div className="bg-white shadow-lg border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <button 
+              <button
                 onClick={() => router.push("/courts")}
                 className="flex items-center text-gray-600 hover:text-green-700 transition-colors hover:cursor-pointer"
               >
@@ -199,7 +268,10 @@ export default function PlayerDashboard() {
               <Calendar className="h-6 w-6 mr-3 text-green-600" />
               Upcoming Bookings
             </h2>
-            <Badge variant="outline" className="text-sm px-3 py-1 border-gray-300">
+            <Badge
+              variant="outline"
+              className="text-sm px-3 py-1 border-gray-300"
+            >
               {upcoming.length} total
             </Badge>
           </div>
@@ -210,7 +282,7 @@ export default function PlayerDashboard() {
                 <Calendar className="h-12 w-12 text-green-600" />
               </div>
               <p className="text-gray-500 text-lg mb-4">No upcoming bookings</p>
-              <Button 
+              <Button
                 onClick={() => router.push("/courts")}
                 className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 hover:cursor-pointer"
               >
@@ -222,7 +294,10 @@ export default function PlayerDashboard() {
               {upcoming.map((booking) => {
                 const court = courts[booking.courtId];
                 return (
-                  <Card key={booking.id} className="overflow-hidden hover:shadow-xl transition-all duration-300 border-0 shadow-md bg-white">
+                  <Card
+                    key={booking.id}
+                    className="overflow-hidden hover:shadow-xl transition-all duration-300 border-0 shadow-md bg-white"
+                  >
                     <CardHeader className="pb-3 px-6 pt-6">
                       <div className="flex items-start justify-between">
                         <div className="flex items-center space-x-4">
@@ -247,35 +322,44 @@ export default function PlayerDashboard() {
                             </h3>
                             <div className="flex items-center text-gray-600 mb-2">
                               <MapPin className="h-4 w-4 mr-2 text-green-600" />
-                              <span className="text-sm">@{court ? court.location : "Unknown Location"}</span>
+                              <span className="text-sm">
+                                @{court ? court.location : "Unknown Location"}
+                              </span>
                             </div>
                             {court?.surface && (
-                              <Badge variant="outline" className="text-xs px-2 py-1 border-green-200 text-green-700">
+                              <Badge
+                                variant="outline"
+                                className="text-xs px-2 py-1 border-green-200 text-green-700"
+                              >
                                 {court.surface}
                               </Badge>
                             )}
                           </div>
                         </div>
-                        
+
                         <div className="flex space-x-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
+                          <Button
+                            variant="outline"
+                            size="sm"
                             className="gap-1 hover:cursor-pointer border-gray-300 hover:border-green-500 hover:bg-green-50 text-gray-700 hover:text-green-700 px-3 py-1 text-xs"
-                            onClick={() => router.push(`/booking/${booking.id}`)}
+                            onClick={() =>
+                              router.push(`/booking/${booking.id}`)
+                            }
                           >
                             <User className="h-3 w-3" />
                             View Details
                           </Button>
-                          <Button 
-                            variant="destructive" 
-                            size="sm" 
+                          <Button
+                            variant="destructive"
+                            size="sm"
                             className="gap-1 px-3 py-1 text-xs"
                             onClick={() => handleCancel(booking.id)}
                             disabled={cancelling === booking.id}
                           >
                             <X className="h-3 w-3" />
-                            {cancelling === booking.id ? "Cancelling..." : "Cancel"}
+                            {cancelling === booking.id
+                              ? "Cancelling..."
+                              : "Cancel"}
                           </Button>
                         </div>
                       </div>
@@ -286,7 +370,9 @@ export default function PlayerDashboard() {
                       <div className="space-y-3">
                         <div className="flex items-center space-x-2 mb-4">
                           <Calendar className="h-5 w-5 text-green-600" />
-                          <h4 className="text-lg font-semibold text-gray-900">Booking Details</h4>
+                          <h4 className="text-lg font-semibold text-gray-900">
+                            Booking Details
+                          </h4>
                         </div>
 
                         <Card className="bg-gray-50/80 border border-gray-200 hover:border-gray-300 transition-colors">
@@ -296,14 +382,20 @@ export default function PlayerDashboard() {
                                 <Calendar className="h-4 w-4 text-green-600" />
                                 <div>
                                   <p className="text-xs text-gray-500">Date</p>
-                                  <p className="font-medium text-gray-900">{booking.date}</p>
+                                  <p className="font-medium text-gray-900">
+                                    {booking.date}
+                                  </p>
                                 </div>
                               </div>
                               <div className="flex items-center space-x-2">
                                 <Clock className="h-4 w-4 text-green-600" />
                                 <div>
-                                  <p className="text-xs text-gray-500">Time & Duration</p>
-                                  <p className="font-medium text-gray-900">{booking.time} ({booking.duration}h)</p>
+                                  <p className="text-xs text-gray-500">
+                                    Time & Duration
+                                  </p>
+                                  <p className="font-medium text-gray-900">
+                                    {booking.time} ({booking.duration}h)
+                                  </p>
                                 </div>
                               </div>
                               <div className="flex items-center space-x-2">
@@ -311,23 +403,27 @@ export default function PlayerDashboard() {
                                   <div className="w-2 h-2 rounded-full bg-green-600"></div>
                                 </div>
                                 <div>
-                                  <p className="text-xs text-gray-500">Status</p>
+                                  <p className="text-xs text-gray-500">
+                                    Status
+                                  </p>
                                   <div className="flex items-center">
                                     {getStatusBadge(booking.status)}
                                   </div>
                                 </div>
                               </div>
                             </div>
-                            
+
                             {/* Address */}
                             {court?.address && (
                               <div className="mt-4 pt-4 border-t border-gray-200">
                                 <div className="flex items-center space-x-2">
                                   <MapPin className="h-4 w-4 text-green-600" />
                                   <div className="flex-1">
-                                    <p className="text-xs text-gray-500">Address</p>
-                                    <GoogleMapsLink 
-                                      address={court.address} 
+                                    <p className="text-xs text-gray-500">
+                                      Address
+                                    </p>
+                                    <GoogleMapsLink
+                                      address={court.address}
                                       variant="link"
                                       className="text-sm font-medium"
                                     >
@@ -358,11 +454,18 @@ export default function PlayerDashboard() {
               >
                 <Calendar className="h-6 w-6 mr-3 text-green-600" />
                 Past Bookings
-                <span className={`ml-3 transform transition-transform ${showPastBookings ? 'rotate-180' : ''}`}>
+                <span
+                  className={`ml-3 transform transition-transform ${
+                    showPastBookings ? "rotate-180" : ""
+                  }`}
+                >
                   ▼
                 </span>
               </button>
-              <Badge variant="outline" className="text-sm px-3 py-1 border-gray-300">
+              <Badge
+                variant="outline"
+                className="text-sm px-3 py-1 border-gray-300"
+              >
                 {past.length} total
               </Badge>
             </div>
@@ -372,7 +475,10 @@ export default function PlayerDashboard() {
                 {past.map((booking) => {
                   const court = courts[booking.courtId];
                   return (
-                    <Card key={booking.id} className="overflow-hidden border-0 shadow-md bg-white opacity-75">
+                    <Card
+                      key={booking.id}
+                      className="overflow-hidden border-0 shadow-md bg-white opacity-75"
+                    >
                       <CardHeader className="pb-3 px-6 pt-6">
                         <div className="flex items-start justify-between">
                           <div className="flex items-center space-x-4">
@@ -397,22 +503,29 @@ export default function PlayerDashboard() {
                               </h3>
                               <div className="flex items-center text-gray-600 mb-2">
                                 <MapPin className="h-4 w-4 mr-2 text-gray-500" />
-                                <span className="text-sm">@{court ? court.location : "Unknown Location"}</span>
+                                <span className="text-sm">
+                                  @{court ? court.location : "Unknown Location"}
+                                </span>
                               </div>
                               {court?.surface && (
-                                <Badge variant="outline" className="text-xs px-2 py-1 border-gray-300 text-gray-600">
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs px-2 py-1 border-gray-300 text-gray-600"
+                                >
                                   {court.surface}
                                 </Badge>
                               )}
                             </div>
                           </div>
-                          
+
                           <div className="flex space-x-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
+                            <Button
+                              variant="outline"
+                              size="sm"
                               className="gap-1 hover:cursor-pointer border-gray-300 hover:border-gray-500 hover:bg-gray-50 text-gray-700 hover:text-gray-900 px-3 py-1 text-xs"
-                              onClick={() => router.push(`/booking/${booking.id}`)}
+                              onClick={() =>
+                                router.push(`/booking/${booking.id}`)
+                              }
                             >
                               <User className="h-3 w-3" />
                               View Details
@@ -429,14 +542,20 @@ export default function PlayerDashboard() {
                                 <Calendar className="h-4 w-4 text-gray-500" />
                                 <div>
                                   <p className="text-xs text-gray-500">Date</p>
-                                  <p className="font-medium text-gray-900">{booking.date}</p>
+                                  <p className="font-medium text-gray-900">
+                                    {booking.date}
+                                  </p>
                                 </div>
                               </div>
                               <div className="flex items-center space-x-2">
                                 <Clock className="h-4 w-4 text-gray-500" />
                                 <div>
-                                  <p className="text-xs text-gray-500">Time & Duration</p>
-                                  <p className="font-medium text-gray-900">{booking.time} ({booking.duration}h)</p>
+                                  <p className="text-xs text-gray-500">
+                                    Time & Duration
+                                  </p>
+                                  <p className="font-medium text-gray-900">
+                                    {booking.time} ({booking.duration}h)
+                                  </p>
                                 </div>
                               </div>
                               <div className="flex items-center space-x-2">
@@ -444,23 +563,27 @@ export default function PlayerDashboard() {
                                   <div className="w-2 h-2 rounded-full bg-gray-500"></div>
                                 </div>
                                 <div>
-                                  <p className="text-xs text-gray-500">Status</p>
+                                  <p className="text-xs text-gray-500">
+                                    Status
+                                  </p>
                                   <div className="flex items-center">
                                     {getStatusBadge(booking.status)}
                                   </div>
                                 </div>
                               </div>
                             </div>
-                            
+
                             {/* Address */}
                             {court?.address && (
                               <div className="mt-4 pt-4 border-t border-gray-200">
                                 <div className="flex items-center space-x-2">
                                   <MapPin className="h-4 w-4 text-gray-500" />
                                   <div className="flex-1">
-                                    <p className="text-xs text-gray-500">Address</p>
-                                    <GoogleMapsLink 
-                                      address={court.address} 
+                                    <p className="text-xs text-gray-500">
+                                      Address
+                                    </p>
+                                    <GoogleMapsLink
+                                      address={court.address}
                                       variant="link"
                                       className="text-sm font-medium"
                                     >

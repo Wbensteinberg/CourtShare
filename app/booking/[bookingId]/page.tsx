@@ -131,9 +131,11 @@ export default function BookingDetailsPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 border-yellow-200">Pending</Badge>;
+        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 border-yellow-200">Pending Approval</Badge>;
       case "confirmed":
         return <Badge className="bg-green-600 text-white">Confirmed</Badge>;
+      case "rejected":
+        return <Badge variant="destructive">Rejected</Badge>;
       case "cancelled":
         return <Badge variant="destructive">Cancelled</Badge>;
       default:
