@@ -18,7 +18,18 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Edit3, Trash2, Calendar, User, Clock, MapPin, Check, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Plus,
+  Edit3,
+  Trash2,
+  Calendar,
+  User,
+  Clock,
+  MapPin,
+  Check,
+  X,
+} from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 
 interface Court {
@@ -48,7 +59,9 @@ export default function OwnerDashboard() {
   const [error, setError] = useState("");
   const router = useRouter();
   const [deletingCourtId, setDeletingCourtId] = useState<string | null>(null);
-  const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(null);
+  const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(
+    null
+  );
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -114,12 +127,48 @@ export default function OwnerDashboard() {
   const handleAcceptBooking = async (bookingId: string) => {
     setUpdatingBookingId(bookingId);
     try {
+      // Update booking status
       await updateDoc(doc(db, "bookings", bookingId), { status: "confirmed" });
       setBookings((prev) =>
         prev.map((b) =>
           b.id === bookingId ? { ...b, status: "confirmed" } : b
         )
       );
+
+      // Send confirmation email to player
+      try {
+        const response = await fetch("/api/send-booking-confirmation", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ bookingId }),
+        });
+
+        if (!response.ok) {
+          const error = await response
+            .json()
+            .catch(() => ({ error: "Unknown error" }));
+          console.error(
+            "[OWNER DASHBOARD] Failed to send confirmation email:",
+            error
+          );
+          console.error(
+            "[OWNER DASHBOARD] Response status:",
+            response.status,
+            response.statusText
+          );
+          // Don't show error to user - booking is still accepted
+        } else {
+          console.log("[OWNER DASHBOARD] ✅ Confirmation email sent to player");
+        }
+      } catch (emailError: any) {
+        console.error(
+          "[OWNER DASHBOARD] Error sending confirmation email:",
+          emailError
+        );
+        // Don't fail the booking acceptance if email fails
+      }
     } catch (err: any) {
       alert(err.message || "Failed to accept booking");
     } finally {
@@ -128,16 +177,18 @@ export default function OwnerDashboard() {
   };
 
   const handleRejectBooking = async (bookingId: string) => {
-    if (!window.confirm("Are you sure you want to reject this booking? The payment will be refunded.")) {
+    if (
+      !window.confirm(
+        "Are you sure you want to reject this booking? The payment will be refunded."
+      )
+    ) {
       return;
     }
     setUpdatingBookingId(bookingId);
     try {
       await updateDoc(doc(db, "bookings", bookingId), { status: "rejected" });
       setBookings((prev) =>
-        prev.map((b) =>
-          b.id === bookingId ? { ...b, status: "rejected" } : b
-        )
+        prev.map((b) => (b.id === bookingId ? { ...b, status: "rejected" } : b))
       );
       // TODO: Process refund via Stripe
     } catch (err: any) {
@@ -150,7 +201,14 @@ export default function OwnerDashboard() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 border-yellow-200">Pending</Badge>;
+        return (
+          <Badge
+            variant="secondary"
+            className="bg-yellow-100 text-yellow-700 border-yellow-200"
+          >
+            Pending
+          </Badge>
+        );
       case "confirmed":
         return <Badge className="bg-green-600 text-white">Confirmed</Badge>;
       case "rejected":
@@ -186,13 +244,13 @@ export default function OwnerDashboard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
       <AppHeader />
-      
+
       {/* Header */}
       <div className="bg-white shadow-lg border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <button 
+              <button
                 onClick={() => router.push("/courts")}
                 className="flex items-center text-gray-600 hover:text-green-700 transition-colors hover:cursor-pointer"
               >
@@ -218,7 +276,7 @@ export default function OwnerDashboard() {
 
         {/* Add New Court Button */}
         <div className="flex justify-center mb-8">
-          <Button 
+          <Button
             onClick={() => router.push("/create-listing")}
             className="bg-green-600 hover:bg-green-700 text-white font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 hover:cursor-pointer text-lg"
             size="lg"
@@ -231,12 +289,17 @@ export default function OwnerDashboard() {
         {/* Courts Section */}
         {courts.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">You have no courts listed yet.</p>
+            <p className="text-gray-500 text-lg">
+              You have no courts listed yet.
+            </p>
           </div>
         ) : (
           <div className="space-y-6">
             {courts.map((court) => (
-              <Card key={court.id} className="overflow-hidden hover:shadow-xl transition-all duration-300 border-0 shadow-md bg-white">
+              <Card
+                key={court.id}
+                className="overflow-hidden hover:shadow-xl transition-all duration-300 border-0 shadow-md bg-white"
+              >
                 <CardHeader className="pb-3 px-6 pt-6">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center space-x-4">
@@ -256,38 +319,45 @@ export default function OwnerDashboard() {
                         <div className="absolute inset-0 bg-gradient-to-br from-green-600/20 to-blue-600/20"></div>
                       </div>
                       <div>
-                        <h3 className="text-xl font-bold text-gray-900 mb-1">{court.name}</h3>
+                        <h3 className="text-xl font-bold text-gray-900 mb-1">
+                          {court.name}
+                        </h3>
                         <div className="flex items-center text-gray-600 mb-2">
                           <MapPin className="h-4 w-4 mr-2 text-green-600" />
                           <span className="text-sm">@{court.location}</span>
                         </div>
                         {court.surface && (
-                          <Badge variant="outline" className="text-xs px-2 py-1 border-green-200 text-green-700">
+                          <Badge
+                            variant="outline"
+                            className="text-xs px-2 py-1 border-green-200 text-green-700"
+                          >
                             {court.surface}
                           </Badge>
                         )}
                       </div>
                     </div>
-                    
+
                     <div className="flex space-x-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
+                      <Button
+                        variant="outline"
+                        size="sm"
                         className="gap-1 hover:cursor-pointer border-gray-300 hover:border-green-500 hover:bg-green-50 text-gray-700 hover:text-green-700 px-3 py-1 text-xs"
                         onClick={() => router.push(`/edit-listing/${court.id}`)}
                       >
                         <Edit3 className="h-3 w-3" />
                         Edit
                       </Button>
-                      <Button 
-                        variant="destructive" 
-                        size="sm" 
+                      <Button
+                        variant="destructive"
+                        size="sm"
                         className="gap-1 px-3 py-1 text-xs"
                         onClick={() => handleDelete(court.id)}
                         disabled={deletingCourtId === court.id}
                       >
                         <Trash2 className="h-3 w-3" />
-                        {deletingCourtId === court.id ? "Deleting..." : "Delete"}
+                        {deletingCourtId === court.id
+                          ? "Deleting..."
+                          : "Delete"}
                       </Button>
                     </div>
                   </div>
@@ -298,40 +368,58 @@ export default function OwnerDashboard() {
                   <div className="space-y-3">
                     <div className="flex items-center space-x-2 mb-4">
                       <Calendar className="h-5 w-5 text-green-600" />
-                      <h4 className="text-lg font-semibold text-gray-900">Bookings</h4>
-                      <Badge variant="outline" className="ml-auto text-xs px-2 py-1 border-gray-300">
-                        {bookings.filter(b => b.courtId === court.id).length} total
+                      <h4 className="text-lg font-semibold text-gray-900">
+                        Bookings
+                      </h4>
+                      <Badge
+                        variant="outline"
+                        className="ml-auto text-xs px-2 py-1 border-gray-300"
+                      >
+                        {bookings.filter((b) => b.courtId === court.id).length}{" "}
+                        total
                       </Badge>
                     </div>
 
-                    {bookings.filter(b => b.courtId === court.id).length === 0 ? (
+                    {bookings.filter((b) => b.courtId === court.id).length ===
+                    0 ? (
                       <p className="text-gray-400 text-sm text-center py-4 bg-gray-50 rounded-lg">
                         No bookings for this court yet.
                       </p>
                     ) : (
                       <div className="grid gap-3">
                         {bookings
-                          .filter(b => b.courtId === court.id)
-                          .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
+                          .filter((b) => b.courtId === court.id)
+                          .sort((a, b) =>
+                            (a.date + a.time).localeCompare(b.date + b.time)
+                          )
                           .map((booking) => (
-                            <Card key={booking.id} className="bg-gray-50/80 border border-gray-200 hover:border-gray-300 transition-colors">
+                            <Card
+                              key={booking.id}
+                              className="bg-gray-50/80 border border-gray-200 hover:border-gray-300 transition-colors"
+                            >
                               <CardContent className="p-3">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center space-x-4">
                                     <div className="flex items-center space-x-2 text-xs">
                                       <Calendar className="h-3 w-3 text-green-600" />
-                                      <span className="font-medium text-gray-900">{booking.date}</span>
+                                      <span className="font-medium text-gray-900">
+                                        {booking.date}
+                                      </span>
                                     </div>
                                     <div className="flex items-center space-x-2 text-xs">
                                       <Clock className="h-3 w-3 text-green-600" />
-                                      <span className="text-gray-700">{booking.time} ({booking.duration}h)</span>
+                                      <span className="text-gray-700">
+                                        {booking.time} ({booking.duration}h)
+                                      </span>
                                     </div>
                                     <div className="flex items-center space-x-2 text-xs text-gray-500">
                                       <User className="h-3 w-3" />
-                                      <span className="font-mono text-xs">{booking.userId.slice(0, 12)}...</span>
+                                      <span className="font-mono text-xs">
+                                        {booking.userId.slice(0, 12)}...
+                                      </span>
                                     </div>
                                   </div>
-                                  
+
                                   <div className="flex items-center space-x-2">
                                     {getStatusBadge(booking.status)}
                                     {booking.status === "pending" && (
@@ -339,8 +427,12 @@ export default function OwnerDashboard() {
                                         <Button
                                           size="sm"
                                           className="h-7 px-3 bg-green-600 hover:bg-green-700 text-white text-xs cursor-pointer"
-                                          onClick={() => handleAcceptBooking(booking.id)}
-                                          disabled={updatingBookingId === booking.id}
+                                          onClick={() =>
+                                            handleAcceptBooking(booking.id)
+                                          }
+                                          disabled={
+                                            updatingBookingId === booking.id
+                                          }
                                         >
                                           <Check className="h-3 w-3 mr-1" />
                                           Accept
@@ -349,8 +441,12 @@ export default function OwnerDashboard() {
                                           size="sm"
                                           variant="destructive"
                                           className="h-7 px-3 text-xs cursor-pointer"
-                                          onClick={() => handleRejectBooking(booking.id)}
-                                          disabled={updatingBookingId === booking.id}
+                                          onClick={() =>
+                                            handleRejectBooking(booking.id)
+                                          }
+                                          disabled={
+                                            updatingBookingId === booking.id
+                                          }
                                         >
                                           <X className="h-3 w-3 mr-1" />
                                           Reject
@@ -374,16 +470,20 @@ export default function OwnerDashboard() {
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16">
           <Card className="text-center p-8 hover:shadow-xl transition-all duration-300 border-0 shadow-lg bg-white">
-            <div className="text-4xl font-bold text-green-600 mb-3">{courts.length}</div>
+            <div className="text-4xl font-bold text-green-600 mb-3">
+              {courts.length}
+            </div>
             <div className="text-gray-600 text-lg">Active Courts</div>
           </Card>
           <Card className="text-center p-8 hover:shadow-xl transition-all duration-300 border-0 shadow-lg bg-white">
-            <div className="text-4xl font-bold text-green-600 mb-3">{bookings.length}</div>
+            <div className="text-4xl font-bold text-green-600 mb-3">
+              {bookings.length}
+            </div>
             <div className="text-gray-600 text-lg">Total Bookings</div>
           </Card>
           <Card className="text-center p-8 hover:shadow-xl transition-all duration-300 border-0 shadow-lg bg-white">
             <div className="text-4xl font-bold text-green-600 mb-3">
-              {bookings.filter(b => b.status === 'pending').length}
+              {bookings.filter((b) => b.status === "pending").length}
             </div>
             <div className="text-gray-600 text-lg">Pending Requests</div>
           </Card>

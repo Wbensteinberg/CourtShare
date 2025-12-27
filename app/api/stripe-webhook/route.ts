@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { initializeApp, getApps } from "firebase/app";
-import {
-  getFirestore,
-  collection,
-  addDoc,
-  Timestamp,
-} from "firebase/firestore";
+import { adminDb } from "@/lib/firebase-admin";
+import { sendOwnerBookingNotification } from "@/lib/email";
 
 // Initialize Stripe with your secret key (set in .env.local)
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
@@ -15,30 +10,6 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
 
 // Stripe webhook signing secret (set in .env.local)
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
-
-// Firebase config (use env vars, not NEXT_PUBLIC_*)
-const firebaseConfig = {
-  apiKey:
-    process.env.FIREBASE_API_KEY || process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain:
-    process.env.FIREBASE_AUTH_DOMAIN ||
-    process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId:
-    process.env.FIREBASE_PROJECT_ID ||
-    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket:
-    process.env.FIREBASE_STORAGE_BUCKET ||
-    process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId:
-    process.env.FIREBASE_MESSAGING_SENDER_ID ||
-    process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.FIREBASE_APP_ID || process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-};
-
-// Initialize Firebase app only once
-const app =
-  getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const db = getFirestore(app);
 
 export async function POST(req: NextRequest) {
   console.log(
@@ -95,6 +66,10 @@ export async function POST(req: NextRequest) {
       try {
         // Add booking to Firestore
         // Status is "pending" - requires host approval before confirmation
+        if (!adminDb) {
+          throw new Error("Firebase Admin not initialized");
+        }
+
         const bookingData = {
           courtId: metadata.courtId,
           userId: metadata.userId,
@@ -107,16 +82,80 @@ export async function POST(req: NextRequest) {
           paymentStatus: "paid",
         };
         console.log("[WEBHOOK] Booking data to write:", bookingData);
-        const bookingRef = await addDoc(
-          collection(db, "bookings"),
-          bookingData
-        );
+        const bookingRef = await adminDb
+          .collection("bookings")
+          .add(bookingData);
         console.log(
           "[WEBHOOK] Booking created in Firestore for session:",
           session.id,
           "with booking ID:",
           bookingRef.id
         );
+
+        // Fetch court and user details to send email notification
+        try {
+          const courtDoc = await adminDb
+            .collection("courts")
+            .doc(metadata.courtId)
+            .get();
+          const playerDoc = await adminDb
+            .collection("users")
+            .doc(metadata.userId)
+            .get();
+
+          if (courtDoc.exists && playerDoc.exists) {
+            const courtData = courtDoc.data();
+            const playerData = playerDoc.data();
+
+            if (!courtData || !playerData) {
+              console.warn("[WEBHOOK] Court or player data is undefined");
+              return;
+            }
+
+            // Fetch owner details
+            const ownerDoc = await adminDb
+              .collection("users")
+              .doc(courtData.ownerId)
+              .get();
+            const ownerData = ownerDoc.exists ? ownerDoc.data() : null;
+
+            if (ownerData?.email) {
+              // Calculate total price
+              const price =
+                (courtData.price || 0) * (Number(metadata.duration) || 1);
+
+              // Send email to owner
+              await sendOwnerBookingNotification({
+                bookingId: bookingRef.id,
+                courtName: courtData.name || "Court",
+                courtAddress: courtData.address || courtData.location,
+                playerName: playerData.displayName || playerData.name,
+                playerEmail: playerData.email || metadata.userId,
+                ownerName: ownerData.displayName || ownerData.name,
+                ownerEmail: ownerData.email,
+                date: metadata.date,
+                time: metadata.time,
+                duration: Number(metadata.duration) || 1,
+                price: price,
+              });
+              console.log("[WEBHOOK] Owner notification email sent");
+            } else {
+              console.warn(
+                "[WEBHOOK] Owner email not found, skipping email notification"
+              );
+            }
+          } else {
+            console.warn(
+              "[WEBHOOK] Court or player data not found, skipping email notification"
+            );
+          }
+        } catch (emailError: any) {
+          // Don't fail the webhook if email fails - log and continue
+          console.error(
+            "[WEBHOOK] Failed to send email notification:",
+            emailError
+          );
+        }
       } catch (err: any) {
         console.error(
           "[WEBHOOK] Failed to write booking to Firestore:",
