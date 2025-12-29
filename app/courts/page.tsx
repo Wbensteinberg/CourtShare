@@ -12,7 +12,11 @@ import AppHeader from "@/components/AppHeader";
 import HeroSection from "@/components/HeroSection";
 import SearchSection from "@/components/SearchSection";
 import CourtCard from "@/components/CourtCard";
-import { calculateDistance, formatDistance, type Coordinates } from "@/lib/geolocation";
+import {
+  calculateDistance,
+  formatDistance,
+  type Coordinates,
+} from "@/lib/geolocation";
 
 interface Court {
   id: string;
@@ -61,7 +65,7 @@ export default function CourtsPage() {
         setLoading(false);
       }
     };
-    
+
     // Only fetch courts if user is authenticated or if we're not in loading state
     if (!authLoading) {
       fetchCourts();
@@ -69,15 +73,23 @@ export default function CourtsPage() {
   }, [authLoading]);
 
   // Function to filter courts by distance
-  const filterCourtsByDistance = (courts: Court[], userCoords: Coordinates, maxDist: number) => {
-    console.log('Filtering courts by distance:', { userCoords, maxDist, totalCourts: courts.length });
-    
+  const filterCourtsByDistance = (
+    courts: Court[],
+    userCoords: Coordinates,
+    maxDist: number
+  ) => {
+    console.log("Filtering courts by distance:", {
+      userCoords,
+      maxDist,
+      totalCourts: courts.length,
+    });
+
     return courts
-      .map(court => {
+      .map((court) => {
         if (court.latitude && court.longitude) {
           const distance = calculateDistance(userCoords, {
             latitude: court.latitude,
-            longitude: court.longitude
+            longitude: court.longitude,
           });
           console.log(`Court ${court.name}: ${distance} miles away`);
           return { ...court, distance };
@@ -85,14 +97,16 @@ export default function CourtsPage() {
         console.log(`Court ${court.name}: No coordinates available`);
         return court;
       })
-      .filter(court => {
+      .filter((court) => {
         // Only show courts that have coordinates AND are within the distance limit
         // Courts without coordinates are hidden when distance filtering is active
         const hasCoordinates = court.latitude && court.longitude;
         const withinDistance = court.distance && court.distance <= maxDist;
         const shouldShow = hasCoordinates && withinDistance;
-        
-        console.log(`Court ${court.name}: hasCoordinates=${hasCoordinates}, withinDistance=${withinDistance}, shouldShow=${shouldShow}`);
+
+        console.log(
+          `Court ${court.name}: hasCoordinates=${hasCoordinates}, withinDistance=${withinDistance}, shouldShow=${shouldShow}`
+        );
         return shouldShow;
       })
       .sort((a, b) => {
@@ -144,14 +158,14 @@ export default function CourtsPage() {
       </div>
       <main className="w-full bg-white">
         <div className="container mx-auto px-4 py-8">
-          <SearchSection 
-          onLocationChange={(location, coords) => {
-            setUserLocation(coords);
-          }}
-          onDistanceChange={(distance) => {
-            setMaxDistance(distance);
-          }}
-        />
+          <SearchSection
+            onLocationChange={(location, coords) => {
+              setUserLocation(coords);
+            }}
+            onDistanceChange={(distance) => {
+              setMaxDistance(distance);
+            }}
+          />
           {isOwner ? (
             <div className="text-center py-12">
               <div className="max-w-md mx-auto">
@@ -160,7 +174,8 @@ export default function CourtsPage() {
                   Owner Mode Active
                 </h2>
                 <p className="text-gray-600 mb-6">
-                  You're currently in owner mode. Switch to player mode to view and book courts.
+                  You're currently in owner mode. Switch to player mode to view
+                  and book courts.
                 </p>
                 <div className="space-y-3">
                   <button
@@ -181,9 +196,13 @@ export default function CourtsPage() {
           ) : (
             <>
               {loading && (
-                <p className="text-center text-gray-600 mt-8">Loading courts...</p>
+                <p className="text-center text-gray-600 mt-8">
+                  Loading courts...
+                </p>
               )}
-              {error && <p className="text-center text-red-500 mt-8">{error}</p>}
+              {error && (
+                <p className="text-center text-red-500 mt-8">{error}</p>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 mt-8">
                 {filteredCourts.map((court) => (
                   <CourtCard
@@ -209,83 +228,107 @@ export default function CourtsPage() {
                 ))}
               </div>
               {!loading && filteredCourts.length === 0 && !error && (
-                <p className="text-center text-gray-500 mt-12">No courts found.</p>
+                <p className="text-center text-gray-500 mt-12">
+                  No courts found.
+                </p>
               )}
             </>
           )}
         </div>
       </main>
 
-      {/* How It Works Section */}
-      <section className="py-16 bg-gray-50">
+      {/* How It Works Section - Modernized */}
+      <section className="py-24 bg-gradient-to-b from-white via-emerald-50/20 to-white">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-gray-800">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl md:text-5xl font-black mb-6 text-gray-900 tracking-tight">
               How It Works
             </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+            <p className="text-xl text-gray-600 max-w-2xl mx-auto font-medium">
               Booking your perfect tennis court is simple and hassle-free
             </p>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
-            <div className="text-center space-y-4">
-              <div className="w-16 h-16 rounded-full bg-green-600 flex items-center justify-center mx-auto text-white text-2xl font-bold">
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-10 max-w-5xl mx-auto">
+            <div className="text-center space-y-6 group transform transition-all duration-500 hover:scale-105">
+              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mx-auto text-white text-3xl font-black shadow-xl group-hover:shadow-glow-hover transition-all duration-500 group-hover:rotate-6">
                 1
               </div>
-              <h3 className="text-xl font-semibold text-gray-800">Search & Browse</h3>
-              <p className="text-gray-600">
-                Find courts near you with our advanced search filters. Browse by location, price and availability.
+              <h3 className="text-2xl font-extrabold text-gray-900 group-hover:text-emerald-600 transition-colors">
+                Search & Browse
+              </h3>
+              <p className="text-gray-600 leading-relaxed max-w-sm mx-auto">
+                Find courts near you with our advanced search filters. Browse by
+                location, price and availability.
               </p>
             </div>
-            <div className="text-center space-y-4">
-              <div className="w-16 h-16 rounded-full bg-green-600 flex items-center justify-center mx-auto text-white text-2xl font-bold">
+            <div className="text-center space-y-6 group transform transition-all duration-500 hover:scale-105">
+              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mx-auto text-white text-3xl font-black shadow-xl group-hover:shadow-glow-hover transition-all duration-500 group-hover:rotate-6">
                 2
               </div>
-              <h3 className="text-xl font-semibold text-gray-800">Book Instantly</h3>
-              <p className="text-gray-600">
-                Select your preferred time slot and book instantly. Real-time availability ensures you get the court you want.
+              <h3 className="text-2xl font-extrabold text-gray-900 group-hover:text-emerald-600 transition-colors">
+                Book Instantly
+              </h3>
+              <p className="text-gray-600 leading-relaxed max-w-sm mx-auto">
+                Select your preferred time slot and book instantly. Real-time
+                availability ensures you get the court you want.
               </p>
             </div>
-            <div className="text-center space-y-4">
-              <div className="w-16 h-16 rounded-full bg-green-600 flex items-center justify-center mx-auto text-white text-2xl font-bold">
+            <div className="text-center space-y-6 group transform transition-all duration-500 hover:scale-105">
+              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mx-auto text-white text-3xl font-black shadow-xl group-hover:shadow-glow-hover transition-all duration-500 group-hover:rotate-6">
                 3
               </div>
-              <h3 className="text-xl font-semibold text-gray-800">Play & Enjoy</h3>
-              <p className="text-gray-600">
-                Show up and play! All bookings come with confirmation details and easy check-in process.
+              <h3 className="text-2xl font-extrabold text-gray-900 group-hover:text-emerald-600 transition-colors">
+                Play & Enjoy
+              </h3>
+              <p className="text-gray-600 leading-relaxed max-w-sm mx-auto">
+                Show up and play! All bookings come with confirmation details
+                and easy check-in process.
               </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-16 bg-green-700 text-white">
-        <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+      {/* CTA Section - Modernized */}
+      <section className="relative py-24 bg-gradient-tennis text-white overflow-hidden">
+        {/* Background effects */}
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/20 via-teal-600/20 to-cyan-600/20"></div>
+        <div className="absolute top-0 left-0 w-full h-full">
+          <div className="absolute top-20 left-20 w-64 h-64 bg-white/5 rounded-full blur-3xl animate-float"></div>
+          <div
+            className="absolute bottom-20 right-20 w-80 h-80 bg-cyan-300/10 rounded-full blur-3xl animate-float"
+            style={{ animationDelay: "2s" }}
+          ></div>
+        </div>
+
+        <div className="container mx-auto px-4 text-center relative z-10">
+          <h2 className="text-4xl md:text-6xl font-black mb-6 tracking-tight drop-shadow-2xl">
             Ready to Book Your Court?
           </h2>
-          <p className="text-xl mb-8 max-w-2xl mx-auto text-white/90">
-            Join thousands of tennis players who trust CourtShare for their court reservations
+          <p className="text-xl md:text-2xl mb-12 max-w-3xl mx-auto text-white/95 font-medium leading-relaxed">
+            Join thousands of tennis players who trust CourtShare for their
+            court reservations
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-5">
             {!user && (
-              <button 
+              <button
                 onClick={() => router.push("/signup")}
-                className="bg-white text-green-700 hover:bg-gray-100 px-8 py-3 rounded-lg font-semibold transition-colors cursor-pointer"
+                className="glass px-10 py-4 rounded-2xl font-extrabold text-emerald-700 bg-white hover:bg-emerald-50 transition-all duration-300 shadow-xl hover:shadow-2xl transform hover:scale-105 cursor-pointer text-lg"
               >
                 Sign Up Free
               </button>
             )}
-            <button 
+            <button
               onClick={() => {
-                const searchSection = document.querySelector('[data-search-section]');
+                const searchSection = document.querySelector(
+                  "[data-search-section]"
+                );
                 if (searchSection) {
-                  searchSection.scrollIntoView({ behavior: 'smooth' });
+                  searchSection.scrollIntoView({ behavior: "smooth" });
                 }
               }}
-              className="border border-white/30 text-white hover:bg-white/10 px-8 py-3 rounded-lg font-semibold transition-colors cursor-pointer"
+              className="glass-dark px-10 py-4 rounded-2xl font-extrabold text-white border-2 border-white/30 hover:border-white/50 hover:bg-white/10 transition-all duration-300 shadow-xl hover:shadow-2xl transform hover:scale-105 cursor-pointer text-lg"
             >
               Browse Courts
             </button>
@@ -293,30 +336,61 @@ export default function CourtsPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-green-800 text-white py-12">
+      {/* Footer - Modernized */}
+      <footer className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white py-16 border-t border-gray-700/50">
         <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div className="space-y-4">
-              <h3 className="font-bold text-lg">CourtShare</h3>
-              <p className="text-sm text-white/80">
-                The leading platform for tennis court bookings across the nation.
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
+            <div className="space-y-5">
+              <h3 className="font-black text-2xl bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+                CourtShare
+              </h3>
+              <p className="text-sm text-gray-400 leading-relaxed max-w-xs">
+                The leading platform for tennis court bookings across the
+                nation.
               </p>
             </div>
             <div className="space-y-4">
               <h4 className="font-semibold">For Players</h4>
               <ul className="space-y-2 text-sm text-white/80">
-                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">Find Courts</a></li>
-                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">How It Works</a></li>
-                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">Pricing</a></li>
-                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">Mobile App</a></li>
+                <li>
+                  <a
+                    href="#"
+                    className="hover:text-white transition-colors cursor-pointer"
+                  >
+                    Find Courts
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#"
+                    className="hover:text-white transition-colors cursor-pointer"
+                  >
+                    How It Works
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#"
+                    className="hover:text-white transition-colors cursor-pointer"
+                  >
+                    Pricing
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#"
+                    className="hover:text-white transition-colors cursor-pointer"
+                  >
+                    Mobile App
+                  </a>
+                </li>
               </ul>
             </div>
             <div className="space-y-4">
               <h4 className="font-semibold">For Court Owners</h4>
               <ul className="space-y-2 text-sm text-white/80">
                 <li>
-                  <button 
+                  <button
                     onClick={async () => {
                       if (!user) {
                         router.push("/signup");
@@ -332,18 +406,67 @@ export default function CourtsPage() {
                     List Your Court
                   </button>
                 </li>
-                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">Pricing</a></li>
-                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">Resources</a></li>
-                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">Support</a></li>
+                <li>
+                  <a
+                    href="#"
+                    className="hover:text-white transition-colors cursor-pointer"
+                  >
+                    Pricing
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#"
+                    className="hover:text-white transition-colors cursor-pointer"
+                  >
+                    Resources
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#"
+                    className="hover:text-white transition-colors cursor-pointer"
+                  >
+                    Support
+                  </a>
+                </li>
               </ul>
             </div>
             <div className="space-y-4">
               <h4 className="font-semibold">Company</h4>
               <ul className="space-y-2 text-sm text-white/80">
-                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">About</a></li>
-                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">Contact</a></li>
-                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">Privacy</a></li>
-                <li><a href="#" className="hover:text-white transition-colors cursor-pointer">Terms</a></li>
+                <li>
+                  <a
+                    href="#"
+                    className="hover:text-white transition-colors cursor-pointer"
+                  >
+                    About
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#"
+                    className="hover:text-white transition-colors cursor-pointer"
+                  >
+                    Contact
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#"
+                    className="hover:text-white transition-colors cursor-pointer"
+                  >
+                    Privacy
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#"
+                    className="hover:text-white transition-colors cursor-pointer"
+                  >
+                    Terms
+                  </a>
+                </li>
               </ul>
             </div>
           </div>

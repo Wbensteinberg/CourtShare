@@ -97,14 +97,14 @@ export default function AppHeader() {
   }, [user]);
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-gray-200 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="relative h-16 flex items-center px-4 w-full max-w-screen-2xl mx-auto">
-        {/* Left: Logo (in container) */}
+    <header className="sticky top-0 z-50 w-full border-b border-gray-200/30 glass backdrop-blur-2xl supports-[backdrop-filter]:bg-white/85 shadow-sm">
+      <div className="relative h-18 flex items-center px-6 w-full max-w-screen-2xl mx-auto">
+        {/* Left: Logo (in container) - more refined */}
         <div
-          className="flex items-center cursor-pointer"
+          className="flex items-center cursor-pointer group"
           onClick={() => router.push("/courts")}
         >
-          <span className="text-xl font-bold text-primary hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium rounded-lg px-2 py-1">
+          <span className="text-2xl font-black bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 bg-clip-text text-transparent hover:from-emerald-700 hover:via-emerald-600 hover:to-teal-700 transition-all duration-500 rounded-xl px-4 py-2 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-teal-50 tracking-tight">
             CourtShare
           </span>
         </div>
@@ -240,7 +240,7 @@ export default function AppHeader() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="bg-green-700 text-white hover:bg-green-800 transition-colors duration-200 font-medium hover:cursor-pointer"
+                className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white hover:from-emerald-600 hover:to-teal-700 shadow-md hover:shadow-lg transition-all duration-300 font-semibold hover:cursor-pointer rounded-lg"
                 onClick={() => router.push("/signup")}
               >
                 Sign Up

@@ -121,37 +121,45 @@ const CreateListing = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/20">
       <AppHeader />
 
-      {/* Hero Section with Background */}
-      <section className="relative py-20 bg-gradient-to-br from-green-600 to-green-800 overflow-hidden">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48Y2lyY2xlIGN4PSIzMCIgY3k9IjMwIiByPSIyIi8+PC9nPjwvZz48L3N2Zz4=')] opacity-10"></div>
+      {/* Hero Section with Background - Modernized */}
+      <section className="relative py-24 bg-gradient-tennis overflow-hidden">
+        <div className="absolute inset-0">
+          <div className="absolute top-20 left-20 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-float"></div>
+          <div
+            className="absolute bottom-20 right-20 w-80 h-80 bg-cyan-300/10 rounded-full blur-3xl animate-float"
+            style={{ animationDelay: "2s" }}
+          ></div>
+        </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center text-white">
-            <div className="flex items-center justify-center mb-4">
-              <Trophy className="h-12 w-12 mr-4" />
+            <div className="flex items-center justify-center mb-6">
+              <div className="w-20 h-20 rounded-3xl glass-dark flex items-center justify-center shadow-glow">
+                <Trophy className="h-12 w-12 text-white" />
+              </div>
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">
+            <h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tight">
               Create Court Listing
             </h1>
-            <p className="text-xl text-white/90 max-w-2xl mx-auto">
+            <p className="text-xl md:text-2xl text-white/95 max-w-2xl mx-auto font-medium">
               Fill in your court details below to start accepting bookings
             </p>
           </div>
         </div>
       </section>
 
-      {/* Main Content */}
+      {/* Main Content - Modernized */}
       <section className="py-12 -mt-10 relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto">
-            <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
-              <CardHeader className="space-y-1 pb-8">
-                <CardTitle className="text-2xl font-bold text-center">
+            <Card className="shadow-elegant border-0 rounded-3xl glass backdrop-blur-xl">
+              <CardHeader className="space-y-2 pb-10 pt-10">
+                <CardTitle className="text-3xl md:text-4xl font-black text-center tracking-tight bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
                   Court Details
                 </CardTitle>
-                <CardDescription className="text-center text-muted-foreground">
+                <CardDescription className="text-center text-gray-600 font-medium text-lg">
                   Please provide accurate information about your tennis court
                 </CardDescription>
               </CardHeader>
@@ -175,7 +183,7 @@ const CreateListing = () => {
                             <FormControl>
                               <Input
                                 placeholder="Enter court name"
-                                className="h-12 border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200"
+                                className="h-13 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 text-base font-medium"
                                 {...field}
                               />
                             </FormControl>
@@ -195,7 +203,7 @@ const CreateListing = () => {
                             <FormControl>
                               <Input
                                 placeholder="City, State"
-                                className="h-12 border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200"
+                                className="h-13 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 text-base font-medium"
                                 {...field}
                               />
                             </FormControl>
@@ -271,7 +279,7 @@ const CreateListing = () => {
                                 placeholder="25.00"
                                 type="number"
                                 step="0.01"
-                                className="h-12 border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200"
+                                className="h-13 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 text-base font-medium"
                                 {...field}
                               />
                             </FormControl>
@@ -324,7 +332,7 @@ const CreateListing = () => {
                                   placeholder="34.0522"
                                   type="number"
                                   step="any"
-                                  className="h-12 border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200"
+                                  className="h-13 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 text-base font-medium"
                                   {...field}
                                 />
                               </FormControl>
@@ -345,7 +353,7 @@ const CreateListing = () => {
                                   placeholder="-118.2437"
                                   type="number"
                                   step="any"
-                                  className="h-12 border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200"
+                                  className="h-13 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 text-base font-medium"
                                   {...field}
                                 />
                               </FormControl>
@@ -532,7 +540,7 @@ const CreateListing = () => {
                     <div className="pt-6">
                       <Button
                         type="submit"
-                        className="w-full h-14 text-lg font-semibold bg-green-600 hover:bg-green-700 transition-colors text-white"
+                        className="w-full h-14 text-lg font-extrabold bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white shadow-xl hover:shadow-glow-hover transition-all duration-300 rounded-2xl transform hover:scale-[1.02]"
                       >
                         Create Listing
                       </Button>

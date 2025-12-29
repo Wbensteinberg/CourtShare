@@ -324,10 +324,10 @@ export default function CourtDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading court...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Loading court...</p>
         </div>
       </div>
     );
@@ -335,9 +335,9 @@ export default function CourtDetailPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-500">{error}</p>
+          <p className="text-red-500 font-medium">{error}</p>
         </div>
       </div>
     );
@@ -345,26 +345,26 @@ export default function CourtDetailPage() {
 
   if (!court) {
     return (
-      <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-500">Court not found</p>
+          <p className="text-red-500 font-medium">Court not found</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-subtle">
-      {/* Header */}
-      <div className="bg-background border-b border-gray-200">
+    <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/20">
+      {/* Header - Modernized */}
+      <div className="glass border-b border-gray-200/50 backdrop-blur-xl">
         <div className="container py-4">
           <Button
             variant="ghost"
             size="sm"
-            className="mb-4"
+            className="mb-4 font-semibold group"
             onClick={() => router.push("/courts")}
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
+            <ArrowLeft className="w-5 h-5 mr-2 group-hover:-translate-x-1 transition-transform" />
             Back to Browse
           </Button>
         </div>
@@ -374,20 +374,20 @@ export default function CourtDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
           {/* Court Details */}
           <div className="space-y-6">
-            {/* Court Image */}
-            <Card className="overflow-hidden shadow-card border-0">
-              <div className="relative h-64 md:h-80 group">
-                <Image
+            {/* Court Image - Modernized */}
+            <Card className="overflow-hidden shadow-elegant border-0 rounded-3xl">
+              <div className="relative h-72 md:h-96 group">
+            <Image
                   src={
                     court.imageUrls && court.imageUrls.length > 0
                       ? court.imageUrls[currentImageIndex]
                       : court.imageUrl
                   }
-                  alt={court.name}
-                  fill
+              alt={court.name}
+              fill
                   className="object-cover cursor-pointer transition-transform duration-200 group-hover:scale-105"
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                  priority
+              sizes="(max-width: 768px) 100vw, 50vw"
+              priority
                   onClick={() => setShowImageModal(true)}
                 />
                 <div className="absolute top-4 right-4">
@@ -432,18 +432,18 @@ export default function CourtDetailPage() {
                           }`}
                         />
                       ))}
-                    </div>
+            </div>
                   </>
-                )}
-              </div>
+          )}
+        </div>
             </Card>
 
-            {/* Court Info */}
-            <Card className="shadow-lg border-0 hover:shadow-xl transition-shadow duration-300 cursor-pointer">
-              <CardContent className="p-6 pt-8">
-                <div className="space-y-4">
+            {/* Court Info - Modernized */}
+            <Card className="shadow-elegant border-0 hover:shadow-glow-hover transition-all duration-500 rounded-3xl">
+              <CardContent className="p-8 pt-10">
+                <div className="space-y-6">
                   <div>
-                    <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-3">
+                    <h1 className="text-3xl md:text-4xl font-black text-gray-900 mb-4 tracking-tight">
                       {court.name}
                     </h1>
                     <div className="flex items-center gap-2 text-gray-500 mb-3">
@@ -458,7 +458,7 @@ export default function CourtDetailPage() {
                         </span>
                         <span className="text-gray-500">
                           ({court.reviewCount || 0} reviews)
-                        </span>
+                </span>
                       </div>
                       <Badge
                         variant="outline"
@@ -494,8 +494,8 @@ export default function CourtDetailPage() {
                           </Badge>
                         ))}
                       </div>
-                    </div>
-                  )}
+              </div>
+            )}
                 </div>
               </CardContent>
             </Card>
@@ -504,19 +504,19 @@ export default function CourtDetailPage() {
           {/* Booking Form */}
           <div className="lg:sticky lg:top-8">
             {user && isOwner ? (
-              <Card className="shadow-elegant border border-gray-200">
-                <CardHeader className="bg-green-700 text-white border-b border-green-800">
-                  <CardTitle className="text-xl font-bold">
+              <Card className="shadow-elegant border-0 rounded-3xl">
+                <CardHeader className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 text-white border-0 rounded-t-3xl">
+                  <CardTitle className="text-2xl font-black tracking-tight">
                     Owner Mode Active
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-6 space-y-4">
-                  <p className="text-center text-muted-foreground">
+                <CardContent className="p-8 space-y-6">
+                  <p className="text-center text-gray-600 font-medium leading-relaxed">
                     You're currently in owner mode. Switch to player mode to
                     book courts.
                   </p>
                   <Button
-                    className="w-full bg-gradient-primary hover:bg-primary-glow text-primary-foreground font-semibold py-3 transition-smooth"
+                    className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold py-4 rounded-2xl shadow-xl hover:shadow-glow-hover transition-all duration-300 transform hover:scale-[1.02]"
                     size="lg"
                     onClick={() => router.push("/dashboard/owner")}
                   >
@@ -525,9 +525,9 @@ export default function CourtDetailPage() {
                 </CardContent>
               </Card>
             ) : (
-              <Card className="shadow-elegant border border-gray-200">
-                <CardHeader className="bg-green-700 text-white border-b border-green-800">
-                  <CardTitle className="text-xl font-bold">
+              <Card className="shadow-elegant border-0 rounded-3xl">
+                <CardHeader className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 text-white border-0 rounded-t-3xl">
+                  <CardTitle className="text-2xl font-black tracking-tight">
                     Book This Court
                   </CardTitle>
                 </CardHeader>
@@ -572,7 +572,7 @@ export default function CourtDetailPage() {
                         {availableTimeSlots.map((time) => (
                           <SelectItem
                             key={time}
-                            value={time}
+                value={time}
                             className="hover:bg-green-50 cursor-pointer"
                           >
                             {time}
@@ -589,7 +589,7 @@ export default function CourtDetailPage() {
                       className="text-sm font-medium flex items-center gap-2"
                     >
                       <Users className="w-4 h-4" />
-                      Duration (hours)
+                Duration (hours)
                     </Label>
                     <Select value={duration} onValueChange={setDuration}>
                       <SelectTrigger>
@@ -635,22 +635,22 @@ export default function CourtDetailPage() {
                       fetchingBookings ||
                       authLoading
                     }
-                    onClick={handleCheckout}
+              onClick={handleCheckout}
                   >
                     {bookingStatus === "loading"
                       ? "Processing..."
                       : "Book & Pay"}
                   </Button>
 
-                  {bookingStatus === "conflict" && (
+            {bookingStatus === "conflict" && (
                     <p className="text-red-500 text-sm text-center">
-                      This time slot is already booked. Please choose another.
-                    </p>
-                  )}
-                  {bookingStatus === "error" && (
+                This time slot is already booked. Please choose another.
+              </p>
+            )}
+            {bookingStatus === "error" && (
                     <p className="text-red-500 text-sm text-center">
-                      Something went wrong. Please try again.
-                    </p>
+                Something went wrong. Please try again.
+              </p>
                   )}
 
                   <p className="text-xs text-muted-foreground text-center">

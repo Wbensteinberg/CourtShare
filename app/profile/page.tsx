@@ -275,12 +275,12 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30">
         <AppHeader />
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#286a3a] mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading your profile...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 font-medium">Loading your profile...</p>
           </div>
         </div>
       </div>
@@ -289,19 +289,21 @@ export default function ProfilePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30">
         <AppHeader />
         <div className="flex items-center justify-center min-h-[60vh]">
-          <Card className="w-full max-w-md mx-auto text-center">
-            <CardContent className="p-8">
-              <div className="text-6xl mb-4">❌</div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">Error</h2>
-              <p className="text-gray-600 mb-6">{error}</p>
+          <Card className="w-full max-w-md mx-auto text-center shadow-elegant rounded-3xl border-0">
+            <CardContent className="p-10">
+              <div className="text-6xl mb-6">❌</div>
+              <h2 className="text-3xl font-black text-gray-900 mb-4 tracking-tight">
+                Error
+              </h2>
+              <p className="text-gray-600 mb-8 font-medium">{error}</p>
               <Button
                 onClick={() => router.push("/courts")}
-                className="bg-[#286a3a] text-white hover:bg-[#20542e]"
+                className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold shadow-xl hover:shadow-glow-hover transition-all duration-300 rounded-2xl"
               >
-                <ArrowLeft className="h-4 w-4 mr-2" />
+                <ArrowLeft className="h-5 w-5 mr-2" />
                 Back to Courts
               </Button>
             </CardContent>
@@ -313,36 +315,37 @@ export default function ProfilePage() {
 
   return (
     <>
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/20">
         <AppHeader />
 
-        {/* Hero Section */}
-        <section className="relative overflow-hidden w-full bg-green-700 text-white">
-          {/* Subtle pattern overlay for texture */}
-          <div className="absolute inset-0 opacity-5">
+        {/* Hero Section - Modernized */}
+        <section className="relative overflow-hidden w-full bg-gradient-tennis text-white">
+          {/* Background effects */}
+          <div className="absolute inset-0">
+            <div className="absolute top-20 left-20 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-float"></div>
             <div
-              className="absolute inset-0"
-              style={{
-                backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-              }}
-            />
+              className="absolute bottom-20 right-20 w-80 h-80 bg-cyan-300/10 rounded-full blur-3xl animate-float"
+              style={{ animationDelay: "2s" }}
+            ></div>
           </div>
 
-          <div className="relative w-full flex flex-col items-center py-8 md:py-12">
-            <div className="max-w-4xl w-full mx-auto text-center space-y-4">
-              {/* Badge */}
-              <div className="inline-flex items-center rounded-full bg-white/10 px-6 py-2 text-sm font-medium border border-white/20 text-white backdrop-blur-sm">
-                <User className="h-4 w-4 mr-2" />
+          <div className="relative w-full flex flex-col items-center py-16 md:py-20">
+            <div className="max-w-4xl w-full mx-auto text-center space-y-6">
+              {/* Badge - Modernized */}
+              <div className="inline-flex items-center rounded-full glass-dark px-8 py-3 text-sm font-semibold border border-white/25 text-white shadow-glow backdrop-blur-md">
+                <User className="h-5 w-5 mr-2.5" />
                 Profile Management
               </div>
 
-              {/* Headlines */}
-              <div className="space-y-3">
-                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-white">
+              {/* Headlines - Modernized */}
+              <div className="space-y-4">
+                <h1 className="text-5xl md:text-7xl lg:text-8xl font-black tracking-tighter text-white">
                   Your Tennis
-                  <span className="block text-yellow-300">Profile</span>
+                  <span className="block bg-gradient-to-r from-yellow-300 via-yellow-200 to-amber-200 bg-clip-text text-transparent mt-2">
+                    Profile
+                  </span>
                 </h1>
-                <p className="text-xl text-white/90 max-w-2xl mx-auto leading-relaxed">
+                <p className="text-xl md:text-2xl text-white/95 max-w-2xl mx-auto leading-relaxed font-medium">
                   Customize your profile to enhance your tennis court booking
                   experience. Add your photo, update your information, and make
                   your profile uniquely yours.
@@ -374,25 +377,23 @@ export default function ProfilePage() {
           </div>
         </section>
 
-        {/* Main Content */}
-        <main className="w-full bg-white relative">
-          {/* Subtle top shadow for depth */}
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-b from-gray-100 to-transparent"></div>
+        {/* Main Content - Modernized */}
+        <main className="w-full bg-transparent relative">
           <div className="container mx-auto px-4 py-12">
             <div className="max-w-4xl mx-auto">
               <form onSubmit={handleSubmit} className="space-y-8">
-                {/* Profile Photo Section */}
-                <Card className="border border-gray-200 shadow-lg rounded-xl overflow-hidden">
-                  <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-full bg-[#286a3a] flex items-center justify-center">
-                        <Camera className="h-5 w-5 text-white" />
+                {/* Profile Photo Section - Modernized */}
+                <Card className="border-0 shadow-elegant rounded-3xl overflow-hidden glass backdrop-blur-xl">
+                  <CardHeader className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 text-white border-0">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-xl border border-white/30">
+                        <Camera className="h-7 w-7 text-white" />
                       </div>
                       <div>
-                        <h2 className="text-xl font-bold text-gray-800">
+                        <h2 className="text-2xl font-black text-white tracking-tight">
                           Profile Photo
                         </h2>
-                        <p className="text-gray-600">
+                        <p className="text-white/90 font-medium mt-1">
                           Add a professional photo to personalize your profile
                         </p>
                       </div>

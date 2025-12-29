@@ -73,37 +73,48 @@ function SignupForm() {
   };
 
   return (
-    <div className="min-h-screen bg-white flex items-center justify-center">
-      <div className="w-full max-w-lg px-4">
-        <Card className="border border-gray-200 shadow-lg rounded-xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-full bg-green-700 flex items-center justify-center">
-                <UserPlus className="h-5 w-5 text-white" />
+    <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 flex items-center justify-center py-12 px-4">
+      {/* Background decorative elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 right-20 w-96 h-96 bg-emerald-200/10 rounded-full blur-3xl animate-float"></div>
+        <div
+          className="absolute bottom-20 left-20 w-80 h-80 bg-teal-200/10 rounded-full blur-3xl animate-float"
+          style={{ animationDelay: "2s" }}
+        ></div>
+      </div>
+
+      <div className="w-full max-w-md relative z-10">
+        <Card className="border-0 shadow-elegant rounded-3xl overflow-hidden glass backdrop-blur-xl">
+          <CardHeader className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 text-white p-8">
+            <div className="flex items-center space-x-4">
+              <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-xl border border-white/30">
+                <UserPlus className="h-7 w-7 text-white" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-800">
+                <h2 className="text-3xl font-black text-white tracking-tight">
                   Create Account
                 </h2>
-                <p className="text-gray-600">Join the CourtShare community</p>
+                <p className="text-white/90 font-medium mt-1">
+                  Join the CourtShare community
+                </p>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-8">
+          <CardContent className="p-8 bg-white">
             <form onSubmit={handleSignup} className="space-y-6">
               {/* Email Field */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
+              <div className="space-y-3">
+                <label className="block text-sm font-bold text-gray-900 tracking-tight">
                   Email Address
                 </label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <div className="relative group">
+                  <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-emerald-600 transition-colors" />
                   <Input
                     type="email"
-                    placeholder="Enter your email"
+                    placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 border-gray-300 focus:border-green-700 focus:ring-green-700"
+                    className="pl-12 h-13 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 text-base font-medium"
                     required
                     autoComplete="email"
                   />
@@ -111,63 +122,63 @@ function SignupForm() {
               </div>
 
               {/* Password Field */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
+              <div className="space-y-3">
+                <label className="block text-sm font-bold text-gray-900 tracking-tight">
                   Password
                 </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <div className="relative group">
+                  <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-emerald-600 transition-colors" />
                   <Input
                     type={showPassword ? "text" : "password"}
                     placeholder="Create a password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10 border-gray-300 focus:border-green-700 focus:ring-green-700"
+                    className="pl-12 pr-12 h-13 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 text-base font-medium"
                     required
                     autoComplete="new-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-emerald-600 transition-colors cursor-pointer"
                   >
                     {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
+                      <EyeOff className="h-5 w-5" />
                     ) : (
-                      <Eye className="h-4 w-4" />
+                      <Eye className="h-5 w-5" />
                     )}
                   </button>
                 </div>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-500 font-medium">
                   Must be at least 6 characters long
                 </p>
               </div>
 
               {/* Confirm Password Field */}
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
+              <div className="space-y-3">
+                <label className="block text-sm font-bold text-gray-900 tracking-tight">
                   Confirm Password
                 </label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <div className="relative group">
+                  <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-emerald-600 transition-colors" />
                   <Input
                     type={showConfirmPassword ? "text" : "password"}
                     placeholder="Confirm your password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    className="pl-10 pr-10 border-gray-300 focus:border-green-700 focus:ring-green-700"
+                    className="pl-12 pr-12 h-13 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 text-base font-medium"
                     required
                     autoComplete="new-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-emerald-600 transition-colors cursor-pointer"
                   >
                     {showConfirmPassword ? (
-                      <EyeOff className="h-4 w-4" />
+                      <EyeOff className="h-5 w-5" />
                     ) : (
-                      <Eye className="h-4 w-4" />
+                      <Eye className="h-5 w-5" />
                     )}
                   </button>
                 </div>
@@ -175,16 +186,16 @@ function SignupForm() {
 
               {/* Error/Success Messages */}
               {error && (
-                <div className="flex items-center space-x-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <AlertCircle className="h-5 w-5 text-red-500" />
-                  <p className="text-red-700 text-sm">{error}</p>
+                <div className="flex items-center space-x-3 p-4 bg-red-50 border-2 border-red-200 rounded-2xl shadow-sm">
+                  <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0" />
+                  <p className="text-red-700 text-sm font-medium">{error}</p>
                 </div>
               )}
 
               {success && (
-                <div className="flex items-center space-x-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <p className="text-green-700 text-sm">
+                <div className="flex items-center space-x-3 p-4 bg-emerald-50 border-2 border-emerald-200 rounded-2xl shadow-sm">
+                  <CheckCircle className="h-5 w-5 text-emerald-600 flex-shrink-0" />
+                  <p className="text-emerald-700 text-sm font-medium">
                     Account created successfully!
                   </p>
                 </div>
@@ -194,36 +205,43 @@ function SignupForm() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full h-12 text-base font-semibold bg-green-700 text-white hover:bg-green-800"
+                className="w-full h-14 text-base font-extrabold bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 text-white hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 shadow-xl hover:shadow-glow-hover transition-all duration-300 rounded-2xl transform hover:scale-[1.02] relative overflow-hidden group"
               >
                 {loading ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-2"></div>
                     Creating Account...
                   </>
                 ) : (
                   <>
-                    <UserPlus className="h-4 w-4 mr-2" />
+                    <UserPlus className="h-5 w-5 mr-2" />
                     Create Account
-                    <ArrowRight className="h-4 w-4 ml-2" />
+                    <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                    <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></span>
                   </>
                 )}
               </Button>
 
               {/* Terms and Login Link */}
-              <div className="text-center space-y-3">
-                <p className="text-gray-500 text-xs">
+              <div className="text-center space-y-4 pt-2">
+                <p className="text-gray-500 text-xs font-medium leading-relaxed">
                   By creating an account, you agree to our{" "}
-                  <a href="#" className="text-green-700 hover:underline">
+                  <a
+                    href="#"
+                    className="text-emerald-600 hover:text-emerald-700 font-semibold hover:underline transition-colors"
+                  >
                     Terms of Service
                   </a>{" "}
                   and{" "}
-                  <a href="#" className="text-green-700 hover:underline">
+                  <a
+                    href="#"
+                    className="text-emerald-600 hover:text-emerald-700 font-semibold hover:underline transition-colors"
+                  >
                     Privacy Policy
                   </a>
                 </p>
-                <div className="border-t border-gray-200 pt-4">
-                  <p className="text-gray-600 text-sm">
+                <div className="border-t border-gray-200 pt-6">
+                  <p className="text-gray-600 text-sm font-medium">
                     Already have an account?{" "}
                     <a
                       href={
@@ -231,7 +249,7 @@ function SignupForm() {
                           ? `/login?redirect=${encodeURIComponent(redirect)}`
                           : "/login"
                       }
-                      className="text-green-700 hover:text-green-800 font-medium hover:underline"
+                      className="text-emerald-600 hover:text-emerald-700 font-bold hover:underline transition-colors"
                     >
                       Sign in here
                     </a>
@@ -250,10 +268,10 @@ export default function SignupPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 flex items-center justify-center">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-700 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 font-medium">Loading...</p>
           </div>
         </div>
       }

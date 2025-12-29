@@ -3,23 +3,37 @@ import { ArrowRight, Play, MapPin, Calendar, Trophy } from "lucide-react";
 
 const HeroSection = () => {
   return (
-    <section className="relative overflow-hidden w-full bg-green-700 text-white">
-      {/* Background Pattern */}
-      {/* Optionally, add a subtle green/gray pattern here if desired */}
+    <section className="relative overflow-hidden w-full bg-gradient-tennis text-white">
+      {/* Animated background gradient */}
+      <div className="absolute inset-0 bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 opacity-20 animate-pulse"></div>
+      
+      {/* Geometric shapes for visual interest - more refined */}
+      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-96 h-96 bg-gradient-to-br from-white/8 to-emerald-300/5 rounded-full blur-3xl animate-float"></div>
+        <div className="absolute bottom-20 right-10 w-[500px] h-[500px] bg-gradient-to-br from-cyan-400/8 to-teal-300/5 rounded-full blur-3xl animate-float" style={{ animationDelay: '2s' }}></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-gradient-to-br from-emerald-400/6 to-cyan-300/4 rounded-full blur-3xl animate-float" style={{ animationDelay: '4s' }}></div>
+        {/* Additional subtle shapes */}
+        <div className="absolute top-40 right-1/4 w-64 h-64 bg-white/3 rounded-full blur-2xl animate-float" style={{ animationDelay: '1s' }}></div>
+        <div className="absolute bottom-40 left-1/4 w-72 h-72 bg-teal-300/4 rounded-full blur-2xl animate-float" style={{ animationDelay: '3s' }}></div>
+      </div>
 
-      <div className="relative w-full flex flex-col items-center py-12 md:py-20 lg:py-32 px-4">
-        <div className="max-w-4xl w-full mx-auto text-center space-y-6 md:space-y-8">
-          {/* Badge */}
-          <div className="inline-flex items-center rounded-full bg-white/10 px-6 py-2 text-sm font-medium border border-white/20 text-white">
-            <Trophy className="h-4 w-4 mr-2" />
-            Premium Tennis Court Booking Platform
+      <div className="relative w-full flex flex-col items-center py-20 md:py-28 lg:py-36 px-4 z-10">
+        <div className="max-w-6xl w-full mx-auto text-center space-y-10 md:space-y-12 animate-fade-in-up">
+          {/* Badge - more refined */}
+          <div className="inline-flex items-center rounded-full glass-dark px-8 py-3.5 text-sm font-semibold border border-white/25 text-white shadow-glow backdrop-blur-md animate-pulse-glow hover:border-white/40 transition-all duration-300">
+            <Trophy className="h-4 w-4 mr-2.5 text-yellow-300 drop-shadow-lg" />
+            <span className="tracking-wide">Premium Tennis Court Booking Platform</span>
           </div>
 
-          {/* Headlines */}
-          <div className="space-y-4">
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight text-white">
-              Book Your Perfect
-              <span className="block text-yellow-300">Tennis Court</span>
+          {/* Headlines - more refined typography */}
+          <div className="space-y-8">
+            <h1 className="text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter text-white drop-shadow-2xl leading-[1.1]">
+              <span className="block bg-gradient-to-r from-white via-emerald-50 to-cyan-50 bg-clip-text text-transparent pb-2">
+                Book Your Perfect
+              </span>
+              <span className="block bg-gradient-to-r from-yellow-300 via-yellow-200 to-amber-200 bg-clip-text text-transparent mt-3 drop-shadow-2xl">
+                Tennis Court
+              </span>
             </h1>
             {/* Paragraph - commented out for now */}
             {/* <p className="text-base md:text-xl lg:text-2xl text-white/90 max-w-2xl mx-auto leading-relaxed px-4">
@@ -72,45 +86,46 @@ const HeroSection = () => {
             </Button>
           </div> */}
 
-          {/* Features */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 pt-8 md:pt-12 max-w-3xl mx-auto px-4">
-            <div className="text-center space-y-2">
-              <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mx-auto">
-                <Calendar className="h-6 w-6 text-white" />
+          {/* Features - more refined */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-10 pt-16 md:pt-20 max-w-5xl mx-auto px-4">
+            <div className="text-center space-y-5 group cursor-pointer transform transition-all duration-500 hover:scale-105">
+              <div className="w-20 h-20 rounded-3xl glass-dark flex items-center justify-center mx-auto shadow-glow transition-all duration-500 group-hover:scale-110 group-hover:shadow-glow-hover group-hover:bg-white/25 group-hover:rotate-3">
+                <Calendar className="h-10 w-10 text-white group-hover:text-yellow-300 transition-all duration-300 drop-shadow-lg" />
               </div>
-              <h3 className="font-semibold text-white">Instant Booking</h3>
-              <p className="text-sm text-white/80">
-                Book courts instantly with real-time availability
+              <h3 className="font-bold text-xl text-white group-hover:text-yellow-300 transition-colors duration-300 tracking-tight">Instant Booking</h3>
+              <p className="text-sm text-white/85 leading-relaxed max-w-xs mx-auto">
+                Book courts instantly with real-time availability and instant confirmations
               </p>
             </div>
-            <div className="text-center space-y-2">
-              <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mx-auto">
-                <Trophy className="h-6 w-6 text-white" />
+            <div className="text-center space-y-5 group cursor-pointer transform transition-all duration-500 hover:scale-105">
+              <div className="w-20 h-20 rounded-3xl glass-dark flex items-center justify-center mx-auto shadow-glow transition-all duration-500 group-hover:scale-110 group-hover:shadow-glow-hover group-hover:bg-white/25 group-hover:rotate-3">
+                <Trophy className="h-10 w-10 text-white group-hover:text-yellow-300 transition-all duration-300 drop-shadow-lg" />
               </div>
-              <h3 className="font-semibold text-white">Premium Courts</h3>
-              <p className="text-sm text-white/80">
-                Access to the finest tennis facilities
+              <h3 className="font-bold text-xl text-white group-hover:text-yellow-300 transition-colors duration-300 tracking-tight">Premium Courts</h3>
+              <p className="text-sm text-white/85 leading-relaxed max-w-xs mx-auto">
+                Access to the finest tennis facilities with professional-grade surfaces
               </p>
             </div>
-            <div className="text-center space-y-2">
-              <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mx-auto">
-                <MapPin className="h-6 w-6 text-white" />
+            <div className="text-center space-y-5 group cursor-pointer transform transition-all duration-500 hover:scale-105">
+              <div className="w-20 h-20 rounded-3xl glass-dark flex items-center justify-center mx-auto shadow-glow transition-all duration-500 group-hover:scale-110 group-hover:shadow-glow-hover group-hover:bg-white/25 group-hover:rotate-3">
+                <MapPin className="h-10 w-10 text-white group-hover:text-yellow-300 transition-all duration-300 drop-shadow-lg" />
               </div>
-              <h3 className="font-semibold text-white">Nationwide</h3>
-              <p className="text-sm text-white/80">
-                Courts available across the country
+              <h3 className="font-bold text-xl text-white group-hover:text-yellow-300 transition-colors duration-300 tracking-tight">Nationwide</h3>
+              <p className="text-sm text-white/85 leading-relaxed max-w-xs mx-auto">
+                Courts available across the country, find your perfect match nearby
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Bottom wave */}
-      <div className="absolute left-1/2 -translate-x-1/2 bottom-[-32px] max-w-4xl w-full mx-auto z-10">
-        <svg viewBox="0 0 1440 120" className="w-full h-20 md:h-28">
+      {/* Bottom wave - smoother and more modern */}
+      <div className="absolute left-0 bottom-[-1px] w-full z-10">
+        <svg viewBox="0 0 1440 120" className="w-full h-24 md:h-32" preserveAspectRatio="none">
           <path
-            fill="#fff"
-            d="M0,80 C480,120 960,40 1440,80 L1440,120 L0,120 Z"
+            fill="#ffffff"
+            d="M0,96L48,90.7C96,85,192,75,288,70C384,65,480,65,576,70C672,75,768,85,864,90C960,95,1056,95,1152,90C1248,85,1344,75,1392,70L1440,65L1440,120L1392,120C1344,120,1248,120,1152,120C1056,120,960,120,864,120C768,120,672,120,576,120C480,120,384,120,288,120C192,120,96,120,48,120L0,120Z"
+            className="animate-pulse"
           />
         </svg>
       </div>

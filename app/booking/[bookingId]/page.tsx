@@ -8,9 +8,23 @@ import { useAuth } from "@/lib/AuthContext";
 import Image from "next/image";
 import GoogleMapsLink from "@/components/GoogleMapsLink";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Calendar, Clock, MapPin, User, ArrowLeft, X } from "lucide-react";
+import {
+  CheckCircle,
+  Calendar,
+  Clock,
+  MapPin,
+  User,
+  ArrowLeft,
+  X,
+} from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 
 interface Booking {
@@ -50,58 +64,64 @@ export default function BookingDetailsPage() {
 
   useEffect(() => {
     if (!bookingId || !user) return;
-    
+
     const fetchBooking = async () => {
       setLoading(true);
       setError("");
-      
+
       try {
         // Fetch booking details
         const bookingRef = doc(db, "bookings", bookingId as string);
         const bookingSnap = await getDoc(bookingRef);
-        
+
         if (!bookingSnap.exists()) {
           setError("Booking not found");
           setLoading(false);
           return;
         }
-        
-        const bookingData = { id: bookingSnap.id, ...bookingSnap.data() } as Booking;
-        
+
+        const bookingData = {
+          id: bookingSnap.id,
+          ...bookingSnap.data(),
+        } as Booking;
+
         // Check if this booking belongs to the current user
         if (bookingData.userId !== user.uid) {
           setError("You don't have permission to view this booking");
           setLoading(false);
           return;
         }
-        
+
         setBooking(bookingData);
-        
+
         // Fetch court details
         const courtRef = doc(db, "courts", bookingData.courtId);
         const courtSnap = await getDoc(courtRef);
-        
+
         if (courtSnap.exists()) {
           setCourt(courtSnap.data() as Court);
         }
-        
       } catch (err: any) {
         setError(err.message || "Failed to fetch booking details");
       } finally {
         setLoading(false);
       }
     };
-    
+
     fetchBooking();
   }, [bookingId, user]);
 
   const handleCancel = async () => {
     if (!booking) return;
-    
-    if (!window.confirm("Are you sure you want to cancel this booking? This action cannot be undone.")) {
+
+    if (
+      !window.confirm(
+        "Are you sure you want to cancel this booking? This action cannot be undone."
+      )
+    ) {
       return;
     }
-    
+
     setCancelling(true);
     try {
       await updateDoc(doc(db, "bookings", booking.id), { status: "cancelled" });
@@ -115,12 +135,14 @@ export default function BookingDetailsPage() {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    // Parse date string (format: "YYYY-MM-DD") as local date to avoid timezone issues
+    const [year, month, day] = dateString.split("-").map(Number);
+    const date = new Date(year, month - 1, day); // month is 0-indexed in Date constructor
+    return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
   };
 
@@ -131,7 +153,14 @@ export default function BookingDetailsPage() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
-        return <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 border-yellow-200">Pending Approval</Badge>;
+        return (
+          <Badge
+            variant="secondary"
+            className="bg-yellow-100 text-yellow-700 border-yellow-200"
+          >
+            Pending Approval
+          </Badge>
+        );
       case "confirmed":
         return <Badge className="bg-green-600 text-white">Confirmed</Badge>;
       case "rejected":
@@ -145,10 +174,12 @@ export default function BookingDetailsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading booking details...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">
+            Loading booking details...
+          </p>
         </div>
       </div>
     );
@@ -156,14 +187,14 @@ export default function BookingDetailsPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 mx-auto text-center">
+      <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 flex items-center justify-center">
+        <div className="w-full max-w-md bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-10 mx-auto text-center border border-white/30">
           <div className="text-6xl mb-4">❌</div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Error</h2>
           <p className="text-gray-600 mb-6">{error}</p>
           <Button
             onClick={() => router.push("/dashboard/player")}
-            className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg hover:cursor-pointer"
+            className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold py-4 px-8 rounded-2xl shadow-xl hover:shadow-glow-hover transition-all duration-300 transform hover:scale-105 hover:cursor-pointer"
           >
             Back to Dashboard
           </Button>
@@ -174,14 +205,18 @@ export default function BookingDetailsPage() {
 
   if (!booking || !court) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 mx-auto text-center">
+      <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 flex items-center justify-center">
+        <div className="w-full max-w-md bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-10 mx-auto text-center border border-white/30">
           <div className="text-6xl mb-4">❓</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Booking Not Found</h2>
-          <p className="text-gray-600 mb-6">The booking you're looking for doesn't exist.</p>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">
+            Booking Not Found
+          </h2>
+          <p className="text-gray-600 mb-6">
+            The booking you're looking for doesn't exist.
+          </p>
           <Button
             onClick={() => router.push("/dashboard/player")}
-            className="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg hover:cursor-pointer"
+            className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold py-4 px-8 rounded-2xl shadow-xl hover:shadow-glow-hover transition-all duration-300 transform hover:scale-105 hover:cursor-pointer"
           >
             Back to Dashboard
           </Button>
@@ -191,21 +226,29 @@ export default function BookingDetailsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/20">
       <AppHeader />
-      
-      {/* Hero Section with Background */}
-      <section className="relative py-20 bg-gradient-to-br from-green-600 to-green-800 overflow-hidden">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48Y2lyY2xlIGN4PSIzMCIgY3k9IjMwIiByPSIyIi8+PC9nPjwvZz48L3N2Zz4=')] opacity-10"></div>
+
+      {/* Hero Section - Modernized */}
+      <section className="relative py-24 bg-gradient-tennis overflow-hidden">
+        <div className="absolute inset-0">
+          <div className="absolute top-20 left-20 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-float"></div>
+          <div
+            className="absolute bottom-20 right-20 w-80 h-80 bg-cyan-300/10 rounded-full blur-3xl animate-float"
+            style={{ animationDelay: "2s" }}
+          ></div>
+        </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center text-white">
-            <div className="flex items-center justify-center mb-4">
-              <CheckCircle className="h-12 w-12 mr-4" />
+          <div className="text-center text-white relative z-10">
+            <div className="flex items-center justify-center mb-6">
+              <div className="w-20 h-20 rounded-3xl glass-dark flex items-center justify-center shadow-glow">
+                <CheckCircle className="h-12 w-12 text-white" />
+              </div>
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">
+            <h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tight">
               Booking Confirmed!
             </h1>
-            <p className="text-xl text-white/90 max-w-2xl mx-auto">
+            <p className="text-xl md:text-2xl text-white/95 max-w-2xl mx-auto font-medium">
               Your court booking is confirmed and ready to go
             </p>
           </div>
@@ -216,21 +259,25 @@ export default function BookingDetailsPage() {
       <section className="py-12 -mt-10 relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto">
-            <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
-              <CardHeader className="space-y-1 pb-8">
-                <CardTitle className="text-2xl font-bold text-center">Booking Details</CardTitle>
-                <CardDescription className="text-center text-muted-foreground">
+            <Card className="shadow-elegant border-0 rounded-3xl glass backdrop-blur-xl">
+              <CardHeader className="space-y-2 pb-10 pt-10">
+                <CardTitle className="text-3xl md:text-4xl font-black text-center tracking-tight bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                  Booking Details
+                </CardTitle>
+                <CardDescription className="text-center text-gray-600 font-medium text-lg">
                   Here are the details of your confirmed booking
                 </CardDescription>
               </CardHeader>
-              
+
               <CardContent className="space-y-8">
                 {/* Court Information */}
                 <div className="space-y-6">
                   <div className="text-center">
-                    <h3 className="text-xl font-semibold mb-4">Court Information</h3>
+                    <h3 className="text-xl font-semibold mb-4">
+                      Court Information
+                    </h3>
                   </div>
-                  
+
                   {/* Court Image */}
                   <div className="w-full h-64 relative rounded-2xl overflow-hidden shadow-lg">
                     {court.imageUrl ? (
@@ -252,13 +299,18 @@ export default function BookingDetailsPage() {
 
                   {/* Court Details */}
                   <div className="text-center space-y-2">
-                    <h2 className="text-2xl font-bold text-gray-900">{court.name}</h2>
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      {court.name}
+                    </h2>
                     <div className="flex items-center justify-center text-gray-600 mb-2">
                       <MapPin className="h-4 w-4 mr-2 text-green-600" />
                       <span>@{court.location}</span>
                     </div>
                     {court.surface && (
-                      <Badge variant="outline" className="text-sm px-3 py-1 border-green-200 text-green-700">
+                      <Badge
+                        variant="outline"
+                        className="text-sm px-3 py-1 border-green-200 text-green-700"
+                      >
                         {court.surface}
                       </Badge>
                     )}
@@ -268,9 +320,11 @@ export default function BookingDetailsPage() {
                 {/* Booking Information */}
                 <div className="space-y-6">
                   <div className="text-center">
-                    <h3 className="text-xl font-semibold mb-4">Booking Information</h3>
+                    <h3 className="text-xl font-semibold mb-4">
+                      Booking Information
+                    </h3>
                   </div>
-                  
+
                   <Card className="border-gray-200">
                     <CardContent className="pt-7 pb-6 px-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -281,21 +335,28 @@ export default function BookingDetailsPage() {
                             </div>
                             <div>
                               <p className="text-sm text-gray-500">Date</p>
-                              <p className="font-semibold text-gray-900">{formatDate(booking.date)}</p>
+                              <p className="font-semibold text-gray-900">
+                                {formatDate(booking.date)}
+                              </p>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center space-x-3">
                             <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
                               <Clock className="h-5 w-5 text-green-600" />
                             </div>
                             <div>
-                              <p className="text-sm text-gray-500">Time & Duration</p>
-                              <p className="font-semibold text-gray-900">{formatTime(booking.time)} ({booking.duration} hour{booking.duration > 1 ? 's' : ''})</p>
+                              <p className="text-sm text-gray-500">
+                                Time & Duration
+                              </p>
+                              <p className="font-semibold text-gray-900">
+                                {formatTime(booking.time)} ({booking.duration}{" "}
+                                hour{booking.duration > 1 ? "s" : ""})
+                              </p>
                             </div>
                           </div>
                         </div>
-                        
+
                         <div className="space-y-4">
                           <div className="flex items-center space-x-3">
                             <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
@@ -308,14 +369,18 @@ export default function BookingDetailsPage() {
                               </div>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center space-x-3">
                             <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
                               <div className="w-2 h-2 rounded-full bg-green-600"></div>
                             </div>
                             <div>
-                              <p className="text-sm text-gray-500">Total Cost</p>
-                              <p className="font-semibold text-gray-900">${(court.price * booking.duration).toFixed(2)}</p>
+                              <p className="text-sm text-gray-500">
+                                Total Cost
+                              </p>
+                              <p className="font-semibold text-gray-900">
+                                ${(court.price * booking.duration).toFixed(2)}
+                              </p>
                             </div>
                           </div>
                         </div>
@@ -328,16 +393,23 @@ export default function BookingDetailsPage() {
                 {court.address && (
                   <div className="space-y-4">
                     <div className="text-center">
-                      <h3 className="text-xl font-semibold mb-4">Court Address</h3>
+                      <h3 className="text-xl font-semibold mb-4">
+                        Court Address
+                      </h3>
                     </div>
                     <Card className="border-gray-200">
                       <CardContent className="pt-7 pb-6 px-6">
                         <div className="text-center space-y-4">
                           <div className="flex items-center justify-center space-x-2">
                             <MapPin className="h-5 w-5 text-green-600" />
-                            <p className="text-gray-900 font-medium">{court.address}</p>
+                            <p className="text-gray-900 font-medium">
+                              {court.address}
+                            </p>
                           </div>
-                          <GoogleMapsLink address={court.address} variant="button" />
+                          <GoogleMapsLink
+                            address={court.address}
+                            variant="button"
+                          />
                         </div>
                       </CardContent>
                     </Card>
@@ -348,7 +420,9 @@ export default function BookingDetailsPage() {
                 {court.accessInstructions && (
                   <div className="space-y-4">
                     <div className="text-center">
-                      <h3 className="text-xl font-semibold mb-4">Access Instructions</h3>
+                      <h3 className="text-xl font-semibold mb-4">
+                        Access Instructions
+                      </h3>
                     </div>
                     <Card className="border-gray-200">
                       <CardContent className="pt-7 pb-6 px-6">
@@ -364,7 +438,7 @@ export default function BookingDetailsPage() {
 
                 {/* Action Buttons */}
                 <div className="pt-6 flex gap-4">
-                  <Button 
+                  <Button
                     onClick={() => router.push("/dashboard/player")}
                     className="flex-1 h-14 text-lg font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
                   >
@@ -372,7 +446,7 @@ export default function BookingDetailsPage() {
                     Back to Dashboard
                   </Button>
                   {booking.status !== "cancelled" && (
-                    <Button 
+                    <Button
                       onClick={handleCancel}
                       className="flex-1 h-14 text-lg font-semibold bg-red-600 hover:bg-red-700 transition-colors text-white"
                       disabled={cancelling}

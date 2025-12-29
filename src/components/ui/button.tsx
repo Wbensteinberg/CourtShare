@@ -19,7 +19,7 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         hero: "bg-gradient-hero text-primary-foreground hover:shadow-glow transform hover:scale-105 transition-all duration-300",
         tennis:
-          "bg-[#286a3a] text-white hover:bg-[#20542e] transform hover:scale-105 transition-smooth shadow-card",
+          "bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 text-white hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 transform hover:scale-105 transition-all duration-300 shadow-xl hover:shadow-glow-hover font-extrabold",
         premium:
           "bg-gradient-primary text-primary-foreground hover:shadow-elegant transform hover:scale-105 transition-bounce border border-primary/20",
       },

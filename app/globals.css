@@ -2,12 +2,25 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
-  --green-primary: #286a3a;
-  --primary: #286a3a;
+  --foreground: #0a0f1a;
+  --green-primary: #10b981;
+  --primary: #10b981;
   --primary-foreground: #ffffff;
-  --muted-foreground: #6b7280;
+  --muted-foreground: #64748b;
   --court-yellow: #fbbf24;
+  --accent: #06b6d4;
+  --gradient-start: #10b981;
+  --gradient-end: #059669;
+  --gradient-accent: #06b6d4;
+  --emerald-50: #ecfdf5;
+  --emerald-100: #d1fae5;
+  --emerald-500: #10b981;
+  --emerald-600: #059669;
+  --emerald-700: #047857;
+  --teal-500: #14b8a6;
+  --teal-600: #0d9488;
+  --cyan-400: #22d3ee;
+  --cyan-500: #06b6d4;
 }
 
 @theme inline {
@@ -18,9 +31,40 @@
 }
 
 body {
-  background: var(--background);
+  background: linear-gradient(to bottom, #ffffff 0%, #f8fafc 100%);
+  background-attachment: fixed;
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Inter', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+  line-height: 1.6;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Modern gradient backgrounds */
+.bg-gradient-modern {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.bg-gradient-tennis {
+  background: linear-gradient(135deg, #10b981 0%, #059669 30%, #047857 60%, #065f46 100%);
+  background-size: 400% 400%;
+  animation: gradientFlow 15s ease infinite;
+}
+
+@keyframes gradientFlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.bg-gradient-accent {
+  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
 }
 
 /* Custom utility classes for the court booking page */
@@ -29,7 +73,15 @@ body {
 }
 
 .bg-gradient-primary {
-  background: linear-gradient(135deg, #286a3a 0%, #20542e 100%);
+  background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);
+  background-size: 200% 200%;
+  animation: gradientShift 8s ease infinite;
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
 .hover\:bg-primary-glow:hover {
@@ -41,11 +93,128 @@ body {
 }
 
 .shadow-elegant {
-  box-shadow: 0 10px 25px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  box-shadow: 
+    0 1px 3px rgba(0, 0, 0, 0.05),
+    0 4px 12px rgba(0, 0, 0, 0.08),
+    0 10px 30px rgba(0, 0, 0, 0.06);
+}
+
+.shadow-glow {
+  box-shadow: 
+    0 0 0 1px rgba(16, 185, 129, 0.1),
+    0 4px 12px rgba(16, 185, 129, 0.15),
+    0 8px 24px rgba(16, 185, 129, 0.1),
+    0 16px 48px rgba(0, 0, 0, 0.08);
+}
+
+.shadow-glow-hover:hover {
+  box-shadow: 
+    0 0 0 1px rgba(16, 185, 129, 0.2),
+    0 8px 16px rgba(16, 185, 129, 0.2),
+    0 16px 32px rgba(16, 185, 129, 0.15),
+    0 24px 64px rgba(0, 0, 0, 0.12);
+  transform: translateY(-4px) scale(1.01);
+}
+
+/* Glassmorphism effect - more refined */
+.glass {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
+}
+
+.glass-dark {
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.glass-emerald {
+  background: rgba(16, 185, 129, 0.1);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(16, 185, 129, 0.2);
 }
 
 .transition-smooth {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.transition-bounce {
+  transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* Floating animation - more subtle */
+@keyframes float {
+  0%, 100% { 
+    transform: translateY(0px) translateX(0px);
+    opacity: 0.8;
+  }
+  33% { 
+    transform: translateY(-8px) translateX(4px);
+    opacity: 1;
+  }
+  66% { 
+    transform: translateY(-4px) translateX(-4px);
+    opacity: 0.9;
+  }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+/* Pulse glow animation - more refined */
+@keyframes pulse-glow {
+  0%, 100% { 
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.2),
+                0 0 40px rgba(16, 185, 129, 0.1);
+  }
+  50% { 
+    box-shadow: 0 0 30px rgba(16, 185, 129, 0.4),
+                0 0 60px rgba(16, 185, 129, 0.2);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+/* Shimmer effect for premium feel */
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  background-size: 1000px 100%;
+  animation: shimmer 3s infinite;
+}
+
+/* Smooth fade in */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out;
 }
 
 /* Container utility */

@@ -222,10 +222,12 @@ export default function OwnerDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading courts and bookings...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">
+            Loading courts and bookings...
+          </p>
         </div>
       </div>
     );
@@ -233,28 +235,28 @@ export default function OwnerDashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-red-500">{error}</p>
+          <p className="text-red-500 font-medium">{error}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/20">
       <AppHeader />
 
-      {/* Header */}
-      <div className="bg-white shadow-lg border-b border-gray-200">
+      {/* Header - Modernized */}
+      <div className="glass border-b border-gray-200/50 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => router.push("/courts")}
-                className="flex items-center text-gray-600 hover:text-green-700 transition-colors hover:cursor-pointer"
+                className="flex items-center text-gray-700 hover:text-emerald-600 transition-all duration-300 hover:cursor-pointer font-semibold group"
               >
-                <ArrowLeft className="h-4 w-4 mr-2" />
+                <ArrowLeft className="h-5 w-5 mr-2 group-hover:-translate-x-1 transition-transform" />
                 Back to Browse
               </button>
             </div>
@@ -263,22 +265,22 @@ export default function OwnerDashboard() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Title Section */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Title Section - Modernized */}
+        <div className="text-center mb-16">
+          <h1 className="text-5xl md:text-7xl font-black mb-6 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 bg-clip-text text-transparent tracking-tight">
             Owner Dashboard
           </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-600 max-w-2xl mx-auto font-medium">
             Welcome! Here are your courts and bookings.
           </p>
         </div>
 
-        {/* Add New Court Button */}
-        <div className="flex justify-center mb-8">
+        {/* Add New Court Button - Modernized */}
+        <div className="flex justify-center mb-12">
           <Button
             onClick={() => router.push("/create-listing")}
-            className="bg-green-600 hover:bg-green-700 text-white font-semibold py-4 px-8 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 hover:cursor-pointer text-lg"
+            className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white font-extrabold py-5 px-10 rounded-2xl shadow-xl hover:shadow-glow-hover transition-all duration-300 transform hover:scale-105 hover:cursor-pointer text-lg"
             size="lg"
           >
             <Plus className="h-6 w-6 mr-3" />
