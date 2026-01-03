@@ -11,7 +11,15 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, MapPin, Calendar, Clock, Filter, X, Navigation } from "lucide-react";
+import {
+  Search,
+  MapPin,
+  Calendar,
+  Clock,
+  Filter,
+  X,
+  Navigation,
+} from "lucide-react";
 import ReactDatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { getCurrentLocation, type Coordinates } from "@/lib/geolocation";
@@ -22,7 +30,10 @@ interface SearchSectionProps {
   onDistanceChange?: (distance: number | null) => void;
 }
 
-const SearchSection = ({ onLocationChange, onDistanceChange }: SearchSectionProps) => {
+const SearchSection = ({
+  onLocationChange,
+  onDistanceChange,
+}: SearchSectionProps) => {
   const [location, setLocation] = useState("");
   const [date, setDate] = useState<Date | null>(() => {
     const tomorrow = new Date();
@@ -62,7 +73,7 @@ const SearchSection = ({ onLocationChange, onDistanceChange }: SearchSectionProp
   const handleGetCurrentLocation = async () => {
     setLocationLoading(true);
     setLocationError("");
-    
+
     try {
       const coords = await getCurrentLocation();
       setUserLocation(coords);
@@ -104,7 +115,10 @@ const SearchSection = ({ onLocationChange, onDistanceChange }: SearchSectionProp
   }, [onDistanceChange]);
 
   return (
-    <div className="w-full space-y-6 -mt-12 md:-mt-16 z-10 relative flex flex-col items-center mt-8" data-search-section>
+    <div
+      className="w-full space-y-6 -mt-12 md:-mt-16 z-10 relative flex flex-col items-center mt-8"
+      data-search-section
+    >
       {/* Main Search Card */}
       <Card className="bg-white border border-gray-300 shadow-md rounded-xl w-full max-w-6xl">
         <CardContent className="p-6">
@@ -153,27 +167,48 @@ const SearchSection = ({ onLocationChange, onDistanceChange }: SearchSectionProp
               <label className="text-sm font-medium text-foreground">
                 Within
               </label>
-              <Select value={distanceFilter} onValueChange={handleDistanceChange}>
+              <Select
+                value={distanceFilter}
+                onValueChange={handleDistanceChange}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Any distance" />
                 </SelectTrigger>
                 <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-lg">
-                  <SelectItem value="any" className="hover:bg-green-50 cursor-pointer">
+                  <SelectItem
+                    value="any"
+                    className="hover:bg-green-50 cursor-pointer"
+                  >
                     Any distance
                   </SelectItem>
-                  <SelectItem value="5" className="hover:bg-green-50 cursor-pointer">
+                  <SelectItem
+                    value="5"
+                    className="hover:bg-green-50 cursor-pointer"
+                  >
                     5 miles
                   </SelectItem>
-                  <SelectItem value="10" className="hover:bg-green-50 cursor-pointer">
+                  <SelectItem
+                    value="10"
+                    className="hover:bg-green-50 cursor-pointer"
+                  >
                     10 miles
                   </SelectItem>
-                  <SelectItem value="15" className="hover:bg-green-50 cursor-pointer">
+                  <SelectItem
+                    value="15"
+                    className="hover:bg-green-50 cursor-pointer"
+                  >
                     15 miles
                   </SelectItem>
-                  <SelectItem value="25" className="hover:bg-green-50 cursor-pointer">
+                  <SelectItem
+                    value="25"
+                    className="hover:bg-green-50 cursor-pointer"
+                  >
                     25 miles
                   </SelectItem>
-                  <SelectItem value="50" className="hover:bg-green-50 cursor-pointer">
+                  <SelectItem
+                    value="50"
+                    className="hover:bg-green-50 cursor-pointer"
+                  >
                     50 miles
                   </SelectItem>
                 </SelectContent>
@@ -218,16 +253,28 @@ const SearchSection = ({ onLocationChange, onDistanceChange }: SearchSectionProp
                   </div>
                 </SelectTrigger>
                 <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-lg">
-                  <SelectItem value="morning" className="hover:bg-green-50 cursor-pointer">
+                  <SelectItem
+                    value="morning"
+                    className="hover:bg-green-50 cursor-pointer"
+                  >
                     Morning (6AM - 12PM)
                   </SelectItem>
-                  <SelectItem value="afternoon" className="hover:bg-green-50 cursor-pointer">
+                  <SelectItem
+                    value="afternoon"
+                    className="hover:bg-green-50 cursor-pointer"
+                  >
                     Afternoon (12PM - 6PM)
                   </SelectItem>
-                  <SelectItem value="evening" className="hover:bg-green-50 cursor-pointer">
+                  <SelectItem
+                    value="evening"
+                    className="hover:bg-green-50 cursor-pointer"
+                  >
                     Evening (6PM - 10PM)
                   </SelectItem>
-                  <SelectItem value="anytime" className="hover:bg-green-50 cursor-pointer">
+                  <SelectItem
+                    value="anytime"
+                    className="hover:bg-green-50 cursor-pointer"
+                  >
                     Anytime
                   </SelectItem>
                 </SelectContent>
@@ -240,7 +287,7 @@ const SearchSection = ({ onLocationChange, onDistanceChange }: SearchSectionProp
                 Search
               </label>
               <Button
-                className="w-full bg-green-700 text-white hover:bg-green-800 font-semibold text-base h-11 rounded-lg shadow-md cursor-pointer"
+                className="w-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white font-semibold text-base h-11 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer"
                 type="button"
               >
                 <Search className="h-4 w-4 mr-2" />

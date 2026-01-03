@@ -384,22 +384,18 @@ export default function ProfilePage() {
               <form onSubmit={handleSubmit} className="space-y-8">
                 {/* Profile Photo Section - Modernized */}
                 <Card className="border-0 shadow-elegant rounded-3xl overflow-hidden glass backdrop-blur-xl">
-                  <CardHeader className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 text-white border-0">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-xl border border-white/30">
-                        <Camera className="h-7 w-7 text-white" />
-                      </div>
-                      <div>
-                        <h2 className="text-2xl font-black text-white tracking-tight">
-                          Profile Photo
-                        </h2>
-                        <p className="text-white/90 font-medium mt-1">
-                          Add a professional photo to personalize your profile
-                        </p>
-                      </div>
+                  <CardHeader className="bg-gradient-to-br from-emerald-600 via-emerald-700 to-teal-700 text-white border-0 relative overflow-hidden p-4">
+                    <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-white/5"></div>
+                    <div className="relative z-10">
+                      <h2 className="text-lg font-bold text-white tracking-tight">
+                        Profile Photo
+                      </h2>
+                      <p className="text-white/90 text-sm font-medium mt-0.5">
+                        Add a professional photo to personalize your profile
+                      </p>
                     </div>
                   </CardHeader>
-                  <CardContent className="p-8">
+                  <CardContent className="p-6">
                     <div className="flex flex-col md:flex-row items-center md:items-start space-y-6 md:space-y-0 md:space-x-8">
                       {/* Current Photo */}
                       <div className="relative">
@@ -438,7 +434,6 @@ export default function ProfilePage() {
                                   ?.click()
                               }
                             >
-                              <Camera className="h-4 w-4 mr-2" />
                               Choose Photo
                             </Button>
                             <input
@@ -457,21 +452,20 @@ export default function ProfilePage() {
                         <div className="flex flex-wrap gap-2">
                           <Badge
                             variant="secondary"
-                            className="bg-blue-50 text-blue-700"
+                            className="bg-emerald-50 text-emerald-700 border-emerald-200"
                           >
-                            <Camera className="h-3 w-3 mr-1" />
                             Professional
                           </Badge>
                           <Badge
                             variant="secondary"
-                            className="bg-green-50 text-green-700"
+                            className="bg-emerald-50 text-emerald-700 border-emerald-200"
                           >
                             <CheckCircle className="h-3 w-3 mr-1" />
                             High Quality
                           </Badge>
                           <Badge
                             variant="secondary"
-                            className="bg-purple-50 text-purple-700"
+                            className="bg-emerald-50 text-emerald-700 border-emerald-200"
                           >
                             <User className="h-3 w-3 mr-1" />
                             Clear Face
@@ -483,10 +477,10 @@ export default function ProfilePage() {
                 </Card>
 
                 {/* Personal Information Section */}
-                <Card className="border border-gray-200 shadow-lg rounded-xl overflow-hidden">
-                  <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                <Card className="border border-gray-200 shadow-lg rounded-2xl overflow-hidden">
+                  <CardHeader className="bg-gradient-to-br from-emerald-50/50 via-teal-50/30 to-emerald-50/50 border-b border-emerald-100">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-full bg-[#286a3a] flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg">
                         <Edit3 className="h-5 w-5 text-white" />
                       </div>
                       <div>
@@ -510,7 +504,7 @@ export default function ProfilePage() {
                           placeholder="Enter your full name"
                           value={displayName}
                           onChange={(e) => setDisplayName(e.target.value)}
-                          className="border-gray-300 focus:border-[#286a3a] focus:ring-[#286a3a]"
+                          className="border-gray-300 focus:border-emerald-500 focus:ring-emerald-500"
                         />
                       </div>
 
@@ -539,7 +533,7 @@ export default function ProfilePage() {
                         value={bio}
                         onChange={(e) => setBio(e.target.value)}
                         rows={4}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#286a3a] focus:border-[#286a3a] resize-none"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
                       />
                       <p className="text-xs text-gray-500">
                         Share your tennis story, experience level, or what
@@ -549,11 +543,11 @@ export default function ProfilePage() {
                   </CardContent>
                 </Card>
 
-                {/* Account Status Section */}
-                <Card className="border border-gray-200 shadow-lg rounded-xl overflow-hidden">
-                  <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                {/* Account Status Section - Commented out for now */}
+                {/* <Card className="border border-gray-200 shadow-lg rounded-2xl overflow-hidden">
+                  <CardHeader className="bg-gradient-to-br from-emerald-50/50 via-teal-50/30 to-emerald-50/50 border-b border-emerald-100">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-full bg-[#286a3a] flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg">
                         <Trophy className="h-5 w-5 text-white" />
                       </div>
                       <div>
@@ -569,7 +563,7 @@ export default function ProfilePage() {
                   <CardContent className="p-8">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <div className="text-center p-4 bg-gray-50 rounded-lg">
-                        <div className="w-12 h-12 rounded-full bg-[#286a3a] flex items-center justify-center mx-auto mb-3">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mx-auto mb-3 shadow-lg">
                           <User className="h-6 w-6 text-white" />
                         </div>
                         <h3 className="font-semibold text-gray-800">
@@ -603,7 +597,7 @@ export default function ProfilePage() {
                       </div>
                     </div>
                   </CardContent>
-                </Card>
+                </Card> */}
 
                 {/* Success/Error Messages */}
                 {error && (
@@ -631,7 +625,7 @@ export default function ProfilePage() {
                   <Button
                     type="submit"
                     disabled={saving}
-                    className="flex-1 h-12 text-base font-semibold bg-[#286a3a] text-white hover:bg-[#20542e]"
+                    className="flex-1 h-12 text-base font-semibold bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
                   >
                     {saving ? (
                       <>
@@ -696,7 +690,7 @@ export default function ProfilePage() {
               </Button>
               <Button
                 onClick={handleCropComplete}
-                className="px-6 py-3 bg-[#286a3a] text-white hover:bg-[#20542e]"
+                className="px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg transition-all duration-300"
               >
                 Apply Crop
               </Button>

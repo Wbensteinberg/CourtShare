@@ -170,9 +170,8 @@ export default function AppHeader() {
                 Sign In
               </Button>
               <Button
-                variant="ghost"
                 size="sm"
-                className="bg-green-700 text-white hover:bg-green-800 transition-colors duration-200 font-medium hover:cursor-pointer"
+                className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white transition-all duration-200 font-medium hover:cursor-pointer shadow-md hover:shadow-lg"
                 onClick={() => router.push("/signup")}
               >
                 Sign Up

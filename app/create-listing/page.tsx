@@ -154,7 +154,7 @@ const CreateListing = () => {
       <section className="py-12 -mt-10 relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto">
-            <Card className="shadow-elegant border-0 rounded-3xl glass backdrop-blur-xl">
+            <Card className="shadow-elegant border-0 rounded-3xl glass backdrop-blur-xl mt-8">
               <CardHeader className="space-y-2 pb-10 pt-10">
                 <CardTitle className="text-3xl md:text-4xl font-black text-center tracking-tight bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
                   Court Details
@@ -351,7 +351,7 @@ const CreateListing = () => {
                               <FormControl>
                                 <Input
                                   placeholder="-118.2437"
-                                  type="number"
+            type="number"
                                   step="any"
                                   className="h-13 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 text-base font-medium"
                                   {...field}
@@ -372,11 +372,11 @@ const CreateListing = () => {
                       <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-green-500/50 transition-colors">
                         <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
                         <div className="space-y-2">
-                          <input
+          <input
                             ref={fileInputRef}
-                            type="file"
+            type="file"
                             multiple
-                            accept="image/*"
+            accept="image/*"
                             onChange={handleFileSelect}
                             className="hidden"
                           />
@@ -467,7 +467,7 @@ const CreateListing = () => {
                             <Button
                               type="button"
                               onClick={handleBlockDay}
-                              className="h-12 px-6 bg-green-600 hover:bg-green-700 transition-colors text-white"
+                              className="h-12 px-6 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 transition-all duration-300 text-white shadow-lg hover:shadow-xl"
                               disabled={!date}
                             >
                               Block Day
@@ -526,7 +526,7 @@ const CreateListing = () => {
                             <Button
                               type="button"
                               onClick={handleBlockTime}
-                              className="h-12 px-6 bg-green-600 hover:bg-green-700 transition-colors text-white"
+                              className="h-12 px-6 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 transition-all duration-300 text-white shadow-lg hover:shadow-xl"
                               disabled={!blockTimeDate || !selectedTime}
                             >
                               Block Time
@@ -539,19 +539,28 @@ const CreateListing = () => {
                     {/* Submit Button */}
                     <div className="pt-6">
                       <Button
-                        type="submit"
+            type="submit"
                         className="w-full h-14 text-lg font-extrabold bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white shadow-xl hover:shadow-glow-hover transition-all duration-300 rounded-2xl transform hover:scale-[1.02]"
                       >
                         Create Listing
                       </Button>
                     </div>
-                  </form>
+        </form>
                 </Form>
               </CardContent>
             </Card>
           </div>
-        </div>
+      </div>
       </section>
+      
+      {/* Dark Gray Footer Section - Same as /courts page */}
+      <div className="w-full bg-slate-900 py-16 mt-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <p className="text-slate-400 text-sm">
+            © 2025 CourtShare. All rights reserved.
+          </p>
+        </div>
+      </div>
     </div>
   );
 };

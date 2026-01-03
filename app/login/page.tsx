@@ -66,48 +66,52 @@ function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 flex items-center justify-center py-12 px-4">
-      {/* Background decorative elements */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center py-12 px-4 relative overflow-hidden">
+      {/* Animated Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 right-20 w-96 h-96 bg-emerald-200/10 rounded-full blur-3xl animate-float"></div>
+        <div className="absolute top-20 right-20 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl animate-float"></div>
         <div
-          className="absolute bottom-20 left-20 w-80 h-80 bg-teal-200/10 rounded-full blur-3xl animate-float"
+          className="absolute bottom-20 left-20 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl animate-float"
           style={{ animationDelay: "2s" }}
+        ></div>
+        <div
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-emerald-400/5 rounded-full blur-3xl animate-float"
+          style={{ animationDelay: "4s" }}
         ></div>
       </div>
 
       <div className="w-full max-w-md relative z-10">
-        <Card className="border-0 shadow-elegant rounded-3xl overflow-hidden glass backdrop-blur-xl">
-          <CardHeader className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 text-white p-8">
-            <div className="flex items-center space-x-4">
-              <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-xl border border-white/30">
-                <LogIn className="h-7 w-7 text-white" />
+        <Card className="border-0 shadow-2xl rounded-xl overflow-hidden bg-slate-800/90 backdrop-blur-xl border border-slate-700">
+          <CardHeader className="bg-slate-800/90 border-b border-slate-700 p-6 relative overflow-hidden">
+            <div className="relative z-10 flex items-center space-x-3">
+              <div className="w-12 h-12 rounded-xl bg-emerald-500/20 backdrop-blur-md flex items-center justify-center shadow-xl border border-emerald-500/30">
+                <LogIn className="h-6 w-6 text-emerald-400" />
               </div>
               <div>
-                <h2 className="text-3xl font-black text-white tracking-tight">
+                <h2 className="text-2xl font-bold text-slate-100 tracking-tight">
                   Sign In
                 </h2>
-                <p className="text-white/90 font-medium mt-1">
+                <p className="text-slate-400 text-sm font-medium mt-0.5">
                   Welcome back to CourtShare
                 </p>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="p-8 bg-white">
+          <CardContent className="p-6 bg-slate-800/90">
             <form onSubmit={handleLogin} className="space-y-6">
               {/* Email Field */}
               <div className="space-y-3">
-                <label className="block text-sm font-bold text-gray-900 tracking-tight">
+                <label className="block text-sm font-extrabold text-white tracking-tight">
                   Email Address
                 </label>
                 <div className="relative group">
-                  <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-emerald-600 transition-colors" />
+                  <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-emerald-400 transition-colors" />
                   <Input
                     type="email"
                     placeholder="you@example.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-12 h-13 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 text-base font-medium"
+                    className="pl-12 h-13 border-2 border-slate-600 bg-slate-700/50 text-white placeholder:text-slate-500 rounded-xl focus:border-emerald-500 focus:ring-0 focus:outline-none focus:shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 text-base font-medium"
                     required
                     autoComplete="email"
                   />
@@ -116,24 +120,24 @@ function LoginForm() {
 
               {/* Password Field */}
               <div className="space-y-3">
-                <label className="block text-sm font-bold text-gray-900 tracking-tight">
+                <label className="block text-sm font-extrabold text-white tracking-tight">
                   Password
                 </label>
                 <div className="relative group">
-                  <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 group-focus-within:text-emerald-600 transition-colors" />
+                  <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-emerald-400 transition-colors" />
                   <Input
                     type={showPassword ? "text" : "password"}
                     placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-12 pr-12 h-13 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 text-base font-medium"
+                    className="pl-12 pr-12 h-13 border-2 border-slate-600 bg-slate-700/50 text-white placeholder:text-slate-500 rounded-xl focus:border-emerald-500 focus:ring-0 focus:outline-none focus:shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 text-base font-medium"
                     required
                     autoComplete="current-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-emerald-600 transition-colors cursor-pointer"
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-emerald-400 transition-colors cursor-pointer"
                   >
                     {showPassword ? (
                       <EyeOff className="h-5 w-5" />
@@ -167,22 +171,21 @@ function LoginForm() {
                   <>
                     <LogIn className="h-5 w-5 mr-2" />
                     Sign In
-                    <ArrowRight className="h-5 w-5 ml-2 group-hover:translate-x-1 transition-transform" />
                     <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></span>
                   </>
                 )}
               </Button>
 
               {/* Links */}
-              <div className="text-center space-y-4 pt-2">
+              <div className="text-center pt-2">
                 <a
                   href="#"
-                  className="text-emerald-600 hover:text-emerald-700 text-sm font-semibold hover:underline transition-colors"
+                  className="text-emerald-400 hover:text-emerald-300 text-xs font-semibold hover:underline transition-colors block mb-2"
                 >
                   Forgot your password?
                 </a>
-                <div className="border-t border-gray-200 pt-6">
-                  <p className="text-gray-600 text-sm font-medium">
+                <div className="border-t border-slate-700 pt-2">
+                  <p className="text-slate-400 text-xs font-medium">
                     Don't have an account?{" "}
                     <a
                       href={
@@ -190,7 +193,7 @@ function LoginForm() {
                           ? `/signup?redirect=${encodeURIComponent(redirect)}`
                           : "/signup"
                       }
-                      className="text-emerald-600 hover:text-emerald-700 font-bold hover:underline transition-colors"
+                      className="text-emerald-400 hover:text-emerald-300 font-bold hover:underline transition-colors"
                     >
                       Sign up here
                     </a>

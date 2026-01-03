@@ -388,35 +388,45 @@ export default function EditListingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/20">
       <AppHeader />
-      
-      {/* Hero Section with Background */}
-      <section className="relative py-20 bg-gradient-to-br from-green-600 to-green-800 overflow-hidden">
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiNmZmZmZmYiIGZpbGwtb3BhY2l0eT0iMC4xIj48Y2lyY2xlIGN4PSIzMCIgY3k9IjMwIiByPSIyIi8+PC9nPjwvZz48L3N2Zz4=')] opacity-10"></div>
+
+      {/* Hero Section with Background - Same as create listing */}
+      <section className="relative py-24 bg-gradient-tennis overflow-hidden">
+        <div className="absolute inset-0">
+          <div className="absolute top-20 left-20 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-float"></div>
+          <div
+            className="absolute bottom-20 right-20 w-80 h-80 bg-cyan-300/10 rounded-full blur-3xl animate-float"
+            style={{ animationDelay: "2s" }}
+          ></div>
+        </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center text-white">
-            <div className="flex items-center justify-center mb-4">
-              <Edit3 className="h-12 w-12 mr-4" />
+            <div className="flex items-center justify-center mb-6">
+              <div className="w-20 h-20 rounded-3xl glass-dark flex items-center justify-center shadow-glow">
+                <Edit3 className="h-12 w-12 text-white" />
+              </div>
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">
+            <h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tight">
               Edit Court Listing
             </h1>
-            <p className="text-xl text-white/90 max-w-2xl mx-auto">
+            <p className="text-xl md:text-2xl text-white/95 max-w-2xl mx-auto font-medium">
               Update your court details below to keep your listing current
             </p>
           </div>
         </div>
       </section>
 
-      {/* Main Content */}
+      {/* Main Content - Modernized */}
       <section className="py-12 -mt-10 relative z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="max-w-4xl mx-auto">
-            <Card className="shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
-              <CardHeader className="space-y-1 pb-8">
-                <CardTitle className="text-2xl font-bold text-center">Court Details</CardTitle>
-                <CardDescription className="text-center text-muted-foreground">
+            <Card className="shadow-elegant border-0 rounded-3xl glass backdrop-blur-xl mt-8">
+              <CardHeader className="space-y-2 pb-10 pt-10">
+                <CardTitle className="text-3xl md:text-4xl font-black text-center tracking-tight bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                  Court Details
+                </CardTitle>
+                <CardDescription className="text-center text-gray-600 font-medium text-lg">
                   Please update the information about your tennis court
                 </CardDescription>
               </CardHeader>
@@ -435,7 +445,7 @@ export default function EditListingPage() {
                             <FormControl>
                               <Input 
                                 placeholder="Enter court name" 
-                                className="h-12 border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200"
+                                className="h-13 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 text-base font-medium"
                                 {...field} 
                               />
                             </FormControl>
@@ -453,7 +463,7 @@ export default function EditListingPage() {
                             <FormControl>
                               <Input 
                                 placeholder="City, State" 
-                                className="h-12 border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200"
+                                className="h-13 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 text-base font-medium"
                                 {...field} 
                               />
                             </FormControl>
@@ -481,7 +491,7 @@ export default function EditListingPage() {
                                 }
                               }}
                               placeholder="Complete street address"
-                              className="h-12 border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200"
+                              className="h-13 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 text-base font-medium"
                               label="Full Address"
                             />
                           </FormControl>
@@ -499,7 +509,7 @@ export default function EditListingPage() {
                           <FormControl>
                             <Textarea 
                               placeholder="Gate code, building access, parking info..."
-                              className="min-h-[100px] border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200 resize-none"
+                              className="min-h-[100px] border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 resize-none"
                               {...field} 
                             />
                           </FormControl>
@@ -520,7 +530,7 @@ export default function EditListingPage() {
                                 placeholder="25.00" 
                                 type="number"
                                 step="0.01"
-                                className="h-12 border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200"
+                                className="h-13 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 text-base font-medium"
                                 {...field} 
                               />
                             </FormControl>
@@ -561,17 +571,17 @@ export default function EditListingPage() {
                               <img
                                 src={imageUrl}
                                 alt={`Current ${index + 1}`}
-                                className={`w-full h-24 object-cover rounded-lg border border-gray-200 ${mainImageIndex === index ? 'ring-2 ring-green-600' : ''}`}
+                                className={`w-full h-24 object-cover rounded-lg border border-gray-200 ${mainImageIndex === index ? 'ring-2 ring-emerald-600' : ''}`}
                               />
                               <button
                                 type="button"
                                 onClick={() => removeExistingImage(imageUrl)}
-                                className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                                className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-rose-600 transition-colors opacity-0 group-hover:opacity-100"
                               >
                                 ×
                               </button>
                               {mainImageIndex === index && (
-                                <div className="absolute -top-2 -left-2 bg-green-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">
+                                <div className="absolute -top-2 -left-2 bg-emerald-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">
                                   ★
                                 </div>
                               )}
@@ -580,8 +590,8 @@ export default function EditListingPage() {
                                 onClick={() => setMainImageIndex(index)}
                                 className={`absolute bottom-1 left-1 px-2 py-1 rounded text-xs font-medium transition ${
                                   mainImageIndex === index 
-                                    ? 'bg-green-600 text-white' 
-                                    : 'bg-white/90 text-gray-700 hover:bg-green-600 hover:text-white'
+                                    ? 'bg-emerald-600 text-white' 
+                                    : 'bg-white/90 text-gray-700 hover:bg-emerald-600 hover:text-white'
                                 }`}
                               >
                                 {mainImageIndex === index ? 'Main Photo' : 'Set as Main'}
@@ -595,7 +605,7 @@ export default function EditListingPage() {
                     {/* Image Upload Section */}
                     <div className="space-y-4">
                       <FormLabel className="text-sm font-semibold">Upload New Images</FormLabel>
-                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-green-500/50 transition-colors">
+                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-emerald-500/50 transition-colors">
                         <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
                         <div className="space-y-2">
                           <input
@@ -609,7 +619,7 @@ export default function EditListingPage() {
                           <Button 
                             type="button" 
                             variant="outline" 
-                            className="border-green-500/20 hover:bg-green-50 text-green-700 hover:border-green-500 cursor-pointer"
+                            className="border-emerald-500/20 hover:bg-emerald-50 text-emerald-700 hover:border-emerald-500 cursor-pointer"
                             onClick={triggerFileInput}
                           >
                             Choose Files
@@ -637,7 +647,7 @@ export default function EditListingPage() {
                                   <button
                                     type="button"
                                     onClick={() => removeImage(index)}
-                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
+                                    className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-rose-600 transition-colors opacity-0 group-hover:opacity-100"
                                   >
                                     ×
                                   </button>
@@ -695,13 +705,13 @@ export default function EditListingPage() {
                                 dateFormat="MM/dd/yyyy"
                                 placeholderText="Select date"
                                 minDate={new Date()}
-                                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent h-12"
+                                className="w-full p-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 h-12"
                               />
                             </div>
                             <Button 
                               type="button"
                               onClick={handleBlockDay}
-                              className="h-12 px-6 bg-green-600 hover:bg-green-700 transition-colors text-white"
+                              className="h-12 px-6 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 transition-all duration-300 text-white shadow-lg hover:shadow-xl"
                               disabled={!date}
                             >
                               Block Day
@@ -748,7 +758,7 @@ export default function EditListingPage() {
                                 dateFormat="MM/dd/yyyy"
                                 placeholderText="Select date"
                                 minDate={new Date()}
-                                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent h-12"
+                                className="w-full p-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 h-12"
                               />
                             </div>
                             <div className="flex-1">
@@ -762,7 +772,7 @@ export default function EditListingPage() {
                                     <SelectItem 
                                       key={time} 
                                       value={time}
-                                      className="hover:bg-green-50 hover:text-green-700 cursor-pointer transition-colors duration-150 focus:bg-green-100 focus:text-green-800"
+                                      className="hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer transition-colors duration-150 focus:bg-emerald-100 focus:text-emerald-800"
                                     >
                                       {time}
                                     </SelectItem>
@@ -773,7 +783,7 @@ export default function EditListingPage() {
                             <Button 
                               type="button"
                               onClick={handleBlockTime}
-                              className="h-12 px-6 bg-green-600 hover:bg-green-700 transition-colors text-white"
+                              className="h-12 px-6 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 transition-all duration-300 text-white shadow-lg hover:shadow-xl"
                               disabled={!blockTimeDate || !selectedTimeSlot}
                             >
                               Block Time
@@ -828,7 +838,7 @@ export default function EditListingPage() {
                     )}
                     
                     {success && (
-                      <p className="text-green-600 text-sm text-center">
+                      <p className="text-emerald-600 text-sm text-center font-medium">
                         Court updated successfully! Redirecting to dashboard...
                       </p>
                     )}
@@ -844,7 +854,7 @@ export default function EditListingPage() {
                       </Button>
                       <Button 
                         type="submit" 
-                        className="flex-1 h-14 text-lg font-semibold bg-green-600 hover:bg-green-700 transition-colors text-white"
+                        className="flex-1 h-14 text-lg font-extrabold bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white shadow-xl hover:shadow-glow-hover transition-all duration-300 rounded-2xl transform hover:scale-[1.02]"
                         disabled={saving}
                       >
                         {saving ? (
@@ -883,6 +893,15 @@ export default function EditListingPage() {
           </div>
         </div>
       </section>
+      
+      {/* Dark Gray Footer Section - Same as /courts page */}
+      <div className="w-full bg-slate-900 py-16 mt-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <p className="text-slate-400 text-sm">
+            © 2025 CourtShare. All rights reserved.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

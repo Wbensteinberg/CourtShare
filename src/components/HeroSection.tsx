@@ -92,27 +92,27 @@ const HeroSection = () => {
               <div className="w-20 h-20 rounded-3xl glass-dark flex items-center justify-center mx-auto shadow-glow transition-all duration-500 group-hover:scale-110 group-hover:shadow-glow-hover group-hover:bg-white/25 group-hover:rotate-3">
                 <Calendar className="h-10 w-10 text-white group-hover:text-yellow-300 transition-all duration-300 drop-shadow-lg" />
               </div>
-              <h3 className="font-bold text-xl text-white group-hover:text-yellow-300 transition-colors duration-300 tracking-tight">Instant Booking</h3>
-              <p className="text-sm text-white/85 leading-relaxed max-w-xs mx-auto">
+              <h3 className="font-bold text-xl text-white group-hover:text-yellow-300 transition-colors duration-300 tracking-tight">Find a Court Whenever You Need</h3>
+              <p className="text-sm text-white/85 leading-relaxed max-w-xs mx-auto -mt-2">
                 Book courts instantly with real-time availability and instant confirmations
-              </p>
-            </div>
-            <div className="text-center space-y-5 group cursor-pointer transform transition-all duration-500 hover:scale-105">
-              <div className="w-20 h-20 rounded-3xl glass-dark flex items-center justify-center mx-auto shadow-glow transition-all duration-500 group-hover:scale-110 group-hover:shadow-glow-hover group-hover:bg-white/25 group-hover:rotate-3">
-                <Trophy className="h-10 w-10 text-white group-hover:text-yellow-300 transition-all duration-300 drop-shadow-lg" />
-              </div>
-              <h3 className="font-bold text-xl text-white group-hover:text-yellow-300 transition-colors duration-300 tracking-tight">Premium Courts</h3>
-              <p className="text-sm text-white/85 leading-relaxed max-w-xs mx-auto">
-                Access to the finest tennis facilities with professional-grade surfaces
               </p>
             </div>
             <div className="text-center space-y-5 group cursor-pointer transform transition-all duration-500 hover:scale-105">
               <div className="w-20 h-20 rounded-3xl glass-dark flex items-center justify-center mx-auto shadow-glow transition-all duration-500 group-hover:scale-110 group-hover:shadow-glow-hover group-hover:bg-white/25 group-hover:rotate-3">
                 <MapPin className="h-10 w-10 text-white group-hover:text-yellow-300 transition-all duration-300 drop-shadow-lg" />
               </div>
-              <h3 className="font-bold text-xl text-white group-hover:text-yellow-300 transition-colors duration-300 tracking-tight">Nationwide</h3>
-              <p className="text-sm text-white/85 leading-relaxed max-w-xs mx-auto">
-                Courts available across the country, find your perfect match nearby
+              <h3 className="font-bold text-xl text-white group-hover:text-yellow-300 transition-colors duration-300 tracking-tight">Find a Court Close to You</h3>
+              <p className="text-sm text-white/85 leading-relaxed max-w-xs mx-auto -mt-2">
+                Wherever you are, discover courts nearby that fit your schedule and preferences
+              </p>
+            </div>
+            <div className="text-center space-y-5 group cursor-pointer transform transition-all duration-500 hover:scale-105">
+              <div className="w-20 h-20 rounded-3xl glass-dark flex items-center justify-center mx-auto shadow-glow transition-all duration-500 group-hover:scale-110 group-hover:shadow-glow-hover group-hover:bg-white/25 group-hover:rotate-3">
+                <Trophy className="h-10 w-10 text-white group-hover:text-yellow-300 transition-all duration-300 drop-shadow-lg" />
+              </div>
+              <h3 className="font-bold text-xl text-white group-hover:text-yellow-300 transition-colors duration-300 tracking-tight">All Courts in One Place</h3>
+              <p className="text-sm text-white/85 leading-relaxed max-w-xs mx-auto -mt-2">
+                Choose from all courts in your area on one centralized booking platform to get the best options
               </p>
             </div>
           </div>
