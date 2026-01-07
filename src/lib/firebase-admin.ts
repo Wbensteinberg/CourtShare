@@ -1,10 +1,12 @@
 // Server-side Firebase Admin SDK initialization
 import { initializeApp, getApps, cert, App } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
+import { getAuth, Auth } from "firebase-admin/auth";
 
 // Initialize Firebase Admin (server-side only)
 let adminApp: App | undefined;
 let adminDb: Firestore | undefined;
+let adminAuth: Auth | undefined;
 
 try {
   // Check if already initialized
@@ -45,10 +47,11 @@ try {
 
   if (adminApp) {
     adminDb = getFirestore(adminApp);
+    adminAuth = getAuth(adminApp);
   }
 } catch (error: any) {
   console.error("[FIREBASE ADMIN] Failed to initialize:", error.message);
   // Don't throw - allow the app to continue, but admin operations will fail
 }
 
-export { adminDb };
+export { adminDb, adminAuth };

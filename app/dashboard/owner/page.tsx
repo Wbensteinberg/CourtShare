@@ -29,6 +29,8 @@ import {
   MapPin,
   Check,
   X,
+  CreditCard,
+  AlertCircle,
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 
@@ -62,6 +64,13 @@ export default function OwnerDashboard() {
   const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(
     null
   );
+  const [stripeAccountStatus, setStripeAccountStatus] = useState<{
+    hasAccount: boolean;
+    status: string;
+    onboardingUrl?: string;
+  } | null>(null);
+  const [checkingStripe, setCheckingStripe] = useState(false);
+  const [connectingStripe, setConnectingStripe] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -105,6 +114,86 @@ export default function OwnerDashboard() {
     };
     fetchData();
   }, [user]);
+
+  // Check Stripe Connect account status
+  useEffect(() => {
+    if (!user) return;
+
+    const checkStripeAccount = async () => {
+      if (!user) return;
+      setCheckingStripe(true);
+      try {
+        // SECURITY: Get Firebase ID token and send in Authorization header
+        const idToken = await user.getIdToken();
+        const res = await fetch("/api/stripe/check-account-status", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+        });
+        const data = await res.json();
+        setStripeAccountStatus(data);
+      } catch (err) {
+        console.error("Error checking Stripe account:", err);
+      } finally {
+        setCheckingStripe(false);
+      }
+    };
+
+    checkStripeAccount();
+  }, [user]);
+
+  const handleConnectStripe = async () => {
+    if (!user) return;
+
+    setConnectingStripe(true);
+    try {
+      // SECURITY: Get Firebase ID token and send in Authorization header
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/stripe/create-connect-account", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        // Show the actual error message from the API
+        const errorMsg =
+          data.error || data.details || "Failed to create Stripe account";
+        console.error("[OWNER DASHBOARD] Stripe Connect error:", data);
+        setError(errorMsg);
+        return;
+      }
+
+      if (data.onboardingUrl) {
+        // Redirect to Stripe onboarding
+        window.location.href = data.onboardingUrl;
+      } else if (data.accountId && data.status === "active") {
+        // Account already exists and is active
+        console.log(
+          "[OWNER DASHBOARD] Account already active:",
+          data.accountId
+        );
+        setStripeAccountStatus(data);
+        // Refresh the page to update UI
+        window.location.reload();
+      } else {
+        setError(
+          "Failed to create Stripe account. Please check console for details."
+        );
+        console.error("[OWNER DASHBOARD] Unexpected response:", data);
+      }
+    } catch (err) {
+      console.error("Error connecting Stripe:", err);
+      setError("Failed to connect Stripe account");
+    } finally {
+      setConnectingStripe(false);
+    }
+  };
 
   const handleDelete = async (courtId: string) => {
     if (
@@ -294,6 +383,112 @@ export default function OwnerDashboard() {
       {/* Main Content */}
       <main className="w-full bg-gradient-to-b from-white via-slate-100 to-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          {/* Stripe Connect Status Card */}
+          {stripeAccountStatus && !stripeAccountStatus.hasAccount && (
+            <Card className="mb-8 border-2 border-amber-200 bg-amber-50/50">
+              <CardContent className="p-6">
+                <div className="flex items-start space-x-4">
+                  <AlertCircle className="h-6 w-6 text-amber-600 mt-1 flex-shrink-0" />
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-amber-900 mb-2">
+                      Connect Your Bank Account
+                    </h3>
+                    <p className="text-amber-800 mb-4">
+                      To receive payments from bookings, you need to connect
+                      your bank account. This is secure and handled by Stripe.
+                    </p>
+                    <div className="bg-white/60 rounded-lg p-4 mb-4 border border-amber-200">
+                      <p className="text-sm font-semibold text-amber-900 mb-2">
+                        What you'll need:
+                      </p>
+                      <ul className="text-sm text-amber-800 space-y-1 list-disc list-inside">
+                        <li>
+                          <strong>Industry:</strong> Select "Property rentals"
+                        </li>
+                        <li>
+                          <strong>Website:</strong> Use{" "}
+                          <code className="bg-amber-100 px-1 rounded">
+                            courtshare.com
+                          </code>{" "}
+                          or click "Add product description instead" and
+                          describe your court
+                        </li>
+                        <li>
+                          <strong>Personal info:</strong> Your legal name, date
+                          of birth, address, and SSN (for tax purposes)
+                        </li>
+                        <li>
+                          <strong>Bank account:</strong> For test mode, Stripe
+                          will provide test account numbers
+                        </li>
+                      </ul>
+                    </div>
+                    <Button
+                      onClick={handleConnectStripe}
+                      disabled={connectingStripe}
+                      className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white"
+                    >
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      {connectingStripe
+                        ? "Connecting..."
+                        : "Connect Bank Account"}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {stripeAccountStatus?.hasAccount &&
+            stripeAccountStatus.status === "pending" && (
+              <Card className="mb-8 border-2 border-blue-200 bg-blue-50/50">
+                <CardContent className="p-6">
+                  <div className="flex items-start space-x-4">
+                    <AlertCircle className="h-6 w-6 text-blue-600 mt-1 flex-shrink-0" />
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-blue-900 mb-2">
+                        Complete Your Bank Account Setup
+                      </h3>
+                      <p className="text-blue-800 mb-4">
+                        Your Stripe account is being set up. Please complete the
+                        onboarding process to start receiving payments.
+                      </p>
+                      <div className="bg-white/60 rounded-lg p-4 mb-4 border border-blue-200">
+                        <p className="text-sm font-semibold text-blue-900 mb-2">
+                          Quick guide for Stripe forms:
+                        </p>
+                        <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+                          <li>
+                            <strong>Industry:</strong> Select "Recreation and
+                            sports" or "Rental and leasing services"
+                          </li>
+                          <li>
+                            <strong>Website:</strong> Use{" "}
+                            <code className="bg-blue-100 px-1 rounded">
+                              courtshare.com
+                            </code>{" "}
+                            or click "Add product description instead"
+                          </li>
+                          <li>
+                            <strong>All other fields:</strong> Use your real
+                            information (or test data if in test mode)
+                          </li>
+                        </ul>
+                      </div>
+                      <Button
+                        onClick={handleConnectStripe}
+                        disabled={connectingStripe}
+                        className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white"
+                      >
+                        <CreditCard className="h-4 w-4 mr-2" />
+                        {connectingStripe ? "Loading..." : "Complete Setup"}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
           {/* Add New Court Button - Modernized */}
           <div className="flex justify-center mb-12">
             <Button

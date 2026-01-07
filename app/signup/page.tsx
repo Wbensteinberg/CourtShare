@@ -87,8 +87,8 @@ function SignupForm() {
         ></div>
       </div>
 
-      <div className="w-full max-w-md relative z-10">
-        <Card className="border-0 shadow-2xl rounded-xl overflow-hidden bg-slate-800/90 backdrop-blur-xl border border-slate-700">
+      <div className="w-full max-w-lg relative z-10">
+        <Card className="border-0 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8),0_0_0_1px_rgba(255,255,255,0.05)] rounded-xl overflow-hidden bg-slate-800/90 backdrop-blur-xl border border-slate-700">
           <CardHeader className="bg-slate-800/90 border-b border-slate-700 p-6 relative overflow-hidden">
             <div className="relative z-10 flex items-center space-x-3">
               <div className="w-12 h-12 rounded-xl bg-emerald-500/20 backdrop-blur-md flex items-center justify-center shadow-xl border border-emerald-500/30">
@@ -115,7 +115,7 @@ function SignupForm() {
                   <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-emerald-400 transition-colors" />
                   <Input
                     type="email"
-                    placeholder="you@example.com"
+                    placeholder="Enter email address"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-12 h-13 border-2 border-slate-600 bg-slate-700/50 text-white placeholder:text-slate-500 rounded-xl focus:border-emerald-500 focus:ring-0 focus:outline-none focus:shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 transition-all duration-300 text-base font-medium"

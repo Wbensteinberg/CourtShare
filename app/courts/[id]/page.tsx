@@ -292,19 +292,28 @@ export default function CourtDetailPage() {
     }
     setBookingStatus("loading");
     try {
+      // SECURITY FIX 2: Get Firebase ID token for authentication
+      const idToken = await activeUser.getIdToken();
+
+      // SECURITY FIX 1: Convert duration from hours to minutes
+      // Duration is stored/selected in hours, convert to minutes for API
+      const durationMinutes = Math.round(parseFloat(duration) * 60);
+
       const res = await fetch("/api/create-checkout-session", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`, // SECURITY FIX 2: Send auth token
+        },
         body: JSON.stringify({
           courtId: id,
-          userId: activeUser.uid,
+          // SECURITY FIX 1 & 2: Don't send userId or price - server will verify token and fetch price
           date:
             selectedDate instanceof Date
               ? selectedDate.toISOString().slice(0, 10)
               : selectedDate,
           time: selectedTime,
-          duration: parseFloat(duration),
-          price: court?.price || 0,
+          durationMinutes: durationMinutes, // SECURITY FIX 1: Send as minutes
         }),
       });
       const data = await res.json();
@@ -377,17 +386,17 @@ export default function CourtDetailPage() {
             {/* Court Image - Modernized */}
             <Card className="overflow-hidden shadow-elegant border-0 rounded-3xl">
               <div className="relative h-72 md:h-96 group">
-            <Image
+                <Image
                   src={
                     court.imageUrls && court.imageUrls.length > 0
                       ? court.imageUrls[currentImageIndex]
                       : court.imageUrl
                   }
-              alt={court.name}
-              fill
+                  alt={court.name}
+                  fill
                   className="object-cover cursor-pointer transition-transform duration-200 group-hover:scale-105"
-              sizes="(max-width: 768px) 100vw, 50vw"
-              priority
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  priority
                   onClick={() => setShowImageModal(true)}
                 />
                 <div className="absolute top-4 right-4">
@@ -432,10 +441,10 @@ export default function CourtDetailPage() {
                           }`}
                         />
                       ))}
-            </div>
+                    </div>
                   </>
-          )}
-        </div>
+                )}
+              </div>
             </Card>
 
             {/* Court Info - Modernized */}
@@ -458,7 +467,7 @@ export default function CourtDetailPage() {
                         </span>
                         <span className="text-gray-500">
                           ({court.reviewCount || 0} reviews)
-                </span>
+                        </span>
                       </div>
                       <Badge
                         variant="outline"
@@ -494,8 +503,8 @@ export default function CourtDetailPage() {
                           </Badge>
                         ))}
                       </div>
-              </div>
-            )}
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -572,7 +581,7 @@ export default function CourtDetailPage() {
                         {availableTimeSlots.map((time) => (
                           <SelectItem
                             key={time}
-                value={time}
+                            value={time}
                             className="hover:bg-green-50 cursor-pointer"
                           >
                             {time}
@@ -589,7 +598,7 @@ export default function CourtDetailPage() {
                       className="text-sm font-medium flex items-center gap-2"
                     >
                       <Users className="w-4 h-4" />
-                Duration (hours)
+                      Duration (hours)
                     </Label>
                     <Select value={duration} onValueChange={setDuration}>
                       <SelectTrigger>
@@ -626,7 +635,7 @@ export default function CourtDetailPage() {
 
                   {/* Book Button */}
                   <Button
-                    className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3"
+                    className="w-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white font-semibold py-3 shadow-md hover:shadow-lg transition-all duration-200"
                     size="lg"
                     disabled={
                       !selectedDate ||
@@ -635,22 +644,22 @@ export default function CourtDetailPage() {
                       fetchingBookings ||
                       authLoading
                     }
-              onClick={handleCheckout}
+                    onClick={handleCheckout}
                   >
                     {bookingStatus === "loading"
                       ? "Processing..."
                       : "Book & Pay"}
                   </Button>
 
-            {bookingStatus === "conflict" && (
+                  {bookingStatus === "conflict" && (
                     <p className="text-red-500 text-sm text-center">
-                This time slot is already booked. Please choose another.
-              </p>
-            )}
-            {bookingStatus === "error" && (
+                      This time slot is already booked. Please choose another.
+                    </p>
+                  )}
+                  {bookingStatus === "error" && (
                     <p className="text-red-500 text-sm text-center">
-                Something went wrong. Please try again.
-              </p>
+                      Something went wrong. Please try again.
+                    </p>
                   )}
 
                   <p className="text-xs text-muted-foreground text-center">

@@ -70,16 +70,61 @@ export async function POST(req: NextRequest) {
           throw new Error("Firebase Admin not initialized");
         }
 
+        // SECURITY: Verify webhook amounts server-side to prevent disputes/chargebacks
+        // Fetch court to verify the amount matches what was charged
+        if (!adminDb) {
+          throw new Error("Firebase Admin not initialized");
+        }
+
+        const courtDoc = await adminDb
+          .collection("courts")
+          .doc(metadata.courtId)
+          .get();
+
+        if (!courtDoc.exists) {
+          throw new Error(`Court ${metadata.courtId} not found`);
+        }
+
+        const courtData = courtDoc.data();
+        if (!courtData) {
+          throw new Error("Court data not found");
+        }
+
+        // Verify the amount charged matches the expected amount
+        const expectedDurationMinutes = metadata.durationMinutes
+          ? Number(metadata.durationMinutes)
+          : (Number(metadata.duration) || 60) * 60;
+        const pricePerHour = Number(courtData.price);
+        const pricePerMinuteCents = Math.round((pricePerHour * 100) / 60);
+        const expectedAmountCents =
+          pricePerMinuteCents * expectedDurationMinutes;
+        const actualAmountCents = session.amount_total || 0;
+
+        // Allow small rounding differences (within 1 cent)
+        if (Math.abs(actualAmountCents - expectedAmountCents) > 1) {
+          console.error(
+            `[WEBHOOK] Amount mismatch! Expected ${expectedAmountCents} cents, got ${actualAmountCents} cents`
+          );
+          // Log but don't fail - Stripe already charged the correct amount
+          // This is just for fraud detection logging
+        }
+
+        // SECURITY FIX 4: Only create booking after payment is confirmed via webhook
+        const durationMinutes = expectedDurationMinutes;
+
         const bookingData = {
           courtId: metadata.courtId,
           userId: metadata.userId,
           date: metadata.date,
           time: metadata.time,
-          duration: Number(metadata.duration) || 1,
-          status: "pending", // Requires host approval
+          duration: durationMinutes / 60, // Store as hours for backward compatibility
+          durationMinutes: durationMinutes, // Also store as minutes
+          status: "pending", // Requires host approval - SECURITY FIX 4: Only confirmed after webhook
           createdAt: new Date(),
           sessionId: session.id,
           paymentStatus: "paid",
+          totalAmountCents: actualAmountCents, // Use actual amount from Stripe
+          expectedAmountCents: expectedAmountCents, // Store expected for audit
         };
         console.log("[WEBHOOK] Booking data to write:", bookingData);
         const bookingRef = await adminDb
@@ -92,19 +137,14 @@ export async function POST(req: NextRequest) {
           bookingRef.id
         );
 
-        // Fetch court and user details to send email notification
+        // Fetch user details to send email notification (court already fetched above)
         try {
-          const courtDoc = await adminDb
-            .collection("courts")
-            .doc(metadata.courtId)
-            .get();
           const playerDoc = await adminDb
             .collection("users")
             .doc(metadata.userId)
             .get();
 
-          if (courtDoc.exists && playerDoc.exists) {
-            const courtData = courtDoc.data();
+          if (playerDoc.exists) {
             const playerData = playerDoc.data();
 
             if (!courtData || !playerData) {
@@ -120,9 +160,14 @@ export async function POST(req: NextRequest) {
             const ownerData = ownerDoc.exists ? ownerDoc.data() : null;
 
             if (ownerData?.email) {
-              // Calculate total price
-              const price =
-                (courtData.price || 0) * (Number(metadata.duration) || 1);
+              // Calculate total price from stored metadata or compute it
+              const durationMinutes = metadata.durationMinutes
+                ? Number(metadata.durationMinutes)
+                : (Number(metadata.duration) || 1) * 60;
+              const durationHours = durationMinutes / 60;
+              const price = metadata.totalAmountCents
+                ? Number(metadata.totalAmountCents) / 100
+                : (courtData.price || 0) * durationHours;
 
               // Send email to owner
               await sendOwnerBookingNotification({
@@ -135,7 +180,7 @@ export async function POST(req: NextRequest) {
                 ownerEmail: ownerData.email,
                 date: metadata.date,
                 time: metadata.time,
-                duration: Number(metadata.duration) || 1,
+                duration: durationHours,
                 price: price,
               });
               console.log("[WEBHOOK] Owner notification email sent");

@@ -2,6 +2,10 @@
   "name": "courtshare",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.18.1",
+    "npm": ">=10.0.0"
+  },
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
@@ -54,7 +58,7 @@
     "long": "^5.3.2",
     "lucide-react": "^0.525.0",
     "nanoid": "^5.1.5",
-    "next": "^16.1.0",
+    "next": "^16.1.1",
     "next-themes": "^0.4.4",
     "react": "^19.2.3",
     "react-datepicker": "^8.4.0",

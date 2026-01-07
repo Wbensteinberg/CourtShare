@@ -19,12 +19,6 @@ const HeroSection = () => {
 
       <div className="relative w-full flex flex-col items-center py-20 md:py-28 lg:py-36 px-4 z-10">
         <div className="max-w-6xl w-full mx-auto text-center space-y-10 md:space-y-12 animate-fade-in-up">
-          {/* Badge - more refined */}
-          <div className="inline-flex items-center rounded-full glass-dark px-8 py-3.5 text-sm font-semibold border border-white/25 text-white shadow-glow backdrop-blur-md animate-pulse-glow hover:border-white/40 transition-all duration-300">
-            <Trophy className="h-4 w-4 mr-2.5 text-yellow-300 drop-shadow-lg" />
-            <span className="tracking-wide">Premium Tennis Court Booking Platform</span>
-          </div>
-
           {/* Headlines - more refined typography */}
           <div className="space-y-8">
             <h1 className="text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter text-white drop-shadow-2xl leading-[1.1]">

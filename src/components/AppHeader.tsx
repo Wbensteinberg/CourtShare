@@ -53,6 +53,7 @@ export default function AppHeader() {
   const handleLogout = async () => {
     await signOut(auth);
     setMenuOpen(false);
+    router.push("/login");
   };
 
   const handleToggleRole = async () => {
@@ -115,6 +116,13 @@ export default function AppHeader() {
               <Button
                 variant="ghost"
                 className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
+                onClick={() => router.push("/dashboard/player")}
+              >
+                Player Dashboard
+              </Button>
+              <Button
+                variant="ghost"
+                className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
                 onClick={() => {
                   router.push("/courts");
                   // Auto-scroll to search section after navigation
@@ -129,13 +137,6 @@ export default function AppHeader() {
               >
                 Find Courts
               </Button>
-              <Button
-                variant="ghost"
-                className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
-                onClick={() => router.push("/dashboard/player")}
-              >
-                Dashboard
-              </Button>
             </>
           )}
           {isOwner && (
@@ -145,7 +146,7 @@ export default function AppHeader() {
                 className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
                 onClick={() => router.push("/dashboard/owner")}
               >
-                View Listings
+                Owner Dashboard
               </Button>
               <Button
                 variant="ghost"
@@ -306,6 +307,16 @@ export default function AppHeader() {
                   variant="ghost"
                   className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
                   onClick={() => {
+                    router.push("/dashboard/player");
+                    setMenuOpen(false);
+                  }}
+                >
+                  Player Dashboard
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
+                  onClick={() => {
                     // Scroll to search section
                     const searchSection = document.querySelector(
                       "[data-search-section]"
@@ -317,16 +328,6 @@ export default function AppHeader() {
                   }}
                 >
                   Find Courts
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="hover:cursor-pointer hover:bg-green-50 hover:text-green-700 transition-colors duration-200 font-medium"
-                  onClick={() => {
-                    router.push("/dashboard/player");
-                    setMenuOpen(false);
-                  }}
-                >
-                  Dashboard
                 </Button>
               </>
             )}
@@ -340,7 +341,7 @@ export default function AppHeader() {
                     setMenuOpen(false);
                   }}
                 >
-                  View Listings
+                  Owner Dashboard
                 </Button>
                 <Button
                   variant="ghost"
