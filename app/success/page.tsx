@@ -15,8 +15,7 @@ function SuccessContent() {
     // Get session_id from URL params
     const sessionId = searchParams.get("session_id");
 
-    // Immediately redirect to dashboard (no delay, no flash)
-    // The booking will show up once the webhook processes it
+    // Immediately redirect to dashboard
     router.push("/dashboard/player");
   }, [router, searchParams]);
 

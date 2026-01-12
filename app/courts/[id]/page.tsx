@@ -316,16 +316,35 @@ export default function CourtDetailPage() {
           durationMinutes: durationMinutes, // SECURITY FIX 1: Send as minutes
         }),
       });
+
+      // Check if response is ok before parsing
+      if (!res.ok) {
+        const errorData = await res
+          .json()
+          .catch(() => ({ error: "Unknown error" }));
+        console.error("[BOOKING] API error:", res.status, errorData);
+        setBookingStatus("error");
+        alert(
+          `Failed to start checkout: ${errorData.error || `HTTP ${res.status}`}`
+        );
+        return;
+      }
+
       const data = await res.json();
       if (data.url) {
         window.location.assign(data.url);
       } else {
+        console.error("[BOOKING] No URL in response:", data);
         setBookingStatus("error");
-        alert("Failed to start checkout: " + data.error);
+        alert(
+          "Failed to start checkout: " +
+            (data.error || "No checkout URL received")
+        );
       }
-    } catch (err) {
+    } catch (err: any) {
+      console.error("[BOOKING] Checkout error:", err);
       setBookingStatus("error");
-      alert("Failed to start checkout");
+      alert(`Failed to start checkout: ${err.message || "Network error"}`);
     }
   };
 

@@ -11,6 +11,17 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 const PLATFORM_COMMISSION_RATE = 0; // 0 = 0%, 0.05 = 5%, etc.
 
 export async function POST(req: NextRequest) {
+  console.log("[CHECKOUT] Request received");
+
+  // Check for required environment variables
+  if (!process.env.STRIPE_SECRET_KEY) {
+    console.error("[CHECKOUT] STRIPE_SECRET_KEY not set");
+    return NextResponse.json(
+      { error: "Server configuration error: Stripe key missing" },
+      { status: 500 }
+    );
+  }
+
   // SECURITY: Rate limiting to prevent card testing attacks
   const ip =
     req.headers.get("x-forwarded-for") ||
@@ -54,15 +65,24 @@ export async function POST(req: NextRequest) {
 
   try {
     if (!adminAuth) {
+      console.error(
+        "[CHECKOUT] Firebase Admin Auth not initialized. Check environment variables."
+      );
       return NextResponse.json(
-        { error: "Authentication service not initialized" },
+        {
+          error:
+            "Server configuration error: Authentication service not initialized",
+          details:
+            "Firebase Admin SDK requires FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables",
+        },
         { status: 500 }
       );
     }
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     userId = decodedToken.uid;
+    console.log("[CHECKOUT] User authenticated:", userId);
   } catch (err: any) {
-    console.error("Error verifying ID token:", err);
+    console.error("[CHECKOUT] Error verifying ID token:", err.message);
     return NextResponse.json(
       { error: "Invalid or expired authentication token" },
       { status: 401 }
@@ -79,6 +99,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
+      );
+    }
+
+    // Check if adminDb is initialized
+    if (!adminDb) {
+      console.error(
+        "[CHECKOUT] Firebase Admin DB not initialized. Check environment variables."
+      );
+      return NextResponse.json(
+        {
+          error: "Server configuration error: Database not initialized",
+          details:
+            "Firebase Admin SDK requires FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables",
+        },
+        { status: 500 }
       );
     }
 

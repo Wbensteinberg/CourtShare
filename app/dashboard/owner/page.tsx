@@ -31,6 +31,8 @@ import {
   X,
   CreditCard,
   AlertCircle,
+  CheckCircle2,
+  Banknote,
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 
@@ -68,6 +70,10 @@ export default function OwnerDashboard() {
     hasAccount: boolean;
     status: string;
     onboardingUrl?: string;
+    accountId?: string;
+    chargesEnabled?: boolean;
+    payoutsEnabled?: boolean;
+    detailsSubmitted?: boolean;
   } | null>(null);
   const [checkingStripe, setCheckingStripe] = useState(false);
   const [connectingStripe, setConnectingStripe] = useState(false);
@@ -125,17 +131,46 @@ export default function OwnerDashboard() {
       try {
         // SECURITY: Get Firebase ID token and send in Authorization header
         const idToken = await user.getIdToken();
+
+        // Add timeout to prevent hanging
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
         const res = await fetch("/api/stripe/check-account-status", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${idToken}`,
           },
+          signal: controller.signal,
         });
+
+        clearTimeout(timeoutId);
+
+        if (!res.ok) {
+          const errorData = await res
+            .json()
+            .catch(() => ({ error: "Unknown error" }));
+          console.error(
+            "[OWNER DASHBOARD] Stripe account check failed:",
+            errorData
+          );
+          // Don't set error state - just log it, allow UI to show default state
+          return;
+        }
+
         const data = await res.json();
         setStripeAccountStatus(data);
-      } catch (err) {
-        console.error("Error checking Stripe account:", err);
+      } catch (err: any) {
+        if (err.name === "AbortError") {
+          console.warn("[OWNER DASHBOARD] Stripe account check timed out");
+        } else {
+          console.error(
+            "[OWNER DASHBOARD] Error checking Stripe account:",
+            err
+          );
+        }
+        // Don't set error state - allow UI to show default state
       } finally {
         setCheckingStripe(false);
       }
@@ -475,6 +510,100 @@ export default function OwnerDashboard() {
                           </li>
                         </ul>
                       </div>
+                      <Button
+                        onClick={handleConnectStripe}
+                        disabled={connectingStripe}
+                        className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white"
+                      >
+                        <CreditCard className="h-4 w-4 mr-2" />
+                        {connectingStripe ? "Loading..." : "Complete Setup"}
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+          {/* Success: Account is Active */}
+          {stripeAccountStatus?.hasAccount &&
+            stripeAccountStatus.status === "active" && (
+              <Card className="mb-8 border-2 border-emerald-200 bg-emerald-50/50 shadow-lg">
+                <CardContent className="p-6">
+                  <div className="flex items-start space-x-4">
+                    <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-lg">
+                      <CheckCircle2 className="h-6 w-6 text-white" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-emerald-900 mb-2 flex items-center">
+                        <Banknote className="h-5 w-5 mr-2" />
+                        Bank Account Connected
+                      </h3>
+                      <p className="text-emerald-800 mb-3">
+                        Your Stripe account is fully set up and verified. You're
+                        ready to receive payments from bookings!
+                      </p>
+                      <div className="bg-white/60 rounded-lg p-4 border border-emerald-200">
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <p className="text-emerald-700 font-semibold mb-1">
+                              Account Status
+                            </p>
+                            <Badge className="bg-emerald-500 text-white">
+                              Active
+                            </Badge>
+                          </div>
+                          <div>
+                            <p className="text-emerald-700 font-semibold mb-1">
+                              Payments Enabled
+                            </p>
+                            <Badge className="bg-emerald-500 text-white">
+                              {stripeAccountStatus.chargesEnabled
+                                ? "Yes"
+                                : "Pending"}
+                            </Badge>
+                          </div>
+                          <div>
+                            <p className="text-emerald-700 font-semibold mb-1">
+                              Payouts Enabled
+                            </p>
+                            <Badge className="bg-emerald-500 text-white">
+                              {stripeAccountStatus.payoutsEnabled
+                                ? "Yes"
+                                : "Pending"}
+                            </Badge>
+                          </div>
+                          <div>
+                            <p className="text-emerald-700 font-semibold mb-1">
+                              Account ID
+                            </p>
+                            <code className="text-xs text-emerald-600 bg-emerald-100 px-2 py-1 rounded">
+                              {stripeAccountStatus.accountId?.substring(0, 20)}
+                              ...
+                            </code>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+          {/* Restricted: Account needs attention */}
+          {stripeAccountStatus?.hasAccount &&
+            stripeAccountStatus.status === "restricted" && (
+              <Card className="mb-8 border-2 border-amber-200 bg-amber-50/50">
+                <CardContent className="p-6">
+                  <div className="flex items-start space-x-4">
+                    <AlertCircle className="h-6 w-6 text-amber-600 mt-1 flex-shrink-0" />
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-amber-900 mb-2">
+                        Account Setup Incomplete
+                      </h3>
+                      <p className="text-amber-800 mb-4">
+                        Your Stripe account needs additional information to
+                        enable payouts. Please complete the setup process.
+                      </p>
                       <Button
                         onClick={handleConnectStripe}
                         disabled={connectingStripe}
