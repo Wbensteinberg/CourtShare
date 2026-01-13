@@ -3,12 +3,15 @@ import { initializeApp, getApps, cert, App } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 import { getAuth, Auth } from "firebase-admin/auth";
 
+console.log("[FIREBASE ADMIN] Module loaded");
+
 // Initialize Firebase Admin (server-side only)
 let adminApp: App | undefined;
 let adminDb: Firestore | undefined;
 let adminAuth: Auth | undefined;
 
 try {
+  console.log("[FIREBASE ADMIN] Starting initialization...");
   // Check if already initialized
   if (getApps().length === 0) {
     // In production (Vercel), require explicit credentials - don't use default credentials
@@ -33,10 +36,30 @@ try {
 
     if (hasProjectId && hasClientEmail && hasPrivateKey) {
       try {
-        const privateKey = process.env.FIREBASE_PRIVATE_KEY!.replace(
-          /\\n/g,
-          "\n"
-        );
+        // Handle multiple possible formats of the private key
+        let privateKey = process.env.FIREBASE_PRIVATE_KEY!;
+
+        // Log the raw format for debugging
+        console.log("[FIREBASE ADMIN] Raw private key sample:", {
+          first50: privateKey.substring(0, 50),
+          containsBackslashN: privateKey.includes("\\n"),
+          containsActualNewline: privateKey.includes("\n"),
+        });
+
+        // Replace literal \n strings with actual newlines
+        // Handle various escape scenarios that Vercel might use
+        // First, try to replace double-escaped (\\n) - this is what Vercel might store
+        if (privateKey.includes("\\\\n")) {
+          privateKey = privateKey.replace(/\\\\n/g, "\n");
+          console.log("[FIREBASE ADMIN] Replaced double-escaped \\\\n");
+        }
+
+        // Then replace single-escaped (\n) - standard JSON format
+        if (privateKey.includes("\\n")) {
+          privateKey = privateKey.replace(/\\n/g, "\n");
+          console.log("[FIREBASE ADMIN] Replaced single-escaped \\n");
+        }
+
         // Validate private key format
         if (
           !privateKey.includes("BEGIN PRIVATE KEY") &&
@@ -47,6 +70,22 @@ try {
           );
         }
 
+        // Validate that we have actual newlines now
+        if (!privateKey.includes("\n")) {
+          throw new Error(
+            "FIREBASE_PRIVATE_KEY still contains literal \\n instead of actual newlines after replacement"
+          );
+        }
+
+        // Log format check for debugging (without exposing the full key)
+        console.log("[FIREBASE ADMIN] Private key format check:", {
+          startsWith: privateKey.substring(0, 30),
+          endsWith: privateKey.substring(privateKey.length - 30),
+          hasNewlines: privateKey.includes("\n"),
+          newlineCount: (privateKey.match(/\n/g) || []).length,
+          length: privateKey.length,
+        });
+
         adminApp = initializeApp({
           credential: cert({
             projectId: process.env.FIREBASE_PROJECT_ID!,
@@ -54,7 +93,9 @@ try {
             privateKey: privateKey,
           }),
         });
-        console.log("[FIREBASE ADMIN] Initialized with environment variables");
+        console.log(
+          "[FIREBASE ADMIN] Successfully initialized with environment variables"
+        );
       } catch (initError: any) {
         console.error(
           "[FIREBASE ADMIN] Error during initialization:",
