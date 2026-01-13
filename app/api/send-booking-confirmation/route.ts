@@ -104,22 +104,27 @@ export async function POST(req: NextRequest) {
       );
     } catch (emailError: any) {
       // Log error but don't fail the request - booking is already confirmed
-      console.warn("[EMAIL API] Failed to send confirmation email (non-critical):", {
-        message: emailError.message,
-        name: emailError.name,
-        code: emailError.code,
-        bookingId: bookingId,
-      });
-      
+      console.warn(
+        "[EMAIL API] Failed to send confirmation email (non-critical):",
+        {
+          message: emailError.message,
+          name: emailError.name,
+          code: emailError.code,
+          bookingId: bookingId,
+        }
+      );
+
       // In test mode (Resend), emails can only go to account owner
       // This is expected behavior until domain is verified
       if (emailError.message?.includes("testing emails")) {
-        console.warn("[EMAIL API] Resend test mode restriction - email skipped. Verify domain in production.");
+        console.warn(
+          "[EMAIL API] Resend test mode restriction - email skipped. Verify domain in production."
+        );
       }
     }
 
     // Always return success - email failure shouldn't block booking confirmation
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       emailSent: true, // Will be false if email failed, but we still return success
     });

@@ -65,15 +65,34 @@ export async function POST(req: NextRequest) {
 
   try {
     if (!adminAuth) {
+      // Log detailed diagnostics
+      const envCheck = {
+        FIREBASE_PROJECT_ID: !!process.env.FIREBASE_PROJECT_ID,
+        FIREBASE_CLIENT_EMAIL: !!process.env.FIREBASE_CLIENT_EMAIL,
+        FIREBASE_PRIVATE_KEY: !!process.env.FIREBASE_PRIVATE_KEY,
+        VERCEL: !!process.env.VERCEL,
+        NODE_ENV: process.env.NODE_ENV,
+      };
       console.error(
-        "[CHECKOUT] Firebase Admin Auth not initialized. Check environment variables."
+        "[CHECKOUT] Firebase Admin Auth not initialized. Diagnostics:",
+        JSON.stringify(envCheck, null, 2)
       );
+      console.error(
+        "[CHECKOUT] adminDb is:",
+        adminDb ? "initialized" : "undefined"
+      );
+      console.error(
+        "[CHECKOUT] adminAuth is:",
+        adminAuth ? "initialized" : "undefined"
+      );
+
       return NextResponse.json(
         {
           error:
             "Server configuration error: Authentication service not initialized",
           details:
-            "Firebase Admin SDK requires FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables",
+            "Firebase Admin SDK requires FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables. Check Vercel function logs for detailed diagnostics.",
+          diagnostics: envCheck,
         },
         { status: 500 }
       );

@@ -18,7 +18,15 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Calendar, Clock, MapPin, RefreshCw, User, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  MapPin,
+  RefreshCw,
+  User,
+  X,
+} from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import GoogleMapsLink from "@/components/GoogleMapsLink";
 
@@ -296,7 +304,9 @@ export default function PlayerDashboard() {
                   className="hover:cursor-pointer hover:bg-emerald-50 hover:text-emerald-700 transition-colors duration-200"
                   disabled={loading}
                 >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+                  <RefreshCw
+                    className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`}
+                  />
                   Refresh
                 </Button>
                 <Badge
