@@ -56,6 +56,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Parse request body to check for update flag
+  let requestBody: { update?: boolean } = {};
+  try {
+    const bodyText = await req.text();
+    if (bodyText) {
+      requestBody = JSON.parse(bodyText);
+    }
+  } catch {
+    // Body might be empty or invalid JSON, that's okay
+  }
+
   try {
     if (!adminDb) {
       return NextResponse.json(
@@ -76,6 +87,9 @@ export async function POST(req: NextRequest) {
       );
       const account = await stripe.accounts.retrieve(userData.stripeAccountId);
 
+      // Check if this is an update request (from request body)
+      const isUpdate = requestBody.update === true;
+
       // If account needs onboarding, create account link
       if (!account.details_submitted) {
         console.log(
@@ -95,7 +109,24 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // Account is fully set up
+      // If this is an update request, create Express Dashboard login link
+      if (isUpdate) {
+        console.log(
+          "[CONNECT] Creating Express Dashboard login link for updates"
+        );
+        const loginLink = await stripe.accounts.createLoginLink(account.id);
+
+        return NextResponse.json({
+          accountId: account.id,
+          updateUrl: loginLink.url,
+          status:
+            account.charges_enabled && account.payouts_enabled
+              ? "active"
+              : "restricted",
+        });
+      }
+
+      // Account is fully set up, return status
       return NextResponse.json({
         accountId: account.id,
         status:

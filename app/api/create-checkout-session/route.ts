@@ -275,14 +275,30 @@ export async function POST(req: NextRequest) {
 
     // If owner has Stripe Connect account, use it to split payments
     if (stripeAccountId) {
+      console.log(
+        `[CHECKOUT] Owner has Stripe Connect account: ${stripeAccountId}`
+      );
       // SECURITY: Verify owner's account is active before allowing transfers
       try {
         const account = await stripe.accounts.retrieve(stripeAccountId);
         if (!account.charges_enabled || !account.details_submitted) {
           // Owner's account not ready - payment goes to platform
-          console.warn(`Owner ${ownerId} Stripe account not fully activated`);
+          console.warn(
+            `[CHECKOUT] Owner ${ownerId} Stripe account not fully activated (charges_enabled: ${account.charges_enabled}, details_submitted: ${account.details_submitted})`
+          );
+          console.log(
+            `[CHECKOUT] Payment will go to PLATFORM account (not transferred to owner)`
+          );
         } else {
           // Owner account is active - split payment
+          console.log(
+            `[CHECKOUT] ✅ STRIPE CONNECT ACTIVE - Payment will be TRANSFERRED to owner account ${stripeAccountId}`
+          );
+          console.log(
+            `[CHECKOUT] Transfer details: ${totalAmountCents} cents total, ${commissionAmount} cents platform fee, ${
+              totalAmountCents - commissionAmount
+            } cents to owner`
+          );
           sessionParams.payment_intent_data = {
             ...sessionParams.payment_intent_data,
             application_fee_amount: commissionAmount, // Platform commission (0% for now)
@@ -294,19 +310,25 @@ export async function POST(req: NextRequest) {
               ...sessionParams.payment_intent_data?.metadata,
               ownerId,
               transferToOwner: "true",
+              stripeConnectAccountId: stripeAccountId,
             },
           };
         }
       } catch (err) {
-        console.error("Error verifying Stripe account:", err);
+        console.error("[CHECKOUT] Error verifying Stripe account:", err);
         // If we can't verify, don't transfer - safer to keep payment on platform
+        console.log(
+          `[CHECKOUT] Payment will go to PLATFORM account (error verifying owner account)`
+        );
       }
     } else {
       // Owner hasn't set up Stripe Connect yet
       // For now, payment goes to platform account
-      // TODO: Show warning to owner that they need to connect their account
       console.warn(
-        `Owner ${ownerId} doesn't have Stripe Connect account set up`
+        `[CHECKOUT] Owner ${ownerId} doesn't have Stripe Connect account set up`
+      );
+      console.log(
+        `[CHECKOUT] Payment will go to PLATFORM account (owner has no Connect account)`
       );
     }
 

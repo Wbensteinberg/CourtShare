@@ -33,6 +33,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Banknote,
+  Settings,
+  ExternalLink,
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 
@@ -225,6 +227,45 @@ export default function OwnerDashboard() {
     } catch (err) {
       console.error("Error connecting Stripe:", err);
       setError("Failed to connect Stripe account");
+    } finally {
+      setConnectingStripe(false);
+    }
+  };
+
+  const handleUpdateStripeAccount = async () => {
+    if (!user) return;
+
+    setConnectingStripe(true);
+    try {
+      // SECURITY: Get Firebase ID token and send in Authorization header
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/stripe/create-connect-account", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ update: true }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        const errorMsg = data.error || "Failed to create update link";
+        console.error("[OWNER DASHBOARD] Stripe update error:", data);
+        setError(errorMsg);
+        return;
+      }
+
+      if (data.updateUrl) {
+        // Open Stripe Express Dashboard in new tab
+        window.open(data.updateUrl, "_blank", "noopener,noreferrer");
+      } else {
+        setError("Failed to create update link");
+        console.error("[OWNER DASHBOARD] Unexpected response:", data);
+      }
+    } catch (err) {
+      console.error("Error updating Stripe account:", err);
+      setError("Failed to update Stripe account");
     } finally {
       setConnectingStripe(false);
     }
@@ -529,61 +570,43 @@ export default function OwnerDashboard() {
             stripeAccountStatus.status === "active" && (
               <Card className="mb-8 border-2 border-emerald-200 bg-emerald-50/50 shadow-lg">
                 <CardContent className="p-6">
-                  <div className="flex items-start space-x-4">
-                    <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-lg">
-                      <CheckCircle2 className="h-6 w-6 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-emerald-900 mb-2 flex items-center">
-                        <Banknote className="h-5 w-5 mr-2" />
-                        Bank Account Connected
-                      </h3>
-                      <p className="text-emerald-800 mb-3">
-                        Your Stripe account is fully set up and verified. You're
-                        ready to receive payments from bookings!
-                      </p>
-                      <div className="bg-white/60 rounded-lg p-4 border border-emerald-200">
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <p className="text-emerald-700 font-semibold mb-1">
-                              Account Status
-                            </p>
-                            <Badge className="bg-emerald-500 text-white">
-                              Active
-                            </Badge>
-                          </div>
-                          <div>
-                            <p className="text-emerald-700 font-semibold mb-1">
-                              Payments Enabled
-                            </p>
-                            <Badge className="bg-emerald-500 text-white">
-                              {stripeAccountStatus.chargesEnabled
-                                ? "Yes"
-                                : "Pending"}
-                            </Badge>
-                          </div>
-                          <div>
-                            <p className="text-emerald-700 font-semibold mb-1">
-                              Payouts Enabled
-                            </p>
-                            <Badge className="bg-emerald-500 text-white">
-                              {stripeAccountStatus.payoutsEnabled
-                                ? "Yes"
-                                : "Pending"}
-                            </Badge>
-                          </div>
-                          <div>
-                            <p className="text-emerald-700 font-semibold mb-1">
-                              Account ID
-                            </p>
-                            <code className="text-xs text-emerald-600 bg-emerald-100 px-2 py-1 rounded">
-                              {stripeAccountStatus.accountId?.substring(0, 20)}
-                              ...
-                            </code>
-                          </div>
-                        </div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-lg">
+                        <CheckCircle2 className="h-6 w-6 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-emerald-900 flex items-center mb-1">
+                          <Banknote className="h-5 w-5 mr-2" />
+                          Bank Account Connected
+                        </h3>
+                        <p className="text-emerald-800 text-sm">
+                          Your Stripe account is fully set up and verified.
+                          You're ready to receive payments from bookings!
+                        </p>
                       </div>
                     </div>
+                    <Button
+                      onClick={handleUpdateStripeAccount}
+                      disabled={connectingStripe}
+                      variant="outline"
+                      size="sm"
+                      className="border-emerald-300 text-emerald-700 hover:bg-emerald-100 hover:cursor-pointer"
+                    >
+                      <Settings className="h-4 w-4 mr-2" />
+                      {connectingStripe ? "Loading..." : "Edit Account"}
+                    </Button>
+                  </div>
+                  <div className="pt-4 border-t border-emerald-200">
+                    <a
+                      href={`https://dashboard.stripe.com/connect/accounts/${stripeAccountStatus.accountId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-emerald-700 hover:text-emerald-900 flex items-center gap-2 hover:cursor-pointer"
+                    >
+                      View payments, balance, and transaction history in Stripe
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
                   </div>
                 </CardContent>
               </Card>
