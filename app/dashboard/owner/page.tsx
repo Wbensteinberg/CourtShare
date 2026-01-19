@@ -662,11 +662,28 @@ export default function OwnerDashboard() {
             </div>
           ) : (
             <div className="space-y-6">
-              {courts.map((court) => (
-                <Card
-                  key={court.id}
-                  className="overflow-hidden hover:shadow-2xl hover:shadow-emerald-500/20 transition-all duration-500 border-0 shadow-xl bg-white/95 backdrop-blur-sm border border-slate-200/60 border-l-4 border-l-emerald-500 rounded-3xl transform hover:-translate-y-1"
-                >
+              {courts.map((court) => {
+                const courtBookings = bookings.filter(
+                  (booking) => booking.courtId === court.id
+                );
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const upcomingBookings = courtBookings.filter((booking) => {
+                  const bookingDate = new Date(booking.date);
+                  if (Number.isNaN(bookingDate.getTime())) return true;
+                  return bookingDate >= today;
+                });
+                const pastBookings = courtBookings.filter((booking) => {
+                  const bookingDate = new Date(booking.date);
+                  if (Number.isNaN(bookingDate.getTime())) return false;
+                  return bookingDate < today;
+                });
+
+                return (
+                  <Card
+                    key={court.id}
+                    className="overflow-hidden hover:shadow-2xl hover:shadow-emerald-500/20 transition-all duration-500 border-0 shadow-xl bg-white/95 backdrop-blur-sm border border-slate-200/60 border-l-4 border-l-emerald-500 rounded-3xl transform hover:-translate-y-1"
+                  >
                   <CardHeader className="pb-3 px-6 pt-6">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center space-x-4">
@@ -745,23 +762,17 @@ export default function OwnerDashboard() {
                           variant="outline"
                           className="ml-auto text-xs px-2 py-1 border-emerald-300 bg-emerald-50 text-emerald-700"
                         >
-                          {
-                            bookings.filter((b) => b.courtId === court.id)
-                              .length
-                          }{" "}
-                          total
+                          {upcomingBookings.length} upcoming
                         </Badge>
                       </div>
 
-                      {bookings.filter((b) => b.courtId === court.id).length ===
-                      0 ? (
+                      {upcomingBookings.length === 0 ? (
                         <p className="text-gray-500 text-sm text-center py-4 bg-gray-50 rounded-lg border border-gray-200">
-                          No bookings for this court yet.
+                          No upcoming bookings for this court yet.
                         </p>
                       ) : (
                         <div className="grid gap-3">
-                          {bookings
-                            .filter((b) => b.courtId === court.id)
+                          {upcomingBookings
                             .sort((a, b) =>
                               (a.date + a.time).localeCompare(b.date + b.time)
                             )
@@ -839,10 +850,74 @@ export default function OwnerDashboard() {
                             ))}
                         </div>
                       )}
+
+                      <details className="mt-4 rounded-lg border border-slate-200/70 bg-slate-50/60">
+                        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 rounded-lg">
+                          Past bookings ({pastBookings.length})
+                        </summary>
+                        <div className="px-4 pb-4 pt-2">
+                          {pastBookings.length === 0 ? (
+                            <p className="text-gray-500 text-sm text-center py-3 bg-white rounded-lg border border-gray-200">
+                              No past bookings for this court yet.
+                            </p>
+                          ) : (
+                            <div className="grid gap-3">
+                              {pastBookings
+                                .sort((a, b) =>
+                                  (a.date + a.time).localeCompare(
+                                    b.date + b.time
+                                  )
+                                )
+                                .map((booking) => (
+                                  <Card
+                                    key={booking.id}
+                                    className="bg-white border border-slate-200/60 rounded-xl shadow-sm"
+                                  >
+                                    <CardContent className="p-3">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center space-x-4">
+                                          <div className="flex items-center space-x-2 text-xs">
+                                            <div className="w-5 h-5 rounded bg-slate-400 flex items-center justify-center">
+                                              <Calendar className="h-3 w-3 text-white" />
+                                            </div>
+                                            <span className="font-medium text-gray-900">
+                                              {booking.date}
+                                            </span>
+                                          </div>
+                                          <div className="flex items-center space-x-2 text-xs">
+                                            <div className="w-5 h-5 rounded bg-slate-400 flex items-center justify-center">
+                                              <Clock className="h-3 w-3 text-white" />
+                                            </div>
+                                            <span className="text-gray-700">
+                                              {booking.time} (
+                                              {booking.duration}h)
+                                            </span>
+                                          </div>
+                                          <div className="flex items-center space-x-2 text-xs text-slate-400">
+                                            <div className="w-5 h-5 rounded bg-slate-500 flex items-center justify-center">
+                                              <User className="h-3 w-3 text-slate-200" />
+                                            </div>
+                                            <span className="font-mono text-xs text-slate-400">
+                                              {booking.userId.slice(0, 12)}...
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                          {getStatusBadge(booking.status)}
+                                        </div>
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                ))}
+                            </div>
+                          )}
+                        </div>
+                      </details>
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+                );
+              })}
             </div>
           )}
 
