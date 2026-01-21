@@ -9,6 +9,7 @@ import {
   query,
   where,
   getDocs,
+  getDoc,
   orderBy,
   deleteDoc,
   doc,
@@ -61,6 +62,7 @@ export default function OwnerDashboard() {
   const { user, loading: authLoading } = useAuth();
   const [courts, setCourts] = useState<Court[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookingUsers, setBookingUsers] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -114,6 +116,38 @@ export default function OwnerDashboard() {
           })) as Booking[];
         }
         setBookings(bookingsData);
+
+        const uniqueUserIds = Array.from(
+          new Set(bookingsData.map((booking) => booking.userId).filter(Boolean))
+        );
+        if (uniqueUserIds.length > 0) {
+          try {
+            const userEntries = await Promise.allSettled(
+              uniqueUserIds.map(async (userId) => {
+                const userDoc = await getDoc(doc(db, "users", userId));
+                const userData = userDoc.data();
+                const displayName =
+                  userData?.displayName ||
+                  userData?.name ||
+                  userData?.email ||
+                  userId;
+                return [userId, displayName] as const;
+              })
+            );
+            const resolvedEntries = userEntries
+              .filter(
+                (entry): entry is PromiseFulfilledResult<readonly [string, string]> =>
+                  entry.status === "fulfilled"
+              )
+              .map((entry) => entry.value);
+            setBookingUsers(Object.fromEntries(resolvedEntries));
+          } catch (err) {
+            console.warn(
+              "[OWNER DASHBOARD] Unable to load booking user names:",
+              err
+            );
+          }
+        }
       } catch (err: any) {
         setError(err.message || "Failed to fetch data");
       } finally {
@@ -804,14 +838,16 @@ export default function OwnerDashboard() {
                                         <div className="w-5 h-5 rounded bg-slate-600 flex items-center justify-center">
                                           <User className="h-3 w-3 text-slate-300" />
                                         </div>
-                                        <span className="font-mono text-xs text-slate-300">
-                                          {booking.userId.slice(0, 12)}...
+                                        <span className="text-xs text-slate-300">
+                                          {bookingUsers[booking.userId] ||
+                                            `${booking.userId.slice(0, 12)}...`}
                                         </span>
                                       </div>
                                     </div>
 
                                     <div className="flex items-center space-x-2">
-                                      {getStatusBadge(booking.status)}
+                                      {booking.status !== "pending" &&
+                                        getStatusBadge(booking.status)}
                                       {booking.status === "pending" && (
                                         <>
                                           <Button
@@ -839,7 +875,7 @@ export default function OwnerDashboard() {
                                             }
                                           >
                                             <X className="h-3 w-3 mr-1" />
-                                            Reject
+                                            Decline
                                           </Button>
                                         </>
                                       )}
@@ -897,13 +933,15 @@ export default function OwnerDashboard() {
                                             <div className="w-5 h-5 rounded bg-slate-500 flex items-center justify-center">
                                               <User className="h-3 w-3 text-slate-200" />
                                             </div>
-                                            <span className="font-mono text-xs text-slate-400">
-                                              {booking.userId.slice(0, 12)}...
+                                            <span className="text-xs text-slate-400">
+                                              {bookingUsers[booking.userId] ||
+                                                `${booking.userId.slice(0, 12)}...`}
                                             </span>
                                           </div>
                                         </div>
                                         <div className="flex items-center space-x-2">
-                                          {getStatusBadge(booking.status)}
+                                          {booking.status !== "pending" &&
+                                            getStatusBadge(booking.status)}
                                         </div>
                                       </div>
                                     </CardContent>
