@@ -2,7 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // Disable Turbopack - use webpack instead (Turbopack has issues with Tailwind CSS v4)
-  // This is done via the --webpack flag in package.json, but we keep this comment for clarity
+  // Set empty turbopack config to explicitly use webpack
+  turbopack: {},
   
   compiler: {
     removeConsole: process.env.NODE_ENV === "production",
