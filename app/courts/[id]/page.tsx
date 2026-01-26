@@ -196,7 +196,8 @@ export default function CourtDetailPage() {
 
       if (selectedDateOnly.getTime() === todayOnly.getTime()) {
         const nowHour = today.getHours();
-        return hour > nowHour;
+        const timeHour = parseInt(time24.split(":")[0], 10);
+        return timeHour > nowHour;
       }
     }
 
