@@ -48,7 +48,13 @@ try {
 
         // Replace literal \n strings with actual newlines
         // Handle various escape scenarios that Vercel might use
-        // First, try to replace double-escaped (\\n) - this is what Vercel might store
+        // First, try to replace triple-escaped (\\\n) - this can happen with .env files
+        if (privateKey.includes("\\\\\\n")) {
+          privateKey = privateKey.replace(/\\\\\\n/g, "\n");
+          console.log("[FIREBASE ADMIN] Replaced triple-escaped \\\\\\n");
+        }
+
+        // Then replace double-escaped (\\n) - this is what Vercel might store
         if (privateKey.includes("\\\\n")) {
           privateKey = privateKey.replace(/\\\\n/g, "\n");
           console.log("[FIREBASE ADMIN] Replaced double-escaped \\\\n");

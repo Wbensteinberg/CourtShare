@@ -153,11 +153,23 @@ export default function CourtDetailPage() {
     });
   }
 
+  // Helper function to convert 12-hour time to 24-hour format
+  const convertTo24Hour = (time12: string): string => {
+    const [time, period] = time12.split(" ");
+    const [hours, minutes] = time.split(":").map(Number);
+    let hours24 = hours;
+    if (period === "PM" && hours !== 12) {
+      hours24 = hours + 12;
+    } else if (period === "AM" && hours === 12) {
+      hours24 = 0;
+    }
+    return `${hours24.toString().padStart(2, "0")}:${(minutes || 0).toString().padStart(2, "0")}`;
+  };
+
   // Filter available time slots
   const availableTimeSlots = timeSlots.filter((time) => {
     // Check if time is in blocked times (for court's blocked times)
-    const hour = parseInt(time.split(":")[0], 10);
-    const time24 = hour.toString().padStart(2, "0") + ":00";
+    const time24 = convertTo24Hour(time);
     if (blockedTimes.has(time24)) return false;
 
     // Check if a booking starting at this time with selected duration would conflict

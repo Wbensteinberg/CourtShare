@@ -112,6 +112,78 @@ export async function POST(req: NextRequest) {
         // SECURITY FIX 4: Only create booking after payment is confirmed via webhook
         const durationMinutes = expectedDurationMinutes;
 
+        // SECURITY: Final check for double bookings before creating booking (race condition protection)
+        // This is the last line of defense in case two payments completed simultaneously
+        const convertTo24Hour = (time12: string): string => {
+          if (/^\d{2}:\d{2}$/.test(time12)) return time12;
+          const [timePart, period] = time12.split(" ");
+          const [hours, minutes] = timePart.split(":").map(Number);
+          let hours24 = hours;
+          if (period === "PM" && hours !== 12) hours24 = hours + 12;
+          else if (period === "AM" && hours === 12) hours24 = 0;
+          return `${hours24.toString().padStart(2, "0")}:${(minutes || 0).toString().padStart(2, "0")}`;
+        };
+
+        const timeRangesOverlap = (
+          start1: string,
+          duration1Hours: number,
+          start2: string,
+          duration2Hours: number
+        ): boolean => {
+          const s1 = convertTo24Hour(start1);
+          const s2 = convertTo24Hour(start2);
+          const [h1] = s1.split(":").map(Number);
+          const [h2] = s2.split(":").map(Number);
+          const e1 = h1 + duration1Hours;
+          const e2 = h2 + duration2Hours;
+          return h1 < e2 && e1 > h2;
+        };
+
+        const durationHours = Math.ceil(durationMinutes / 60);
+        const existingBookingsSnapshot = await adminDb
+          .collection("bookings")
+          .where("courtId", "==", metadata.courtId)
+          .where("date", "==", metadata.date)
+          .get();
+
+        for (const bookingDoc of existingBookingsSnapshot.docs) {
+          const existingBooking = bookingDoc.data();
+          // Check confirmed and pending bookings (rejected don't block)
+          if (existingBooking.status === "confirmed" || existingBooking.status === "pending") {
+            const existingDuration = Math.ceil((existingBooking.durationMinutes || existingBooking.duration * 60) / 60);
+            if (timeRangesOverlap(metadata.time, durationHours, existingBooking.time, existingDuration)) {
+              console.error("[WEBHOOK] Double booking detected! Payment completed but time slot already booked:", {
+                existingBooking: bookingDoc.id,
+                newBooking: { time: metadata.time, duration: durationHours },
+              });
+              // Refund the payment since we can't fulfill the booking
+              try {
+                const paymentIntent = await stripe.paymentIntents.retrieve(session.payment_intent as string);
+                if (paymentIntent.status === "succeeded") {
+                  await stripe.refunds.create({
+                    payment_intent: paymentIntent.id,
+                    reason: "requested_by_customer",
+                    metadata: {
+                      reason: "double_booking_prevention",
+                      courtId: metadata.courtId,
+                      date: metadata.date,
+                      time: metadata.time,
+                    },
+                  });
+                  console.log("[WEBHOOK] Refunded payment due to double booking");
+                }
+              } catch (refundError) {
+                console.error("[WEBHOOK] Failed to refund double booking:", refundError);
+              }
+              // Don't create the booking - return error
+              return NextResponse.json(
+                { error: "Time slot was already booked. Payment has been refunded." },
+                { status: 409 }
+              );
+            }
+          }
+        }
+
         const bookingData = {
           courtId: metadata.courtId,
           userId: metadata.userId,

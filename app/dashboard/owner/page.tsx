@@ -38,6 +38,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
+import InlineWeeklyCalendar from "@/components/InlineWeeklyCalendar";
 
 interface Court {
   id: string;
@@ -46,6 +47,7 @@ interface Court {
   imageUrl: string;
   surface?: string;
   indoor?: boolean;
+  blockedTimes?: { [date: string]: string[] };
 }
 
 interface Booking {
@@ -397,6 +399,24 @@ export default function OwnerDashboard() {
     }
   };
 
+  const handleBlockedTimesUpdate = async (
+    courtId: string,
+    blockedTimes: { [date: string]: string[] }
+  ) => {
+    try {
+      await updateDoc(doc(db, "courts", courtId), { blockedTimes });
+      // Update local state
+      setCourts((prev) =>
+        prev.map((court) =>
+          court.id === courtId ? { ...court, blockedTimes } : court
+        )
+      );
+    } catch (err: any) {
+      console.error("Error updating blocked times:", err);
+      alert(err.message || "Failed to update blocked times");
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
@@ -700,17 +720,42 @@ export default function OwnerDashboard() {
                 const courtBookings = bookings.filter(
                   (booking) => booking.courtId === court.id
                 );
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const upcomingBookings = courtBookings.filter((booking) => {
-                  const bookingDate = new Date(booking.date);
-                  if (Number.isNaN(bookingDate.getTime())) return true;
-                  return bookingDate >= today;
-                });
-                const pastBookings = courtBookings.filter((booking) => {
+                const now = new Date();
+                
+                // Helper to convert 12-hour time to 24-hour format
+                const convertTo24Hour = (time12: string): string => {
+                  if (/^\d{2}:\d{2}$/.test(time12)) {
+                    return time12; // Already in 24-hour format
+                  }
+                  const [timePart, period] = time12.split(" ");
+                  const [hours, minutes] = timePart.split(":").map(Number);
+                  let hours24 = hours;
+                  if (period === "PM" && hours !== 12) {
+                    hours24 = hours + 12;
+                  } else if (period === "AM" && hours === 12) {
+                    hours24 = 0;
+                  }
+                  return `${hours24.toString().padStart(2, "0")}:${(minutes || 0).toString().padStart(2, "0")}`;
+                };
+                
+                // Filter pending bookings that haven't passed yet
+                const pendingBookings = courtBookings.filter((booking) => {
+                  if (booking.status !== "pending") return false;
+                  
+                  // Parse booking date and time
                   const bookingDate = new Date(booking.date);
                   if (Number.isNaN(bookingDate.getTime())) return false;
-                  return bookingDate < today;
+                  
+                  // Get booking time in 24-hour format
+                  const time24 = convertTo24Hour(booking.time);
+                  const [hours, minutes] = time24.split(":").map(Number);
+                  
+                  // Create a Date object for the booking date/time
+                  const bookingDateTime = new Date(bookingDate);
+                  bookingDateTime.setHours(hours, minutes, 0, 0);
+                  
+                  // Only include if booking date/time is in the future
+                  return bookingDateTime > now;
                 });
 
                 return (
@@ -766,60 +811,66 @@ export default function OwnerDashboard() {
                           <Edit3 className="h-3 w-3" />
                           Edit
                         </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          className="gap-1 bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 text-xs font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
-                          onClick={() => handleDelete(court.id)}
-                          disabled={deletingCourtId === court.id}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                          {deletingCourtId === court.id
-                            ? "Deleting..."
-                            : "Delete"}
-                        </Button>
                       </div>
                     </div>
                   </CardHeader>
 
                   <CardContent className="px-6 pb-6">
-                    {/* Bookings Section */}
-                    <div className="space-y-3">
+                    {/* Weekly Calendar View */}
+                    <InlineWeeklyCalendar
+                      courtId={court.id}
+                      blockedTimes={court.blockedTimes}
+                      bookings={courtBookings}
+                      bookingUsers={bookingUsers}
+                      onBlockedTimesUpdate={(blockedTimes) =>
+                        handleBlockedTimesUpdate(court.id, blockedTimes)
+                      }
+                      onBookingUpdate={async (bookingId, status) => {
+                        if (status === "confirmed") {
+                          await handleAcceptBooking(bookingId);
+                        } else if (status === "rejected") {
+                          await handleRejectBooking(bookingId);
+                        }
+                      }}
+                    />
+
+                    {/* Pending Bookings Section */}
+                    <div className="space-y-3 mt-6">
                       <div className="flex items-center space-x-2 mb-4">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-md">
-                          <Calendar className="h-4 w-4 text-white" />
+                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-md">
+                          <Clock className="h-4 w-4 text-white" />
                         </div>
                         <h4 className="text-lg font-semibold text-gray-900">
-                          Bookings
+                          Pending Bookings
                         </h4>
                         <Badge
                           variant="outline"
-                          className="ml-auto text-xs px-2 py-1 border-emerald-300 bg-emerald-50 text-emerald-700"
+                          className="ml-auto text-xs px-2 py-1 border-amber-300 bg-amber-50 text-amber-700"
                         >
-                          {upcomingBookings.length} upcoming
+                          {pendingBookings.length} pending
                         </Badge>
                       </div>
 
-                      {upcomingBookings.length === 0 ? (
+                      {pendingBookings.length === 0 ? (
                         <p className="text-gray-500 text-sm text-center py-4 bg-gray-50 rounded-lg border border-gray-200">
-                          No upcoming bookings for this court yet.
+                          No pending bookings for this court.
                         </p>
                       ) : (
                         <div className="grid gap-3">
-                          {upcomingBookings
+                          {pendingBookings
                             .sort((a, b) =>
                               (a.date + a.time).localeCompare(b.date + b.time)
                             )
                             .map((booking) => (
                               <Card
                                 key={booking.id}
-                                className="bg-slate-50/80 backdrop-blur-sm border border-slate-200/60 hover:border-emerald-300 hover:bg-emerald-50/40 transition-all duration-300 rounded-xl shadow-sm hover:shadow-md"
+                                className="bg-amber-50/80 backdrop-blur-sm border border-amber-200/60 hover:border-amber-300 hover:bg-amber-50/40 transition-all duration-300 rounded-xl shadow-sm hover:shadow-md"
                               >
                                 <CardContent className="p-3">
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center space-x-4">
                                       <div className="flex items-center space-x-2 text-xs">
-                                        <div className="w-5 h-5 rounded bg-emerald-500 flex items-center justify-center">
+                                        <div className="w-5 h-5 rounded bg-amber-500 flex items-center justify-center">
                                           <Calendar className="h-3 w-3 text-white" />
                                         </div>
                                         <span className="font-medium text-gray-900">
@@ -827,7 +878,7 @@ export default function OwnerDashboard() {
                                         </span>
                                       </div>
                                       <div className="flex items-center space-x-2 text-xs">
-                                        <div className="w-5 h-5 rounded bg-teal-500 flex items-center justify-center">
+                                        <div className="w-5 h-5 rounded bg-orange-500 flex items-center justify-center">
                                           <Clock className="h-3 w-3 text-white" />
                                         </div>
                                         <span className="text-gray-700">
@@ -846,39 +897,33 @@ export default function OwnerDashboard() {
                                     </div>
 
                                     <div className="flex items-center space-x-2">
-                                      {booking.status !== "pending" &&
-                                        getStatusBadge(booking.status)}
-                                      {booking.status === "pending" && (
-                                        <>
-                                          <Button
-                                            size="sm"
-                                            className="h-7 px-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs cursor-pointer shadow-md hover:shadow-lg transition-all duration-300"
-                                            onClick={() =>
-                                              handleAcceptBooking(booking.id)
-                                            }
-                                            disabled={
-                                              updatingBookingId === booking.id
-                                            }
-                                          >
-                                            <Check className="h-3 w-3 mr-1" />
-                                            Accept
-                                          </Button>
-                                          <Button
-                                            size="sm"
-                                            variant="destructive"
-                                            className="h-7 px-3 text-xs cursor-pointer shadow-md hover:shadow-lg transition-all duration-300"
-                                            onClick={() =>
-                                              handleRejectBooking(booking.id)
-                                            }
-                                            disabled={
-                                              updatingBookingId === booking.id
-                                            }
-                                          >
-                                            <X className="h-3 w-3 mr-1" />
-                                            Decline
-                                          </Button>
-                                        </>
-                                      )}
+                                      <Button
+                                        size="sm"
+                                        className="h-7 px-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs cursor-pointer shadow-md hover:shadow-lg transition-all duration-300"
+                                        onClick={() =>
+                                          handleAcceptBooking(booking.id)
+                                        }
+                                        disabled={
+                                          updatingBookingId === booking.id
+                                        }
+                                      >
+                                        <Check className="h-3 w-3 mr-1" />
+                                        Accept
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        className="h-7 px-3 text-xs cursor-pointer shadow-md hover:shadow-lg transition-all duration-300"
+                                        onClick={() =>
+                                          handleRejectBooking(booking.id)
+                                        }
+                                        disabled={
+                                          updatingBookingId === booking.id
+                                        }
+                                      >
+                                        <X className="h-3 w-3 mr-1" />
+                                        Decline
+                                      </Button>
                                     </div>
                                   </div>
                                 </CardContent>
@@ -886,71 +931,6 @@ export default function OwnerDashboard() {
                             ))}
                         </div>
                       )}
-
-                      <details className="mt-4 rounded-lg border border-slate-200/70 bg-slate-50/60">
-                        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-100 rounded-lg">
-                          Past bookings ({pastBookings.length})
-                        </summary>
-                        <div className="px-4 pb-4 pt-2">
-                          {pastBookings.length === 0 ? (
-                            <p className="text-gray-500 text-sm text-center py-3 bg-white rounded-lg border border-gray-200">
-                              No past bookings for this court yet.
-                            </p>
-                          ) : (
-                            <div className="grid gap-3">
-                              {pastBookings
-                                .sort((a, b) =>
-                                  (a.date + a.time).localeCompare(
-                                    b.date + b.time
-                                  )
-                                )
-                                .map((booking) => (
-                                  <Card
-                                    key={booking.id}
-                                    className="bg-white border border-slate-200/60 rounded-xl shadow-sm"
-                                  >
-                                    <CardContent className="p-3">
-                                      <div className="flex items-center justify-between">
-                                        <div className="flex items-center space-x-4">
-                                          <div className="flex items-center space-x-2 text-xs">
-                                            <div className="w-5 h-5 rounded bg-slate-400 flex items-center justify-center">
-                                              <Calendar className="h-3 w-3 text-white" />
-                                            </div>
-                                            <span className="font-medium text-gray-900">
-                                              {booking.date}
-                                            </span>
-                                          </div>
-                                          <div className="flex items-center space-x-2 text-xs">
-                                            <div className="w-5 h-5 rounded bg-slate-400 flex items-center justify-center">
-                                              <Clock className="h-3 w-3 text-white" />
-                                            </div>
-                                            <span className="text-gray-700">
-                                              {booking.time} (
-                                              {booking.duration}h)
-                                            </span>
-                                          </div>
-                                          <div className="flex items-center space-x-2 text-xs text-slate-400">
-                                            <div className="w-5 h-5 rounded bg-slate-500 flex items-center justify-center">
-                                              <User className="h-3 w-3 text-slate-200" />
-                                            </div>
-                                            <span className="text-xs text-slate-400">
-                                              {bookingUsers[booking.userId] ||
-                                                `${booking.userId.slice(0, 12)}...`}
-                                            </span>
-                                          </div>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                          {booking.status !== "pending" &&
-                                            getStatusBadge(booking.status)}
-                                        </div>
-                                      </div>
-                                    </CardContent>
-                                  </Card>
-                                ))}
-                            </div>
-                          )}
-                        </div>
-                      </details>
                     </div>
                   </CardContent>
                 </Card>
@@ -988,6 +968,7 @@ export default function OwnerDashboard() {
           </div>
         </div>
       </main>
+
     </div>
   );
 }

@@ -190,6 +190,94 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // SECURITY: Prevent double bookings - check for existing bookings and blocked times
+    // Convert time to 24-hour format for comparison
+    const convertTo24Hour = (time12: string): string => {
+      if (/^\d{2}:\d{2}$/.test(time12)) {
+        return time12; // Already in 24-hour format
+      }
+      const [timePart, period] = time12.split(" ");
+      const [hours, minutes] = timePart.split(":").map(Number);
+      let hours24 = hours;
+      if (period === "PM" && hours !== 12) {
+        hours24 = hours + 12;
+      } else if (period === "AM" && hours === 12) {
+        hours24 = 0;
+      }
+      return `${hours24.toString().padStart(2, "0")}:${(minutes || 0).toString().padStart(2, "0")}`;
+    };
+
+    // Check for blocked times
+    const blockedTimes = courtData.blockedTimes || {};
+    const dateKey = date; // Date is already in YYYY-MM-DD format
+    const blockedTimesForDate = blockedTimes[dateKey] || [];
+    const time24 = convertTo24Hour(time);
+    
+    if (blockedTimesForDate.includes(time24)) {
+      return NextResponse.json(
+        { error: "This time slot is blocked and unavailable" },
+        { status: 409 } // 409 Conflict
+      );
+    }
+
+    // Check for existing bookings that would conflict
+    // Calculate the end time of the requested booking
+    const [startHour, startMinute] = time24.split(":").map(Number);
+    const durationHours = Math.ceil(durationMinutesNum / 60); // Round up to full hours
+    const endHour = startHour + durationHours;
+
+    // Query existing bookings for this court and date
+    const bookingsSnapshot = await adminDb
+      .collection("bookings")
+      .where("courtId", "==", courtId)
+      .where("date", "==", date)
+      .get();
+
+    const timeRangesOverlap = (
+      start1: string,
+      duration1Hours: number,
+      start2: string,
+      duration2Hours: number
+    ): boolean => {
+      const convertTo24 = (t: string): string => {
+        if (/^\d{2}:\d{2}$/.test(t)) return t;
+        const [timePart, period] = t.split(" ");
+        const [h, m] = timePart.split(":").map(Number);
+        let h24 = h;
+        if (period === "PM" && h !== 12) h24 = h + 12;
+        else if (period === "AM" && h === 12) h24 = 0;
+        return `${h24.toString().padStart(2, "0")}:${(m || 0).toString().padStart(2, "0")}`;
+      };
+
+      const s1 = convertTo24(start1);
+      const s2 = convertTo24(start2);
+      const [h1] = s1.split(":").map(Number);
+      const [h2] = s2.split(":").map(Number);
+      const e1 = h1 + duration1Hours;
+      const e2 = h2 + duration2Hours;
+
+      // Check if ranges overlap
+      return (h1 < e2 && e1 > h2);
+    };
+
+    // Check each existing booking for conflicts
+    for (const bookingDoc of bookingsSnapshot.docs) {
+      const booking = bookingDoc.data();
+      
+      // Only check confirmed and pending bookings (rejected bookings don't block)
+      if (booking.status === "confirmed" || booking.status === "pending") {
+        const existingTime = booking.time;
+        const existingDuration = Math.ceil((booking.durationMinutes || booking.duration * 60) / 60);
+        
+        if (timeRangesOverlap(time, durationHours, existingTime, existingDuration)) {
+          return NextResponse.json(
+            { error: "This time slot is already booked" },
+            { status: 409 } // 409 Conflict
+          );
+        }
+      }
+    }
+
     // SECURITY FIX 1: Get price from court document (stored as dollars per hour)
     const pricePerHour = Number(courtData.price);
     if (isNaN(pricePerHour) || pricePerHour <= 0) {
