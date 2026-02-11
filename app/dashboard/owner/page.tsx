@@ -39,15 +39,28 @@ import {
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import InlineWeeklyCalendar from "@/components/InlineWeeklyCalendar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Court {
   id: string;
   name: string;
   location: string;
   imageUrl: string;
+  price?: number;
   surface?: string;
   indoor?: boolean;
   blockedTimes?: { [date: string]: string[] };
+  blockedDates?: string[];
+  alwaysBlockedTimes?: string[];
+  alwaysBlockedTimesByDay?: { [dayOfWeek: number]: string[] };
+  maxAdvanceBookingDays?: number | null;
 }
 
 interface Booking {
@@ -72,6 +85,10 @@ export default function OwnerDashboard() {
   const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(
     null
   );
+  const [acceptBookingConfirm, setAcceptBookingConfirm] = useState<{
+    booking: Booking;
+    court: Court;
+  } | null>(null);
   const [stripeAccountStatus, setStripeAccountStatus] = useState<{
     hasAccount: boolean;
     status: string;
@@ -326,6 +343,7 @@ export default function OwnerDashboard() {
   };
 
   const handleAcceptBooking = async (bookingId: string) => {
+    setAcceptBookingConfirm(null);
     setUpdatingBookingId(bookingId);
     try {
       // Update booking status
@@ -820,6 +838,10 @@ export default function OwnerDashboard() {
                     <InlineWeeklyCalendar
                       courtId={court.id}
                       blockedTimes={court.blockedTimes}
+                      blockedDates={court.blockedDates}
+                      alwaysBlockedTimes={court.alwaysBlockedTimes}
+                      alwaysBlockedTimesByDay={court.alwaysBlockedTimesByDay}
+                      maxAdvanceBookingDays={court.maxAdvanceBookingDays}
                       bookings={courtBookings}
                       bookingUsers={bookingUsers}
                       onBlockedTimesUpdate={(blockedTimes) =>
@@ -837,9 +859,6 @@ export default function OwnerDashboard() {
                     {/* Pending Bookings Section */}
                     <div className="space-y-3 mt-6">
                       <div className="flex items-center space-x-2 mb-4">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-md">
-                          <Clock className="h-4 w-4 text-white" />
-                        </div>
                         <h4 className="text-lg font-semibold text-gray-900">
                           Pending Bookings
                         </h4>
@@ -894,6 +913,12 @@ export default function OwnerDashboard() {
                                             `${booking.userId.slice(0, 12)}...`}
                                         </span>
                                       </div>
+                                      <div className="flex items-center space-x-2 text-xs font-semibold text-emerald-700">
+                                        <Banknote className="h-3 w-3" />
+                                        <span>
+                                          ${((court.price || 0) * booking.duration).toFixed(2)}
+                                        </span>
+                                      </div>
                                     </div>
 
                                     <div className="flex items-center space-x-2">
@@ -901,7 +926,7 @@ export default function OwnerDashboard() {
                                         size="sm"
                                         className="h-7 px-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs cursor-pointer shadow-md hover:shadow-lg transition-all duration-300"
                                         onClick={() =>
-                                          handleAcceptBooking(booking.id)
+                                          setAcceptBookingConfirm({ booking, court })
                                         }
                                         disabled={
                                           updatingBookingId === booking.id
@@ -969,6 +994,78 @@ export default function OwnerDashboard() {
         </div>
       </main>
 
+      {/* Accept Booking Confirmation Modal */}
+      <Dialog
+        open={!!acceptBookingConfirm}
+        onOpenChange={(open) => !open && setAcceptBookingConfirm(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Accept Booking</DialogTitle>
+            <DialogDescription>
+              Accept this booking request? The guest will be notified and the time slot will be reserved.
+            </DialogDescription>
+          </DialogHeader>
+          {acceptBookingConfirm && (
+            <div className="space-y-4 py-4">
+              <div className="flex flex-col gap-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Court</span>
+                  <span className="font-medium">{acceptBookingConfirm.court.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Date</span>
+                  <span className="font-medium">{acceptBookingConfirm.booking.date}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Time</span>
+                  <span className="font-medium">
+                    {acceptBookingConfirm.booking.time} ({acceptBookingConfirm.booking.duration}h)
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Guest</span>
+                  <span className="font-medium">
+                    {bookingUsers[acceptBookingConfirm.booking.userId] ||
+                      `${acceptBookingConfirm.booking.userId.slice(0, 12)}...`}
+                  </span>
+                </div>
+                <div className="flex justify-between pt-2 border-t">
+                  <span className="text-gray-500">You will receive</span>
+                  <span className="font-bold text-emerald-600">
+                    ${((acceptBookingConfirm.court.price || 0) * acceptBookingConfirm.booking.duration).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setAcceptBookingConfirm(null)}
+              disabled={updatingBookingId !== null}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() =>
+                acceptBookingConfirm && handleAcceptBooking(acceptBookingConfirm.booking.id)
+              }
+              disabled={updatingBookingId !== null}
+              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700"
+            >
+              {updatingBookingId === acceptBookingConfirm?.booking.id ? (
+                "Accepting..."
+              ) : (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Confirm Accept
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

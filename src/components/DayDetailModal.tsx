@@ -22,6 +22,7 @@ interface DayDetailModalProps {
   courtId: string;
   date: Date;
   blockedTimes: string[];
+  alwaysBlockedForDay?: string[];
   bookings?: Booking[];
   bookingUsers?: Record<string, string>;
   onBlockedTimesUpdate: (times: string[]) => void;
@@ -53,6 +54,7 @@ export default function DayDetailModal({
   courtId,
   date,
   blockedTimes,
+  alwaysBlockedForDay = [],
   bookings = [],
   bookingUsers = {},
   onBlockedTimesUpdate,
@@ -81,15 +83,6 @@ export default function DayDetailModal({
     }
     return `${hours24.toString().padStart(2, "0")}:${(minutes || 0).toString().padStart(2, "0")}`;
   };
-
-  // Debug: Log bookings when modal opens
-  useEffect(() => {
-    if (isOpen && bookings.length > 0) {
-      console.log("[DayDetailModal] Bookings received:", bookings);
-      console.log("[DayDetailModal] Date:", date);
-      console.log("[DayDetailModal] Converted times:", bookings.map(b => ({ original: b.time, converted: convertTo24Hour(b.time) })));
-    }
-  }, [isOpen, bookings, date]);
 
   // Get bookings for each time slot and accepted bookings (which should be locked)
   const bookingsByTime = useMemo(() => {
@@ -126,60 +119,35 @@ export default function DayDetailModal({
       }
     });
     
-    const uniqueSlots = [...new Set(blockedSlots)];
-    console.log("[DayDetailModal] Accepted booking times blocked:", uniqueSlots);
-    return uniqueSlots;
+    return [...new Set(blockedSlots)];
   }, [bookings]);
 
   useEffect(() => {
-    // Combine manually blocked times with accepted booking times
-    const allBlocked = [...new Set([...blockedTimes, ...acceptedBookingTimes])];
-    console.log("[DayDetailModal] Setting local blocked times:", {
-      manual: blockedTimes,
-      fromBookings: acceptedBookingTimes,
-      combined: allBlocked,
-    });
+    // Combine manually blocked times + always-blocked from settings + accepted booking times
+    const allBlocked = [...new Set([...blockedTimes, ...alwaysBlockedForDay, ...acceptedBookingTimes])];
     setLocalBlockedTimes(allBlocked);
-  }, [blockedTimes, acceptedBookingTimes]);
+  }, [blockedTimes, alwaysBlockedForDay, acceptedBookingTimes]);
 
   const handleToggleTimeSlot = (time: string) => {
-    console.log("[DayDetailModal] Toggling time slot:", time);
-    // Don't allow toggling if locked by an accepted booking
-    if (isLockedByBooking(time)) {
-      console.log("[DayDetailModal] Time slot is locked by booking, cannot toggle");
-      return;
-    }
+    if (isLockedByBooking(time) || isLockedBySettings(time)) return;
     
-    // Get current manual blocks (exclude accepted booking times)
     const currentManualBlocks = localBlockedTimes.filter(
-      (t) => !acceptedBookingTimes.includes(t)
+      (t) => !acceptedBookingTimes.includes(t) && !alwaysBlockedForDay.includes(t)
     );
-    
     const isCurrentlyManuallyBlocked = currentManualBlocks.includes(time);
-    console.log("[DayDetailModal] Current manual blocks:", currentManualBlocks, "isBlocked:", isCurrentlyManuallyBlocked);
-    
-    // Calculate new manual blocks
-    let newManualBlocks: string[];
-    if (isCurrentlyManuallyBlocked) {
-      newManualBlocks = currentManualBlocks.filter((t) => t !== time);
-      console.log("[DayDetailModal] Unblocking - new manual blocks:", newManualBlocks);
-    } else {
-      newManualBlocks = [...currentManualBlocks, time].sort();
-      console.log("[DayDetailModal] Blocking - new manual blocks:", newManualBlocks);
-    }
-    
-    // Combine with accepted booking times for the full blocked list
-    const newAllBlocked = [...new Set([...newManualBlocks, ...acceptedBookingTimes])];
-    console.log("[DayDetailModal] Setting new local blocked times:", newAllBlocked);
+    const newManualBlocks = isCurrentlyManuallyBlocked
+      ? currentManualBlocks.filter((t) => t !== time)
+      : [...currentManualBlocks, time].sort();
+    const newAllBlocked = [...new Set([...newManualBlocks, ...alwaysBlockedForDay, ...acceptedBookingTimes])];
     setLocalBlockedTimes(newAllBlocked);
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Only save manually blocked times (exclude accepted booking times)
+      // Only save manually blocked times (exclude accepted bookings and settings-locked)
       const manualBlocked = localBlockedTimes.filter(
-        (time) => !acceptedBookingTimes.includes(time)
+        (time) => !acceptedBookingTimes.includes(time) && !alwaysBlockedForDay.includes(time)
       );
       onBlockedTimesUpdate(manualBlocked);
       onClose();
@@ -220,6 +188,11 @@ export default function DayDetailModal({
   // Helper to check if time is locked by accepted booking (could be part of a multi-hour booking)
   const isLockedByBooking = (time: string): boolean => {
     return acceptedBookingTimes.includes(time);
+  };
+
+  // Helper to check if time is locked by default settings (always-blocked or day-specific)
+  const isLockedBySettings = (time: string): boolean => {
+    return alwaysBlockedForDay.includes(time);
   };
 
   // Helper to get the booking that locks this time slot (could be from a previous hour)
@@ -310,13 +283,14 @@ export default function DayDetailModal({
                           ? "bg-red-50 border-red-300"
                           : "bg-gray-50 border-gray-200"
                         : isBlocked
-                        ? "bg-red-50 border-red-300"
+                        ? isLockedBySettings(time)
+                          ? "bg-gray-100 border-gray-300"
+                          : "bg-red-50 border-red-300"
                         : "bg-white border-gray-200 hover:border-emerald-300 cursor-pointer"
                     }
                   `}
                   onClick={(e) => {
-                    // Only make clickable if there's no booking and it's not past
-                    if (!displayBooking && !isPast && !isLockedByAccepted) {
+                    if (!displayBooking && !isPast && !isLockedByAccepted && !isLockedBySettings(time)) {
                       e.stopPropagation();
                       handleToggleTimeSlot(time);
                     }
@@ -328,7 +302,7 @@ export default function DayDetailModal({
                         {formatTime12Hour(time)}
                       </span>
                       {/* Only show lock icon for confirmed bookings (locked in) */}
-                      {(isLockedByAccepted || (lockingBooking && lockingBooking.status === "confirmed")) && (
+                      {(isLockedByAccepted || isLockedBySettings(time) || (lockingBooking && lockingBooking.status === "confirmed")) && (
                         <Lock className="h-5 w-5 text-blue-600" />
                       )}
                     </div>
@@ -424,6 +398,10 @@ export default function DayDetailModal({
                             <span className="text-sm text-gray-400">
                               Locked by booking
                             </span>
+                          ) : isLockedBySettings(time) ? (
+                            <span className="text-sm text-gray-500">
+                              Blocked in settings
+                            </span>
                           ) : (
                             <span className="text-sm text-gray-600">
                               {isManuallyBlocked
@@ -453,10 +431,18 @@ export default function DayDetailModal({
             <div className="text-sm text-gray-600">
               <span className="font-semibold text-gray-900">
                 {localBlockedTimes.filter(
-                  (t) => !acceptedBookingTimes.includes(t)
+                  (t) => !acceptedBookingTimes.includes(t) && !alwaysBlockedForDay.includes(t)
                 ).length}
               </span>{" "}
               manually blocked,{" "}
+              {alwaysBlockedForDay.length > 0 && (
+                <>
+                  <span className="font-semibold text-gray-900">
+                    {alwaysBlockedForDay.length}
+                  </span>{" "}
+                  from settings,{" "}
+                </>
+              )}
               <span className="font-semibold text-gray-900">
                 {bookings.filter((b) => b.status === "confirmed").length}
               </span>{" "}

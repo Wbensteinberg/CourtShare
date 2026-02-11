@@ -17,6 +17,10 @@ interface Booking {
 interface InlineWeeklyCalendarProps {
   courtId: string;
   blockedTimes?: { [date: string]: string[] };
+  blockedDates?: string[];
+  alwaysBlockedTimes?: string[];
+  alwaysBlockedTimesByDay?: { [dayOfWeek: number]: string[] };
+  maxAdvanceBookingDays?: number | null;
   bookings?: Booking[];
   bookingUsers?: Record<string, string>;
   onBlockedTimesUpdate?: (blockedTimes: { [date: string]: string[] }) => void;
@@ -26,6 +30,10 @@ interface InlineWeeklyCalendarProps {
 export default function InlineWeeklyCalendar({
   courtId,
   blockedTimes = {},
+  blockedDates = [],
+  alwaysBlockedTimes = [],
+  alwaysBlockedTimesByDay = {},
+  maxAdvanceBookingDays = null,
   bookings = [],
   bookingUsers = {},
   onBlockedTimesUpdate,
@@ -141,9 +149,36 @@ export default function InlineWeeklyCalendar({
     return `${hours12}:${(minutes || 0).toString().padStart(2, "0")} ${period}`;
   };
 
-  const getDayBlockedCount = (day: Date): number => {
+  // Get all blocked times for a day (date-specific + always + day-of-week)
+  const getDayBlockedTimes = (day: Date): string[] => {
     const dateKey = formatDateKey(day);
-    return blockedTimes[dateKey]?.length || 0;
+    const dateSpecific = blockedTimes[dateKey] || [];
+    const dayOfWeek = day.getDay();
+    const daySpecific = alwaysBlockedTimesByDay[dayOfWeek] || [];
+    const allBlocked = [
+      ...new Set([...dateSpecific, ...alwaysBlockedTimes, ...daySpecific]),
+    ];
+    return allBlocked.sort();
+  };
+
+  const getDayBlockedCount = (day: Date): number => {
+    return getDayBlockedTimes(day).length;
+  };
+
+  const isDayFullyBlocked = (day: Date): boolean => {
+    const dateKey = formatDateKey(day);
+    return blockedDates.includes(dateKey);
+  };
+
+  const isBeyondBookingWindow = (day: Date): boolean => {
+    if (maxAdvanceBookingDays == null || typeof maxAdvanceBookingDays !== "number") return false;
+    const dateOnly = new Date(day);
+    dateOnly.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const maxDate = new Date(today);
+    maxDate.setDate(maxDate.getDate() + maxAdvanceBookingDays);
+    return dateOnly > maxDate;
   };
 
   const getDayBookings = (day: Date): Booking[] => {
@@ -162,6 +197,15 @@ export default function InlineWeeklyCalendar({
   const isPast = (day: Date): boolean => {
     return day < today;
   };
+
+  // Time range: 6 AM to 9 PM = 16 one-hour slots
+  const TIME_SLOTS = [
+    "06:00", "07:00", "08:00", "09:00", "10:00", "11:00", "12:00",
+    "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00"
+  ];
+
+  const SLOT_COUNT = 16; // 6 AM to 9 PM
+  const SLOT_HEIGHT_PCT = 100 / SLOT_COUNT;
 
   return (
     <>
@@ -206,25 +250,33 @@ export default function InlineWeeklyCalendar({
         {/* Weekly Calendar Grid */}
         <div className="grid grid-cols-7 gap-2">
           {calendarDays.map((day) => {
-            const blockedCount = getDayBlockedCount(day);
+            const blockedTimesForDay = getDayBlockedTimes(day);
+            const blockedCount = blockedTimesForDay.length;
             const dayBookings = getDayBookings(day);
             const pendingCount = dayBookings.filter(
               (b) => b.status === "pending"
             ).length;
             const dayIsToday = isToday(day);
             const dayIsPast = isPast(day);
+            const dayFullyBlocked = isDayFullyBlocked(day);
+            const dayBeyondWindow = isBeyondBookingWindow(day);
+            const dayUnavailable = dayFullyBlocked || dayBeyondWindow;
 
             return (
               <button
                 key={day.toISOString()}
-                onClick={() => !dayIsPast && handleDayClick(day)}
+                onClick={() => !dayIsPast && !dayBeyondWindow && handleDayClick(day)}
                 disabled={dayIsPast}
                 className={`
-                  min-h-[200px] rounded-xl p-3 flex flex-col items-start
+                  min-h-[360px] rounded-xl p-3 flex flex-col items-start
                   transition-all duration-200
                   ${
                     dayIsPast
                       ? "bg-gray-50 text-gray-400 cursor-not-allowed"
+                      : dayBeyondWindow
+                      ? "bg-gray-100 border-2 border-gray-300 text-gray-600 cursor-not-allowed"
+                      : dayFullyBlocked && !dayIsPast
+                      ? "bg-gray-100 border-2 border-gray-300 text-gray-600 hover:bg-gray-200 cursor-pointer"
                       : dayIsToday
                       ? "bg-emerald-100 border-2 border-emerald-500 text-gray-900 hover:bg-emerald-200 cursor-pointer"
                       : "bg-white border border-gray-200 text-gray-900 hover:border-emerald-300 hover:bg-emerald-50 cursor-pointer hover:shadow-md"
@@ -232,72 +284,103 @@ export default function InlineWeeklyCalendar({
                 `}
               >
                 <span
-                  className={`text-lg font-bold mb-2 ${
-                    dayIsToday ? "text-emerald-700" : "text-gray-900"
+                  className={`text-lg font-bold mb-2 flex-shrink-0 ${
+                    dayIsToday ? "text-emerald-700" : dayUnavailable ? "text-gray-600" : "text-gray-900"
                   }`}
                 >
                   {day.getDate()}
                 </span>
                 
-                {/* Bookings List */}
-                <div className="flex flex-col gap-1.5 w-full flex-1">
-                  {dayBookings.length > 0 ? (
-                    dayBookings
-                      .sort((a, b) => {
-                        const timeA = convertTo24Hour(a.time);
-                        const timeB = convertTo24Hour(b.time);
-                        return timeA.localeCompare(timeB);
-                      })
+                {dayBeyondWindow && (
+                  <div className="text-[10px] font-medium text-gray-500 bg-gray-200 px-2 py-1 rounded w-full mb-2 text-center flex-shrink-0">
+                    Beyond booking window
+                  </div>
+                )}
+                {dayFullyBlocked && !dayIsPast && !dayBeyondWindow && (
+                  <div className="text-[10px] font-medium text-gray-500 bg-gray-200 px-2 py-1 rounded w-full mb-2 text-center flex-shrink-0">
+                    Day blocked
+                  </div>
+                )}
+
+                {/* Timeline - continuous with subtle dividers, bookings as single spanning blocks */}
+                {!dayUnavailable && !dayIsPast && (blockedCount > 0 || dayBookings.length > 0) && (
+                  <div className="relative flex-1 w-full min-h-[280px] bg-gray-100 rounded-lg overflow-hidden">
+                    {/* Subtle hour dividers */}
+                    {TIME_SLOTS.slice(0, -1).map((time24, i) => (
+                      <div
+                        key={time24}
+                        className="absolute left-0 right-0 border-b border-gray-200/80"
+                        style={{ top: `${(i + 1) * SLOT_HEIGHT_PCT}%` }}
+                      />
+                    ))}
+                    {/* Blocked time segments - darker gray overlay */}
+                    {blockedTimesForDay.map((time24) => {
+                      const [h] = time24.split(":").map(Number);
+                      const idx = h - 6;
+                      if (idx < 0 || idx >= SLOT_COUNT) return null;
+                      return (
+                        <div
+                          key={time24}
+                          className="absolute left-0.5 right-0.5 bg-gray-300/80 rounded-sm"
+                          style={{
+                            top: `${idx * SLOT_HEIGHT_PCT + 0.5}%`,
+                            height: `${SLOT_HEIGHT_PCT - 1}%`,
+                          }}
+                          title={convertTo12Hour(time24) + " blocked"}
+                        />
+                      );
+                    })}
+                    {/* Bookings - single block spanning full duration */}
+                    {dayBookings
+                      .filter((b) => b.status !== "rejected")
                       .map((booking) => {
-                        const bookingTime12 = convertTo12Hour(
-                          convertTo24Hour(booking.time)
-                        );
+                        const start24 = convertTo24Hour(booking.time);
+                        const [startH] = start24.split(":").map(Number);
+                        const durationHours = Math.ceil(booking.duration);
+                        const topPct = (startH - 6) * SLOT_HEIGHT_PCT;
+                        const heightPct = durationHours * SLOT_HEIGHT_PCT;
+                        const isPending = booking.status === "pending";
                         return (
                           <div
                             key={booking.id}
-                            className={`text-xs p-1.5 rounded-lg ${
-                              booking.status === "pending"
-                                ? "bg-amber-100 text-amber-800 border border-amber-200"
-                                : booking.status === "confirmed"
-                                ? "bg-blue-100 text-blue-800 border border-blue-200"
-                                : booking.status === "rejected"
-                                ? "bg-red-50 text-red-700 border border-red-200"
-                                : "bg-gray-100 text-gray-600 border border-gray-200"
+                            className={`absolute left-1 right-1 rounded-md overflow-hidden ${
+                              isPending
+                                ? "bg-amber-100 border border-amber-300"
+                                : "bg-blue-100 border border-blue-300"
                             }`}
+                            style={{
+                              top: `${topPct + 0.5}%`,
+                              height: `${heightPct - 1}%`,
+                            }}
+                            title={`${convertTo12Hour(start24)} ${booking.duration}h • ${bookingUsers[booking.userId] || "Guest"}${isPending ? " • Pending" : ""}`}
                           >
-                            <div className="font-semibold">
-                              {bookingTime12}
+                            <div className="p-1 h-full flex flex-col justify-center min-w-0 overflow-hidden">
+                              <span className="text-[10px] font-semibold truncate block">
+                                {convertTo12Hour(start24)} {booking.duration}h
+                              </span>
+                              <span className="text-[9px] truncate block opacity-90">
+                                {bookingUsers[booking.userId] || "Guest"}
+                                {isPending && " • Pending"}
+                              </span>
                             </div>
-                            <div className="text-[10px] opacity-75">
-                              {booking.duration}h •{" "}
-                              {bookingUsers[booking.userId] ||
-                                `${booking.userId.slice(0, 8)}...`}
-                            </div>
-                            {booking.status === "pending" && (
-                              <div className="text-[10px] font-medium text-amber-700 mt-0.5">
-                                Pending
-                              </div>
-                            )}
                           </div>
                         );
-                      })
-                  ) : (
-                    <div className="text-xs text-gray-400 italic">
-                      No bookings
-                    </div>
-                  )}
-                </div>
+                      })}
+                  </div>
+                )}
+
+                {/* No slots message when empty */}
+                {!dayUnavailable && !dayIsPast && blockedCount === 0 && dayBookings.length === 0 && (
+                  <div className="flex-1 flex items-center justify-center min-h-[200px]">
+                    <div className="text-xs text-gray-400 italic">No bookings</div>
+                  </div>
+                )}
 
                 {/* Footer badges */}
                 <div className="flex flex-col gap-1 w-full mt-auto pt-2">
-                  {pendingCount > 0 && !dayIsPast && (
+                  {pendingCount > 0 && !dayIsPast && !dayBeyondWindow && (
                     <span className="text-[10px] font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full text-center">
                       {pendingCount} pending
-                    </span>
-                  )}
-                  {blockedCount > 0 && !dayIsPast && (
-                    <span className="text-[10px] font-medium text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full text-center">
-                      {blockedCount} blocked
                     </span>
                   )}
                 </div>
@@ -318,6 +401,10 @@ export default function InlineWeeklyCalendar({
           courtId={courtId}
           date={selectedDay}
           blockedTimes={blockedTimes[formatDateKey(selectedDay)] || []}
+          alwaysBlockedForDay={[
+            ...alwaysBlockedTimes,
+            ...(alwaysBlockedTimesByDay[selectedDay.getDay()] || []),
+          ]}
           bookings={getDayBookings(selectedDay)}
           bookingUsers={bookingUsers}
           onBlockedTimesUpdate={(times) => {

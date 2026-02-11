@@ -190,6 +190,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Check max advance booking days
+    const maxAdvanceDays = courtData.maxAdvanceBookingDays;
+    if (maxAdvanceDays != null && typeof maxAdvanceDays === "number") {
+      const maxDate = new Date(today);
+      maxDate.setDate(maxDate.getDate() + maxAdvanceDays);
+      if (bookingDate > maxDate) {
+        return NextResponse.json(
+          {
+            error: `Bookings are only available up to ${maxAdvanceDays} days in advance`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // SECURITY: Prevent double bookings - check for existing bookings and blocked times
     // Convert time to 24-hour format for comparison
     const convertTo24Hour = (time12: string): string => {
@@ -207,13 +222,21 @@ export async function POST(req: NextRequest) {
       return `${hours24.toString().padStart(2, "0")}:${(minutes || 0).toString().padStart(2, "0")}`;
     };
 
-    // Check for blocked times
+    // Check for blocked times (date-specific, always blocked, and day-of-week blocked)
     const blockedTimes = courtData.blockedTimes || {};
     const dateKey = date; // Date is already in YYYY-MM-DD format
     const blockedTimesForDate = blockedTimes[dateKey] || [];
+    const alwaysBlocked = courtData.alwaysBlockedTimes || [];
+    const dayOfWeek = new Date(date).getDay();
+    const alwaysBlockedForDay = courtData.alwaysBlockedTimesByDay?.[dayOfWeek] || [];
     const time24 = convertTo24Hour(time);
-    
-    if (blockedTimesForDate.includes(time24)) {
+    const allBlocked = [
+      ...blockedTimesForDate,
+      ...alwaysBlocked,
+      ...alwaysBlockedForDay,
+    ];
+
+    if (allBlocked.includes(time24)) {
       return NextResponse.json(
         { error: "This time slot is blocked and unavailable" },
         { status: 409 } // 409 Conflict

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { db, getStorageInstance } from "@/lib/firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -12,12 +12,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, Calendar as CalendarIcon, Clock, Trophy, Edit3 } from "lucide-react";
+import { Upload, Calendar as CalendarIcon, Clock, Trophy, Edit3, Trash2, Settings2 } from "lucide-react";
 import { useForm } from "react-hook-form";
-import { format } from "date-fns";
 import AppHeader from "@/components/AppHeader";
-import ReactDatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 
 interface Court {
@@ -33,6 +30,9 @@ interface Court {
   ownerId: string;
   blockedDates?: string[]; // Array of date strings in YYYY-MM-DD format
   blockedTimes?: { [date: string]: string[] }; // Object with date as key and array of time strings as value
+  maxAdvanceBookingDays?: number | null; // e.g. 30 = only available one month in advance
+  alwaysBlockedTimes?: string[]; // Times always blocked every day (24h format)
+  alwaysBlockedTimesByDay?: { [dayOfWeek: number]: string[] }; // 0=Sun, 1=Mon, etc.
 }
 
 interface CourtFormData {
@@ -64,18 +64,15 @@ export default function EditListingPage() {
   const [removedImages, setRemovedImages] = useState<string[]>([]);
   const [mainImageIndex, setMainImageIndex] = useState<number>(0);
   
-  // Availability management state
-  const [blockedDates, setBlockedDates] = useState<string[]>([]);
-  const [blockedTimes, setBlockedTimes] = useState<{ [date: string]: string[] }>({});
-  const [selectedDate, setSelectedDate] = useState<string>("");
-  const [selectedTime, setSelectedTime] = useState<string>("");
+  // Default blocked settings
+  const [maxAdvanceBookingDays, setMaxAdvanceBookingDays] = useState<number | null>(null);
+  const [alwaysBlockedTimes, setAlwaysBlockedTimes] = useState<string[]>([]);
+  const [alwaysBlockedTimesByDay, setAlwaysBlockedTimesByDay] = useState<{ [dayOfWeek: number]: string[] }>({});
   
   // New state for the beautiful UI
-  const [date, setDate] = useState<Date | null>(null);
-  const [blockTimeDate, setBlockTimeDate] = useState<Date | null>(null);
-  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string>("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [deletingListing, setDeletingListing] = useState(false);
   
   const router = useRouter();
   const { user } = useAuth();
@@ -131,8 +128,9 @@ export default function EditListingPage() {
         setMainImageIndex(0);
         
         // Load availability data
-        setBlockedDates(courtData.blockedDates || []);
-        setBlockedTimes(courtData.blockedTimes || {});
+        setMaxAdvanceBookingDays(courtData.maxAdvanceBookingDays ?? null);
+        setAlwaysBlockedTimes(courtData.alwaysBlockedTimes || []);
+        setAlwaysBlockedTimesByDay(courtData.alwaysBlockedTimesByDay || {});
         
         // Update form default values
         form.setValue("courtName", courtData.name);
@@ -196,82 +194,61 @@ export default function EditListingPage() {
     fileInputRef.current?.click();
   };
 
-  // Availability management functions
-  const addBlockedDate = () => {
-    if (selectedDate && !blockedDates.includes(selectedDate)) {
-      setBlockedDates(prev => [...prev, selectedDate]);
-      setSelectedDate("");
+  const handleDeleteListing = async () => {
+    if (
+      !window.confirm(
+        "Are you sure you want to delete your listing? This cannot be undone."
+      )
+    )
+      return;
+    if (!courtId) return;
+    setDeletingListing(true);
+    try {
+      await deleteDoc(doc(db, "courts", courtId));
+      router.push("/dashboard/owner");
+    } catch (err: any) {
+      setError(err.message || "Failed to delete listing");
+    } finally {
+      setDeletingListing(false);
     }
-  };
-
-  const removeBlockedDate = (date: string) => {
-    setBlockedDates(prev => prev.filter(d => d !== date));
-    // Also remove any blocked times for this date
-    const newBlockedTimes = { ...blockedTimes };
-    delete newBlockedTimes[date];
-    setBlockedTimes(newBlockedTimes);
-  };
-
-  const addBlockedTime = () => {
-    if (selectedDate && selectedTime) {
-      const dateTimes = blockedTimes[selectedDate] || [];
-      if (!dateTimes.includes(selectedTime)) {
-        setBlockedTimes(prev => ({
-          ...prev,
-          [selectedDate]: [...dateTimes, selectedTime]
-        }));
-        setSelectedTime("");
-      }
-    }
-  };
-
-  const removeBlockedTime = (date: string, time: string) => {
-    setBlockedTimes(prev => ({
-      ...prev,
-      [date]: prev[date]?.filter(t => t !== time) || []
-    }));
-  };
-
-  // New availability management functions for the beautiful UI
-  const handleBlockDay = () => {
-    if (date) {
-      const dateString = format(date, "yyyy-MM-dd");
-      if (!blockedDates.includes(dateString)) {
-        setBlockedDates(prev => [...prev, dateString]);
-        setDate(null);
-      }
-    }
-  };
-
-  const handleBlockTime = () => {
-    if (blockTimeDate && selectedTimeSlot) {
-      const dateString = format(blockTimeDate, "yyyy-MM-dd");
-      const dateTimes = blockedTimes[dateString] || [];
-      if (!dateTimes.includes(selectedTimeSlot)) {
-        setBlockedTimes(prev => ({
-          ...prev,
-          [dateString]: [...dateTimes, selectedTimeSlot]
-        }));
-        setBlockTimeDate(null);
-        setSelectedTimeSlot("");
-      }
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    });
   };
 
   const timeSlots = [
-    "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", 
-    "15:00", "16:00", "17:00", "18:00", "19:00", "20:00"
+    "06:00", "07:00", "08:00", "09:00", "10:00", "11:00", "12:00",
+    "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00"
   ];
+
+  const DAYS_OF_WEEK = [
+    { value: 0, label: "Sunday" },
+    { value: 1, label: "Monday" },
+    { value: 2, label: "Tuesday" },
+    { value: 3, label: "Wednesday" },
+    { value: 4, label: "Thursday" },
+    { value: 5, label: "Friday" },
+    { value: 6, label: "Saturday" },
+  ];
+
+  const toggleAlwaysBlockedTime = (time: string) => {
+    setAlwaysBlockedTimes(prev =>
+      prev.includes(time) ? prev.filter(t => t !== time) : [...prev, time].sort()
+    );
+  };
+
+  const toggleAlwaysBlockedTimeForDay = (dayOfWeek: number, time: string) => {
+    setAlwaysBlockedTimesByDay(prev => {
+      const dayTimes = prev[dayOfWeek] || [];
+      const newDayTimes = dayTimes.includes(time)
+        ? dayTimes.filter(t => t !== time)
+        : [...dayTimes, time].sort();
+      const next = { ...prev };
+      if (newDayTimes.length === 0) {
+        delete next[dayOfWeek];
+      } else {
+        next[dayOfWeek] = newDayTimes;
+      }
+      return next;
+    });
+  };
 
   const onSubmit = async (data: CourtFormData) => {
     setError("");
@@ -322,8 +299,9 @@ export default function EditListingPage() {
         description: data.description,
         imageUrl: mainImageUrl, // Use selected main image
         imageUrls: finalImageUrls,
-        blockedDates,
-        blockedTimes,
+        maxAdvanceBookingDays: maxAdvanceBookingDays ?? null,
+        alwaysBlockedTimes,
+        alwaysBlockedTimesByDay,
       });
       
       setSuccess(true);
@@ -687,147 +665,150 @@ export default function EditListingPage() {
                         </p>
                       </div>
 
-                      {/* Block Entire Days */}
+                      {/* Default Blocked Settings */}
                       <Card className="border-gray-200">
                         <CardHeader className="pb-4">
                           <CardTitle className="text-base flex items-center gap-2">
-                            <CalendarIcon className="h-4 w-4" />
-                            Block Entire Days
+                            <Settings2 className="h-4 w-4" />
+                            Default Blocked Settings
                           </CardTitle>
+                          <CardDescription className="text-sm text-gray-600">
+                            Set booking availability rules that apply to all dates
+                          </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                          <div className="flex flex-col sm:flex-row gap-4 items-end">
-                            <div className="flex-1">
-                              <FormLabel className="text-sm">Select Date</FormLabel>
-                              <ReactDatePicker
-                                selected={date}
-                                onChange={(date) => setDate(date)}
-                                dateFormat="MM/dd/yyyy"
-                                placeholderText="Select date"
-                                minDate={new Date()}
-                                className="w-full p-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 h-12"
-                              />
-                            </div>
-                            <Button 
-                              type="button"
-                              onClick={handleBlockDay}
-                              className="h-12 px-6 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 transition-all duration-300 text-white shadow-lg hover:shadow-xl"
-                              disabled={!date}
+                          <div>
+                            <FormLabel className="text-sm">How far in advance can guests book?</FormLabel>
+                            <Select
+                              value={maxAdvanceBookingDays === null ? "unlimited" : String(maxAdvanceBookingDays)}
+                              onValueChange={(v) => setMaxAdvanceBookingDays(v === "unlimited" ? null : parseInt(v, 10))}
                             >
-                              Block Day
-                            </Button>
+                              <SelectTrigger className="h-12 mt-2 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300">
+                                <SelectValue placeholder="Select booking window" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-xl">
+                                <SelectItem
+                                  value="unlimited"
+                                  className="hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer transition-colors duration-150 focus:bg-emerald-100 focus:text-emerald-800"
+                                >
+                                  No limit
+                                </SelectItem>
+                                <SelectItem
+                                  value="7"
+                                  className="hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer transition-colors duration-150 focus:bg-emerald-100 focus:text-emerald-800"
+                                >
+                                  1 week in advance
+                                </SelectItem>
+                                <SelectItem
+                                  value="14"
+                                  className="hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer transition-colors duration-150 focus:bg-emerald-100 focus:text-emerald-800"
+                                >
+                                  2 weeks in advance
+                                </SelectItem>
+                                <SelectItem
+                                  value="30"
+                                  className="hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer transition-colors duration-150 focus:bg-emerald-100 focus:text-emerald-800"
+                                >
+                                  1 month in advance
+                                </SelectItem>
+                                <SelectItem
+                                  value="60"
+                                  className="hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer transition-colors duration-150 focus:bg-emerald-100 focus:text-emerald-800"
+                                >
+                                  2 months in advance
+                                </SelectItem>
+                                <SelectItem
+                                  value="90"
+                                  className="hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer transition-colors duration-150 focus:bg-emerald-100 focus:text-emerald-800"
+                                >
+                                  3 months in advance
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
-                          
-                          {blockedDates.length > 0 && (
-                            <div className="space-y-2">
-                              <p className="text-sm text-gray-600">Blocked Days:</p>
-                              <div className="space-y-1">
-                                {blockedDates.map((dateStr) => (
-                                  <div key={dateStr} className="flex items-center justify-between bg-red-50 p-2 rounded-lg">
-                                    <span className="text-sm text-gray-700">{formatDate(dateStr)}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => removeBlockedDate(dateStr)}
-                                      className="text-red-600 hover:text-red-800 text-sm font-medium hover:cursor-pointer"
-                                    >
-                                      Remove
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
                         </CardContent>
                       </Card>
 
-                      {/* Block Specific Times */}
+                      {/* Always Blocked Times (every day) */}
                       <Card className="border-gray-200">
                         <CardHeader className="pb-4">
                           <CardTitle className="text-base flex items-center gap-2">
                             <Clock className="h-4 w-4" />
-                            Block Specific Times
+                            Always Blocked Times
                           </CardTitle>
+                          <CardDescription className="text-sm text-gray-600">
+                            Select times that are always blocked on every day
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <p className="text-sm text-gray-600">Click to toggle. Selected times are blocked every day.</p>
+                          <div className="flex flex-wrap gap-2">
+                            {timeSlots.map((time) => {
+                              const hour = parseInt(time.split(":")[0], 10);
+                              const display = hour < 12 ? `${hour === 0 ? 12 : hour}:00 AM` : `${hour === 12 ? 12 : hour - 12}:00 PM`;
+                              const isBlocked = alwaysBlockedTimes.includes(time);
+                              return (
+                                <button
+                                  key={time}
+                                  type="button"
+                                  onClick={() => toggleAlwaysBlockedTime(time)}
+                                  className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
+                                    isBlocked
+                                      ? "bg-red-100 text-red-800 border-2 border-red-300"
+                                      : "bg-gray-100 text-gray-700 border-2 border-transparent hover:bg-gray-200"
+                                  }`}
+                                >
+                                  {display}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {alwaysBlockedTimes.length > 0 && (
+                            <p className="text-sm text-red-600">
+                              {alwaysBlockedTimes.length} time(s) always blocked
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      {/* Always Blocked on Specific Day */}
+                      <Card className="border-gray-200">
+                        <CardHeader className="pb-4">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <CalendarIcon className="h-4 w-4" />
+                            Always Blocked on Specific Day
+                          </CardTitle>
+                          <CardDescription className="text-sm text-gray-600">
+                            Set times that are blocked every week on a specific day (e.g. “9 AM blocked every Monday”)
+                          </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                          <div className="flex flex-col lg:flex-row gap-4 items-end">
-                            <div className="flex-1">
-                              <FormLabel className="text-sm">Select Date</FormLabel>
-                              <ReactDatePicker
-                                selected={blockTimeDate}
-                                onChange={(date) => setBlockTimeDate(date)}
-                                dateFormat="MM/dd/yyyy"
-                                placeholderText="Select date"
-                                minDate={new Date()}
-                                className="w-full p-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 h-12"
-                              />
-                            </div>
-                            <div className="flex-1">
-                              <FormLabel className="text-sm">Select Time</FormLabel>
-                              <Select value={selectedTimeSlot} onValueChange={setSelectedTimeSlot}>
-                                <SelectTrigger className="h-12 mt-2 border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20">
-                                  <SelectValue placeholder="Select time" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-lg">
-                                  {timeSlots.map((time) => (
-                                    <SelectItem 
-                                      key={time} 
-                                      value={time}
-                                      className="hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer transition-colors duration-150 focus:bg-emerald-100 focus:text-emerald-800"
+                          {DAYS_OF_WEEK.map(({ value: dayOfWeek, label }) => (
+                            <div key={dayOfWeek} className="space-y-2">
+                              <FormLabel className="text-sm font-medium">{label}</FormLabel>
+                              <div className="flex flex-wrap gap-2">
+                                {timeSlots.map((time) => {
+                                  const hour = parseInt(time.split(":")[0], 10);
+                                  const display = hour < 12 ? `${hour === 0 ? 12 : hour}:00 AM` : `${hour === 12 ? 12 : hour - 12}:00 PM`;
+                                  const isBlocked = (alwaysBlockedTimesByDay[dayOfWeek] || []).includes(time);
+                                  return (
+                                    <button
+                                      key={time}
+                                      type="button"
+                                      onClick={() => toggleAlwaysBlockedTimeForDay(dayOfWeek, time)}
+                                      className={`px-2 py-1.5 rounded text-xs font-medium transition ${
+                                        isBlocked
+                                          ? "bg-orange-100 text-orange-800 border border-orange-300"
+                                          : "bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100"
+                                      }`}
                                     >
-                                      {time}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <Button 
-                              type="button"
-                              onClick={handleBlockTime}
-                              className="h-12 px-6 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 transition-all duration-300 text-white shadow-lg hover:shadow-xl"
-                              disabled={!blockTimeDate || !selectedTimeSlot}
-                            >
-                              Block Time
-                            </Button>
-                          </div>
-                          
-                          {Object.keys(blockedTimes).length > 0 && (
-                            <div className="space-y-2">
-                              <p className="text-sm text-gray-600">Blocked Times:</p>
-                              <div className="space-y-2">
-                                {Object.entries(blockedTimes).map(([dateStr, times]) => (
-                                  <div key={dateStr} className="bg-orange-50 p-3 rounded-lg">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <span className="font-medium text-gray-700">{formatDate(dateStr)}</span>
-                                      <button
-                                        type="button"
-                                        onClick={() => removeBlockedDate(dateStr)}
-                                        className="text-red-600 hover:text-red-800 text-sm font-medium hover:cursor-pointer"
-                                      >
-                                        Remove All
-                                      </button>
-                                    </div>
-                                    <div className="flex flex-wrap gap-1">
-                                      {times.map((time) => (
-                                        <span
-                                          key={time}
-                                          className="inline-flex items-center gap-1 bg-orange-100 text-orange-800 px-2 py-1 rounded text-sm"
-                                        >
-                                          {time}
-                                          <button
-                                            type="button"
-                                            onClick={() => removeBlockedTime(dateStr, time)}
-                                            className="text-orange-600 hover:text-orange-800 hover:cursor-pointer"
-                                          >
-                                            ×
-                                          </button>
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ))}
+                                      {display}
+                                    </button>
+                                  );
+                                })}
                               </div>
                             </div>
-                          )}
+                          ))}
                         </CardContent>
                       </Card>
                     </div>
@@ -844,14 +825,15 @@ export default function EditListingPage() {
                     )}
 
                     {/* Submit Buttons */}
-                    <div className="pt-6 flex gap-4">
-                      <Button 
-                        type="button"
-                        onClick={() => router.push("/dashboard/owner")}
-                        className="flex-1 h-14 text-lg font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-                      >
-                        Cancel
-                      </Button>
+                    <div className="pt-6 flex flex-col gap-4">
+                      <div className="flex gap-4">
+                        <Button 
+                          type="button"
+                          onClick={() => router.push("/dashboard/owner")}
+                          className="flex-1 h-14 text-lg font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                        >
+                          Back
+                        </Button>
                       <Button 
                         type="submit" 
                         className="flex-1 h-14 text-lg font-extrabold bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white shadow-xl hover:shadow-glow-hover transition-all duration-300 rounded-2xl transform hover:scale-[1.02]"
@@ -883,6 +865,26 @@ export default function EditListingPage() {
                           </span>
                         ) : (
                           "Update Listing"
+                        )}
+                      </Button>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleDeleteListing}
+                        disabled={deletingListing}
+                        className="h-12 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 hover:text-red-700"
+                      >
+                        {deletingListing ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                            </svg>
+                            Deleting...
+                          </span>
+                        ) : (
+                          <><Trash2 className="h-4 w-4 mr-2 inline" /> Delete Listing</>
                         )}
                       </Button>
                     </div>

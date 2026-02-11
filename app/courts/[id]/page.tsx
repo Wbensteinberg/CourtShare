@@ -43,6 +43,9 @@ interface Court {
   imageUrls?: string[];
   blockedDates?: string[];
   blockedTimes?: { [date: string]: string[] };
+  maxAdvanceBookingDays?: number | null;
+  alwaysBlockedTimes?: string[];
+  alwaysBlockedTimesByDay?: { [dayOfWeek: number]: string[] };
   surface?: string;
   indoor?: boolean;
   amenities?: string[];
@@ -90,7 +93,7 @@ export default function CourtDetailPage() {
     "9:00 PM",
   ];
 
-  const durations = ["1", "1.5", "2", "2.5", "3"];
+  const durations = ["1", "2", "3"];
 
   // Helper function to convert time string (e.g., "2:00 PM") to minutes from midnight
   const timeToMinutes = (timeStr: string): number => {
@@ -124,6 +127,14 @@ export default function CourtDetailPage() {
   // Filter function for blocked dates
   const filterBlockedDates = (date: Date) => {
     if (date < new Date()) return false; // Disable past dates
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const maxDays = court?.maxAdvanceBookingDays;
+    if (maxDays != null) {
+      const maxDate = new Date(today);
+      maxDate.setDate(maxDate.getDate() + maxDays);
+      if (date > maxDate) return false; // Disable dates beyond booking window
+    }
     if (!court?.blockedDates) return true; // Enable all future dates if no blocked dates
     const dateString = date.toISOString().split("T")[0];
     return !court.blockedDates.includes(dateString); // Return true to enable, false to disable
@@ -145,12 +156,15 @@ export default function CourtDetailPage() {
   });
 
   // Add court's blocked times for the selected date
-  if (court && selectedDate && court.blockedTimes) {
+  if (court && selectedDate) {
     const dateString = selectedDate.toISOString().split("T")[0];
-    const courtBlockedTimes = court.blockedTimes[dateString] || [];
-    courtBlockedTimes.forEach((time) => {
-      blockedTimes.add(time);
-    });
+    const courtBlockedTimes = court.blockedTimes?.[dateString] || [];
+    courtBlockedTimes.forEach((time) => blockedTimes.add(time));
+    // Add always-blocked times (every day)
+    (court.alwaysBlockedTimes || []).forEach((time) => blockedTimes.add(time));
+    // Add always-blocked times for this day of week (0=Sun, 1=Mon, ...)
+    const dayOfWeek = new Date(dateString).getDay();
+    (court.alwaysBlockedTimesByDay?.[dayOfWeek] || []).forEach((time) => blockedTimes.add(time));
   }
 
   // Helper function to convert 12-hour time to 24-hour format
