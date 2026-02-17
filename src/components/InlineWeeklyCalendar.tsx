@@ -24,7 +24,7 @@ interface InlineWeeklyCalendarProps {
   bookings?: Booking[];
   bookingUsers?: Record<string, string>;
   onBlockedTimesUpdate?: (blockedTimes: { [date: string]: string[] }) => void;
-  onBookingUpdate?: (bookingId: string, status: string) => void;
+  onBookingUpdate?: (bookingId: string, status: string, booking?: Booking) => void;
 }
 
 export default function InlineWeeklyCalendar({
