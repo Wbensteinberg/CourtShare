@@ -50,6 +50,17 @@ interface Court {
   indoor?: boolean;
 }
 
+function formatDateWithDay(dateStr: string): string {
+  const d = new Date(dateStr + "T12:00:00");
+  const dayOfWeek = d.toLocaleDateString("en-US", { weekday: "long" });
+  const formatted = d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  return `${dayOfWeek}, ${formatted}`;
+}
+
 export default function PlayerDashboard() {
   const { user, loading: authLoading } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -429,7 +440,7 @@ export default function PlayerDashboard() {
                                       Date
                                     </p>
                                     <p className="font-medium text-gray-900">
-                                      {booking.date}
+                                      {formatDateWithDay(booking.date)}
                                     </p>
                                   </div>
                                 </div>
@@ -459,8 +470,8 @@ export default function PlayerDashboard() {
                                 </div>
                               </div>
 
-                              {/* Address */}
-                              {court?.address && (
+                              {/* Address - only show once owner has confirmed */}
+                              {court?.address && booking.status === "confirmed" && (
                                 <div className="mt-4 pt-4 border-t border-gray-200">
                                   <div className="flex items-center space-x-2">
                                     <MapPin className="h-4 w-4 text-green-600" />
@@ -596,7 +607,7 @@ export default function PlayerDashboard() {
                                       Date
                                     </p>
                                     <p className="font-medium text-gray-900">
-                                      {booking.date}
+                                      {formatDateWithDay(booking.date)}
                                     </p>
                                   </div>
                                 </div>
@@ -626,8 +637,8 @@ export default function PlayerDashboard() {
                                 </div>
                               </div>
 
-                              {/* Address */}
-                              {court?.address && (
+                              {/* Address - only show for confirmed bookings */}
+                              {court?.address && booking.status === "confirmed" && (
                                 <div className="mt-4 pt-4 border-t border-gray-200">
                                   <div className="flex items-center space-x-2">
                                     <MapPin className="h-4 w-4 text-gray-500" />

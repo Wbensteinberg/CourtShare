@@ -26,7 +26,7 @@ interface DayDetailModalProps {
   bookings?: Booking[];
   bookingUsers?: Record<string, string>;
   onBlockedTimesUpdate: (times: string[]) => void;
-  onBookingUpdate?: (bookingId: string, status: string) => void;
+  onBookingUpdate?: (bookingId: string, status: string, booking?: Booking) => void;
 }
 
 // Generate all time slots from 6 AM to 9 PM
@@ -352,7 +352,7 @@ export default function DayDetailModal({
                                 <Button
                                   size="sm"
                                   onClick={() =>
-                                    handleAcceptBooking(displayBooking.id)
+                                    onBookingUpdate?.(displayBooking.id, "confirmed", displayBooking)
                                   }
                                   disabled={
                                     updatingBookingId === displayBooking.id

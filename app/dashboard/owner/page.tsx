@@ -736,7 +736,9 @@ export default function OwnerDashboard() {
             <div className="space-y-6">
               {courts.map((court) => {
                 const courtBookings = bookings.filter(
-                  (booking) => booking.courtId === court.id
+                  (booking) =>
+                    booking.courtId === court.id &&
+                    booking.status !== "cancelled"
                 );
                 const now = new Date();
                 
@@ -847,9 +849,13 @@ export default function OwnerDashboard() {
                       onBlockedTimesUpdate={(blockedTimes) =>
                         handleBlockedTimesUpdate(court.id, blockedTimes)
                       }
-                      onBookingUpdate={async (bookingId, status) => {
+                      onBookingUpdate={async (bookingId, status, bookingFromModal) => {
                         if (status === "confirmed") {
-                          await handleAcceptBooking(bookingId);
+                          if (bookingFromModal) {
+                            setAcceptBookingConfirm({ booking: bookingFromModal, court });
+                          } else {
+                            await handleAcceptBooking(bookingId);
+                          }
                         } else if (status === "rejected") {
                           await handleRejectBooking(bookingId);
                         }
@@ -976,7 +982,7 @@ export default function OwnerDashboard() {
             </Card>
             <Card className="text-center p-8 hover:shadow-xl transition-all duration-300 border-0 shadow-lg bg-gradient-to-br from-white to-slate-50/80 backdrop-blur-sm border border-slate-200/50">
               <div className="text-4xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent mb-3">
-                {bookings.length}
+                {bookings.filter((b) => b.status !== "cancelled").length}
               </div>
               <div className="text-slate-700 text-lg font-medium">
                 Total Bookings

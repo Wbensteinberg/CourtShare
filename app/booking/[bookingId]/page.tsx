@@ -389,8 +389,8 @@ export default function BookingDetailsPage() {
                   </Card>
                 </div>
 
-                {/* Address */}
-                {court.address && (
+                {/* Address - only show once owner has confirmed */}
+                {court.address && booking.status === "confirmed" && (
                   <div className="space-y-4">
                     <div className="text-center">
                       <h3 className="text-xl font-semibold mb-4">
