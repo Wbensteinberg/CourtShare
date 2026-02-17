@@ -402,13 +402,28 @@ export default function OwnerDashboard() {
     ) {
       return;
     }
+    if (!user) {
+      alert("You must be logged in to reject bookings");
+      return;
+    }
     setUpdatingBookingId(bookingId);
     try {
-      await updateDoc(doc(db, "bookings", bookingId), { status: "rejected" });
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/reject-booking", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ bookingId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to reject booking");
+      }
       setBookings((prev) =>
         prev.map((b) => (b.id === bookingId ? { ...b, status: "rejected" } : b))
       );
-      // TODO: Process refund via Stripe
     } catch (err: any) {
       alert(err.message || "Failed to reject booking");
     } finally {

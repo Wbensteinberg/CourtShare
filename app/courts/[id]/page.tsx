@@ -186,6 +186,18 @@ export default function CourtDetailPage() {
     const time24 = convertTo24Hour(time);
     if (blockedTimes.has(time24)) return false;
 
+    // Check if a booking starting at this time with selected duration would overlap
+    // with any blocked time (e.g. 1pm + 3h spans 1pm-4pm; if 3pm is blocked, disallow)
+    if (selectedDate && duration) {
+      const bookingDuration = parseFloat(duration);
+      const startHour = parseInt(time24.split(":")[0], 10);
+      for (let i = 0; i < bookingDuration; i++) {
+        const hour = startHour + i;
+        const hourStr = hour.toString().padStart(2, "0") + ":00";
+        if (blockedTimes.has(hourStr)) return false;
+      }
+    }
+
     // Check if a booking starting at this time with selected duration would conflict
     // with any existing bookings
     if (selectedDate && duration) {
@@ -217,6 +229,31 @@ export default function CourtDetailPage() {
 
     return true;
   });
+
+  // Clear selectedTime when it becomes invalid (e.g. duration change causes overlap with blocked times)
+  useEffect(() => {
+    if (!selectedTime || !duration || !selectedDate || !court) return;
+    const time24 = convertTo24Hour(selectedTime);
+    if (blockedTimes.has(time24)) {
+      setSelectedTime("");
+      return;
+    }
+    const startHour = parseInt(time24.split(":")[0], 10);
+    const bookingDuration = parseFloat(duration);
+    for (let i = 0; i < bookingDuration; i++) {
+      const hour = startHour + i;
+      const hourStr = hour.toString().padStart(2, "0") + ":00";
+      if (blockedTimes.has(hourStr)) {
+        setSelectedTime("");
+        return;
+      }
+    }
+    const wouldConflict = bookingsForDate.some((b) => {
+      const existingDuration = Number(b.duration) || 1;
+      return timeRangesOverlap(selectedTime, bookingDuration, b.time, existingDuration);
+    });
+    if (wouldConflict) setSelectedTime("");
+  }, [selectedTime, duration, selectedDate, court, bookingsForDate]);
 
   useEffect(() => {
     if (!id) return;
@@ -316,6 +353,19 @@ export default function CourtDetailPage() {
     if (hasConflict) {
       setBookingStatus("conflict");
       return;
+    }
+
+    // Prevent booking that overlaps with blocked times (e.g. 1pm + 3h when 3pm is blocked)
+    const time24 = convertTo24Hour(selectedTime);
+    const startHour = parseInt(time24.split(":")[0], 10);
+    for (let i = 0; i < bookingDuration; i++) {
+      const hour = startHour + i;
+      const hourStr = hour.toString().padStart(2, "0") + ":00";
+      if (blockedTimes.has(hourStr)) {
+        setBookingStatus("conflict");
+        alert("This booking would overlap with blocked time slots. Please choose a different time or duration.");
+        return;
+      }
     }
     setBookingStatus("loading");
     try {

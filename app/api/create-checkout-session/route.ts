@@ -230,25 +230,28 @@ export async function POST(req: NextRequest) {
     const dayOfWeek = new Date(date).getDay();
     const alwaysBlockedForDay = courtData.alwaysBlockedTimesByDay?.[dayOfWeek] || [];
     const time24 = convertTo24Hour(time);
-    const allBlocked = [
+    const allBlockedSet = new Set([
       ...blockedTimesForDate,
       ...alwaysBlocked,
       ...alwaysBlockedForDay,
-    ];
+    ]);
 
-    if (allBlocked.includes(time24)) {
-      return NextResponse.json(
-        { error: "This time slot is blocked and unavailable" },
-        { status: 409 } // 409 Conflict
-      );
+    // Check that no hour in the booking range overlaps with blocked times
+    // (e.g. 1pm + 3h spans 1pm-4pm; if 3pm is blocked, reject)
+    const [startHour] = time24.split(":").map(Number);
+    const durationHours = Math.ceil(durationMinutesNum / 60);
+    for (let i = 0; i < durationHours; i++) {
+      const hour = startHour + i;
+      const hourStr = hour.toString().padStart(2, "0") + ":00";
+      if (allBlockedSet.has(hourStr)) {
+        return NextResponse.json(
+          { error: "This booking would overlap with blocked time slots" },
+          { status: 409 } // 409 Conflict
+        );
+      }
     }
 
     // Check for existing bookings that would conflict
-    // Calculate the end time of the requested booking
-    const [startHour, startMinute] = time24.split(":").map(Number);
-    const durationHours = Math.ceil(durationMinutesNum / 60); // Round up to full hours
-    const endHour = startHour + durationHours;
-
     // Query existing bookings for this court and date
     const bookingsSnapshot = await adminDb
       .collection("bookings")

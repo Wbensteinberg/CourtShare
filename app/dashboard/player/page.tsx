@@ -10,10 +10,9 @@ import {
   where,
   getDocs,
   doc,
-  updateDoc,
   getDoc,
-  deleteDoc,
 } from "firebase/firestore";
+import { auth } from "@/lib/firebase";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -132,11 +131,29 @@ export default function PlayerDashboard() {
   }, [user]);
 
   const handleCancel = async (bookingId: string) => {
-    if (!window.confirm("Are you sure you want to cancel this booking?"))
+    if (!user) return;
+    if (
+      !window.confirm(
+        "Are you sure you want to cancel this booking? Your payment will be refunded."
+      )
+    ) {
       return;
+    }
     setCancelling(bookingId);
     try {
-      await updateDoc(doc(db, "bookings", bookingId), { status: "cancelled" });
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/cancel-booking", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ bookingId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to cancel booking");
+      }
       setBookings((prev) =>
         prev.map((b) =>
           b.id === bookingId ? { ...b, status: "cancelled" } : b
@@ -146,6 +163,17 @@ export default function PlayerDashboard() {
       alert(err.message || "Failed to cancel booking");
     } finally {
       setCancelling(null);
+    }
+  };
+
+  // Booking can be cancelled only if it's more than 1 hour in the future
+  const canCancelBooking = (booking: Booking): boolean => {
+    try {
+      const bookingDateTime = parseBookingDateTime(booking.date, booking.time);
+      const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000);
+      return bookingDateTime >= oneHourFromNow;
+    } catch {
+      return false;
     }
   };
 
@@ -404,18 +432,20 @@ export default function PlayerDashboard() {
                               <User className="h-3 w-3" />
                               View Details
                             </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              className="gap-1 px-3 py-1 text-xs"
-                              onClick={() => handleCancel(booking.id)}
-                              disabled={cancelling === booking.id}
-                            >
-                              <X className="h-3 w-3" />
-                              {cancelling === booking.id
-                                ? "Cancelling..."
-                                : "Cancel"}
-                            </Button>
+                            {canCancelBooking(booking) && (
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                className="gap-1 px-3 py-1 text-xs"
+                                onClick={() => handleCancel(booking.id)}
+                                disabled={cancelling === booking.id}
+                              >
+                                <X className="h-3 w-3" />
+                                {cancelling === booking.id
+                                  ? "Cancelling..."
+                                  : "Cancel"}
+                              </Button>
+                            )}
                           </div>
                         </div>
                       </CardHeader>

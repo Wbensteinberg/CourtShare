@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { useAuth } from "@/lib/AuthContext";
 import Image from "next/image";
 import GoogleMapsLink from "@/components/GoogleMapsLink";
@@ -103,12 +103,34 @@ export default function BookingDetailsPage() {
     fetchBooking();
   }, [bookingId, user]);
 
+  const parseBookingDateTime = (dateStr: string, timeStr: string): Date => {
+    const parts = timeStr.split(" ");
+    const [hours, minutes] = (parts[0] || "0:0").split(":").map(Number);
+    const period = parts[1];
+    let hour24 = hours;
+    if (period === "PM" && hours !== 12) hour24 = hours + 12;
+    else if (period === "AM" && hours === 12) hour24 = 0;
+    const dateTimeStr = `${dateStr}T${hour24.toString().padStart(2, "0")}:${(minutes || 0).toString().padStart(2, "0")}:00`;
+    return new Date(dateTimeStr);
+  };
+
+  const canCancelBooking = (): boolean => {
+    if (!booking) return false;
+    try {
+      const bookingDateTime = parseBookingDateTime(booking.date, booking.time);
+      const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000);
+      return bookingDateTime >= oneHourFromNow;
+    } catch {
+      return false;
+    }
+  };
+
   const handleCancel = async () => {
-    if (!booking) return;
+    if (!booking || !user) return;
 
     if (
       !window.confirm(
-        "Are you sure you want to cancel this booking? This action cannot be undone."
+        "Are you sure you want to cancel this booking? Your payment will be refunded."
       )
     ) {
       return;
@@ -116,8 +138,19 @@ export default function BookingDetailsPage() {
 
     setCancelling(true);
     try {
-      await updateDoc(doc(db, "bookings", booking.id), { status: "cancelled" });
-      // Redirect to dashboard after successful cancellation
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/cancel-booking", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ bookingId: booking.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to cancel booking");
+      }
       router.push("/dashboard/player");
     } catch (err: any) {
       alert(err.message || "Failed to cancel booking");
@@ -370,7 +403,7 @@ export default function BookingDetailsPage() {
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Back to dashboard
                 </Button>
-                {booking.status !== "cancelled" && (
+                {booking.status !== "cancelled" && canCancelBooking() && (
                   <Button
                     onClick={handleCancel}
                     variant="destructive"
