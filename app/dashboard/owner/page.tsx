@@ -839,7 +839,10 @@ export default function OwnerDashboard() {
                       onBookingUpdate={async (bookingId, status, bookingFromModal) => {
                         if (status === "confirmed") {
                           if (bookingFromModal) {
-                            setAcceptBookingConfirm({ booking: bookingFromModal, court });
+                            setAcceptBookingConfirm({
+                              booking: { ...bookingFromModal, courtId: court.id },
+                              court,
+                            });
                           } else {
                             await handleAcceptBooking(bookingId);
                           }
