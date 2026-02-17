@@ -16,15 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  CheckCircle,
-  Calendar,
-  Clock,
-  MapPin,
-  User,
-  ArrowLeft,
-  X,
-} from "lucide-react";
+import { MapPin, ArrowLeft, X } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 
 interface Booking {
@@ -225,270 +217,201 @@ export default function BookingDetailsPage() {
     );
   }
 
+  const isConfirmed = booking.status === "confirmed";
+  const isPending = booking.status === "pending";
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/20">
       <AppHeader />
 
-      {/* Hero Section - Modernized */}
-      <section className="relative py-24 bg-gradient-tennis overflow-hidden">
+      {/* Hero - status-aware, compact, title centered */}
+      <section className="relative py-12 md:py-16 bg-gradient-tennis overflow-hidden flex items-center justify-center min-h-[180px] md:min-h-[200px]">
         <div className="absolute inset-0">
-          <div className="absolute top-20 left-20 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-float"></div>
+          <div className="absolute top-20 left-20 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-float" />
           <div
             className="absolute bottom-20 right-20 w-80 h-80 bg-cyan-300/10 rounded-full blur-3xl animate-float"
             style={{ animationDelay: "2s" }}
-          ></div>
+          />
         </div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center text-white relative z-10">
-            <div className="flex items-center justify-center mb-6">
-              <div className="w-20 h-20 rounded-3xl glass-dark flex items-center justify-center shadow-glow">
-                <CheckCircle className="h-12 w-12 text-white" />
-              </div>
-            </div>
-            <h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tight">
-              Booking Confirmed!
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 w-full">
+          <div className="text-center text-white">
+            <h1 className="text-4xl md:text-5xl font-black tracking-tight">
+              {isConfirmed && "You're all set"}
+              {isPending && "Booking requested"}
+              {booking.status === "rejected" && "Booking declined"}
+              {booking.status === "cancelled" && "Booking cancelled"}
+              {!["confirmed", "pending", "rejected", "cancelled"].includes(booking.status) && "Booking details"}
             </h1>
-            <p className="text-xl md:text-2xl text-white/95 max-w-2xl mx-auto font-medium">
-              Your court booking is confirmed and ready to go
+            <p className="text-base md:text-lg text-white/90 max-w-xl mx-auto font-medium mt-2">
+              {isConfirmed && "Court address and instructions are below. See you on the court."}
+              {isPending && "The court owner will confirm your request soon. We'll notify you."}
+              {booking.status === "rejected" && "The owner was unable to accommodate this time."}
+              {booking.status === "cancelled" && "This booking is no longer active."}
+              {!["confirmed", "pending", "rejected", "cancelled"].includes(booking.status) && "View your booking information below."}
             </p>
           </div>
         </div>
       </section>
 
-      {/* Main Content */}
-      <section className="py-12 -mt-10 relative z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-4xl mx-auto">
-            <Card className="shadow-elegant border-0 rounded-3xl glass backdrop-blur-xl">
-              <CardHeader className="space-y-2 pb-10 pt-10">
-                <CardTitle className="text-3xl md:text-4xl font-black text-center tracking-tight bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
-                  Booking Details
-                </CardTitle>
-                <CardDescription className="text-center text-gray-600 font-medium text-lg">
-                  Here are the details of your confirmed booking
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-8">
-                {/* Court Information */}
-                <div className="space-y-6">
-                  <div className="text-center">
-                    <h3 className="text-xl font-semibold mb-4">
-                      Court Information
-                    </h3>
-                  </div>
-
-                  {/* Court Image */}
-                  <div className="w-full h-64 relative rounded-2xl overflow-hidden shadow-lg">
-                    {court.imageUrl ? (
-                      <Image
-                        src={court.imageUrl}
-                        alt={court.name}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 768px) 100vw, 50vw"
-                        priority
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-green-100 to-blue-100 flex items-center justify-center">
-                        <span className="text-6xl">🎾</span>
-                      </div>
-                    )}
-                    <div className="absolute inset-0 bg-gradient-to-br from-green-600/20 to-blue-600/20"></div>
-                  </div>
-
-                  {/* Court Details */}
-                  <div className="text-center space-y-2">
-                    <h2 className="text-2xl font-bold text-gray-900">
-                      {court.name}
-                    </h2>
-                    <div className="flex items-center justify-center text-gray-600 mb-2">
-                      <MapPin className="h-4 w-4 mr-2 text-green-600" />
-                      <span>@{court.location}</span>
-                    </div>
-                    {court.surface && (
-                      <Badge
-                        variant="outline"
-                        className="text-sm px-3 py-1 border-green-200 text-green-700"
-                      >
-                        {court.surface}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-
-                {/* Booking Information */}
-                <div className="space-y-6">
-                  <div className="text-center">
-                    <h3 className="text-xl font-semibold mb-4">
-                      Booking Information
-                    </h3>
-                  </div>
-
-                  <Card className="border-gray-200">
-                    <CardContent className="pt-7 pb-6 px-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-4">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                              <Calendar className="h-5 w-5 text-green-600" />
-                            </div>
-                            <div>
-                              <p className="text-sm text-gray-500">Date</p>
-                              <p className="font-semibold text-gray-900">
-                                {formatDate(booking.date)}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                              <Clock className="h-5 w-5 text-green-600" />
-                            </div>
-                            <div>
-                              <p className="text-sm text-gray-500">
-                                Time & Duration
-                              </p>
-                              <p className="font-semibold text-gray-900">
-                                {formatTime(booking.time)} ({booking.duration}{" "}
-                                hour{booking.duration > 1 ? "s" : ""})
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="space-y-4">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                              <User className="h-5 w-5 text-green-600" />
-                            </div>
-                            <div>
-                              <p className="text-sm text-gray-500">Status</p>
-                              <div className="flex items-center">
-                                {getStatusBadge(booking.status)}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center space-x-3">
-                            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                              <div className="w-2 h-2 rounded-full bg-green-600"></div>
-                            </div>
-                            <div>
-                              <p className="text-sm text-gray-500">
-                                Total Cost
-                              </p>
-                              <p className="font-semibold text-gray-900">
-                                ${(court.price * booking.duration).toFixed(2)}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Address - only show once owner has confirmed */}
-                {court.address && booking.status === "confirmed" && (
-                  <div className="space-y-4">
-                    <div className="text-center">
-                      <h3 className="text-xl font-semibold mb-4">
-                        Court Address
-                      </h3>
-                    </div>
-                    <Card className="border-gray-200">
-                      <CardContent className="pt-7 pb-6 px-6">
-                        <div className="text-center space-y-4">
-                          <div className="flex items-center justify-center space-x-2">
-                            <MapPin className="h-5 w-5 text-green-600" />
-                            <p className="text-gray-900 font-medium">
-                              {court.address}
-                            </p>
-                          </div>
-                          <GoogleMapsLink
-                            address={court.address}
-                            variant="button"
-                          />
-                        </div>
-                      </CardContent>
-                    </Card>
+      {/* Main card - more space below header */}
+      <section className="pt-16 pb-10 relative z-10 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-3xl mx-auto">
+          <Card className="shadow-elegant border-0 rounded-3xl overflow-hidden bg-white/95 backdrop-blur-xl">
+            {/* Court image + name block */}
+            <div className="relative">
+              <div className="aspect-[21/9] w-full relative bg-gradient-to-br from-emerald-100 to-teal-100">
+                {court.imageUrl ? (
+                  <Image
+                    src={court.imageUrl}
+                    alt={court.name}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 50vw"
+                    priority
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-7xl">🎾</span>
                   </div>
                 )}
-
-                {/* Access Instructions */}
-                {court.accessInstructions && (
-                  <div className="space-y-4">
-                    <div className="text-center">
-                      <h3 className="text-xl font-semibold mb-4">
-                        Access Instructions
-                      </h3>
-                    </div>
-                    <Card className="border-gray-200">
-                      <CardContent className="pt-7 pb-6 px-6">
-                        <div className="text-center">
-                          <p className="text-gray-900 whitespace-pre-line leading-relaxed">
-                            {court.accessInstructions}
-                          </p>
-                        </div>
-                      </CardContent>
-                    </Card>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                <div className="absolute bottom-0 left-0 right-0 p-6">
+                  <h2 className="text-2xl md:text-3xl font-bold text-white drop-shadow-lg">
+                    {court.name}
+                  </h2>
+                  <div className="flex items-center gap-2 mt-1 text-white/95 text-sm font-medium">
+                    <MapPin className="h-4 w-4 shrink-0" />
+                    <span>{court.location}</span>
                   </div>
-                )}
-
-                {/* Action Buttons */}
-                <div className="pt-6 flex gap-4">
-                  <Button
-                    onClick={() => router.push("/dashboard/player")}
-                    className="flex-1 h-14 text-lg font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-                  >
-                    <ArrowLeft className="h-5 w-5 mr-2" />
-                    Back to Dashboard
-                  </Button>
-                  {booking.status !== "cancelled" && (
-                    <Button
-                      onClick={handleCancel}
-                      className="flex-1 h-14 text-lg font-semibold bg-red-600 hover:bg-red-700 transition-colors text-white"
-                      disabled={cancelling}
-                    >
-                      {cancelling ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <svg
-                            className="animate-spin h-5 w-5 text-white"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                            ></circle>
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8v8z"
-                            ></path>
-                          </svg>
-                          Cancelling...
-                        </span>
-                      ) : (
-                        <>
-                          <X className="h-5 w-5 mr-2" />
-                          Cancel Booking
-                        </>
-                      )}
-                    </Button>
+                  {court.surface && (
+                    <Badge className="mt-2 bg-white/20 text-white border-0 backdrop-blur-sm">
+                      {court.surface}
+                    </Badge>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            </div>
+
+            <CardContent className="p-6 md:p-8 space-y-8">
+              {/* Booking details grid */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                  Booking
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100">
+                    <p className="text-xs font-medium text-gray-500">Date</p>
+                    <p className="font-semibold text-gray-900 truncate mt-0.5">
+                      {formatDate(booking.date)}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100">
+                    <p className="text-xs font-medium text-gray-500">Time</p>
+                    <p className="font-semibold text-gray-900 mt-0.5">
+                      {formatTime(booking.time)} · {booking.duration}h
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100">
+                    <p className="text-xs font-medium text-gray-500">Status</p>
+                    <div className="mt-0.5">{getStatusBadge(booking.status)}</div>
+                  </div>
+                  <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100">
+                    <p className="text-xs font-medium text-gray-500">Total</p>
+                    <p className="font-semibold text-gray-900 mt-0.5">
+                      ${(court.price * booking.duration).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Address - only when confirmed */}
+              {court.address && booking.status === "confirmed" && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                    Court address
+                  </h3>
+                  <div className="p-4 rounded-xl bg-emerald-50/50 border border-emerald-100">
+                    <div className="flex items-start gap-3">
+                      <MapPin className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <p className="font-medium text-gray-900">{court.address}</p>
+                        <GoogleMapsLink
+                          address={court.address}
+                          variant="link"
+                          className="text-emerald-600 font-semibold text-sm mt-2 inline-flex items-center gap-1"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Access instructions - only when confirmed */}
+              {court.accessInstructions && booking.status === "confirmed" && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                    Access instructions
+                  </h3>
+                  <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100">
+                    <p className="text-gray-900 whitespace-pre-line leading-relaxed text-sm">
+                      {court.accessInstructions}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="pt-4 flex flex-col-reverse sm:flex-row gap-3">
+                <Button
+                  onClick={() => router.push("/dashboard/player")}
+                  variant="outline"
+                  className="flex-1 h-12 font-semibold rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700"
+                >
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to dashboard
+                </Button>
+                {booking.status !== "cancelled" && (
+                  <Button
+                    onClick={handleCancel}
+                    variant="destructive"
+                    className="flex-1 h-12 font-semibold rounded-xl"
+                    disabled={cancelling}
+                  >
+                    {cancelling ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <svg
+                          className="animate-spin h-4 w-4"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                        </svg>
+                        Cancelling...
+                      </span>
+                    ) : (
+                      <>
+                        <X className="h-4 w-4 mr-2" />
+                        Cancel booking
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </section>
+
+      {/* Footer - match /courts */}
+      <footer className="bg-slate-900 text-white py-12 mt-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <p className="text-slate-400 text-sm">
+            © {new Date().getFullYear()} CourtShare. All rights reserved.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

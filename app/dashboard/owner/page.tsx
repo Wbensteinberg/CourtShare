@@ -21,7 +21,6 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   ArrowLeft,
-  Plus,
   Edit3,
   Trash2,
   Calendar,
@@ -712,18 +711,6 @@ export default function OwnerDashboard() {
                 </CardContent>
               </Card>
             )}
-
-          {/* Add New Court Button - Modernized */}
-          <div className="flex justify-center mb-12">
-            <Button
-              onClick={() => router.push("/create-listing")}
-              className="bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white font-extrabold py-5 px-10 rounded-2xl shadow-xl hover:shadow-glow-hover transition-all duration-300 transform hover:scale-105 hover:cursor-pointer text-lg"
-              size="lg"
-            >
-              <Plus className="h-6 w-6 mr-3" />
-              Add New Court
-            </Button>
-          </div>
 
           {/* Courts Section */}
           {courts.length === 0 ? (

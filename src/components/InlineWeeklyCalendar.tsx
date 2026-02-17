@@ -302,77 +302,77 @@ export default function InlineWeeklyCalendar({
                   </div>
                 )}
 
-                {/* Timeline - continuous with subtle dividers, bookings as single spanning blocks */}
-                {!dayUnavailable && !dayIsPast && (blockedCount > 0 || dayBookings.length > 0) && (
-                  <div className="relative flex-1 w-full min-h-[280px] bg-gray-100 rounded-lg overflow-hidden">
-                    {/* Subtle hour dividers */}
-                    {TIME_SLOTS.slice(0, -1).map((time24, i) => (
-                      <div
-                        key={time24}
-                        className="absolute left-0 right-0 border-b border-gray-200/80"
-                        style={{ top: `${(i + 1) * SLOT_HEIGHT_PCT}%` }}
-                      />
-                    ))}
-                    {/* Blocked time segments - darker gray overlay */}
-                    {blockedTimesForDay.map((time24) => {
-                      const [h] = time24.split(":").map(Number);
-                      const idx = h - 6;
-                      if (idx < 0 || idx >= SLOT_COUNT) return null;
-                      return (
+                {/* Timeline - gray time slots for every bookable day; fills the whole card */}
+                {!dayUnavailable && !dayIsPast && (
+                  <div className="relative flex-1 w-full min-h-0 bg-gray-100 rounded-lg overflow-hidden flex flex-col">
+                    <div className="absolute inset-0 flex flex-col">
+                      {/* Subtle hour dividers - full height */}
+                      {TIME_SLOTS.slice(0, -1).map((time24, i) => (
                         <div
                           key={time24}
-                          className="absolute left-0.5 right-0.5 bg-gray-300/80 rounded-sm"
-                          style={{
-                            top: `${idx * SLOT_HEIGHT_PCT + 0.5}%`,
-                            height: `${SLOT_HEIGHT_PCT - 1}%`,
-                          }}
-                          title={convertTo12Hour(time24) + " blocked"}
+                          className="absolute left-0 right-0 border-b border-gray-200/80"
+                          style={{ top: `${(i + 1) * SLOT_HEIGHT_PCT}%` }}
                         />
-                      );
-                    })}
-                    {/* Bookings - single block spanning full duration */}
-                    {dayBookings
-                      .filter((b) => b.status !== "rejected")
-                      .map((booking) => {
-                        const start24 = convertTo24Hour(booking.time);
-                        const [startH] = start24.split(":").map(Number);
-                        const durationHours = Math.ceil(booking.duration);
-                        const topPct = (startH - 6) * SLOT_HEIGHT_PCT;
-                        const heightPct = durationHours * SLOT_HEIGHT_PCT;
-                        const isPending = booking.status === "pending";
+                      ))}
+                      {/* Blocked time segments - darker gray overlay */}
+                      {blockedTimesForDay.map((time24) => {
+                        const [h] = time24.split(":").map(Number);
+                        const idx = h - 6;
+                        if (idx < 0 || idx >= SLOT_COUNT) return null;
                         return (
                           <div
-                            key={booking.id}
-                            className={`absolute left-1 right-1 rounded-md overflow-hidden ${
-                              isPending
-                                ? "bg-amber-100 border border-amber-300"
-                                : "bg-blue-100 border border-blue-300"
-                            }`}
+                            key={time24}
+                            className="absolute left-0.5 right-0.5 bg-gray-300/80 rounded-sm"
                             style={{
-                              top: `${topPct + 0.5}%`,
-                              height: `${heightPct - 1}%`,
+                              top: `${idx * SLOT_HEIGHT_PCT + 0.5}%`,
+                              height: `${SLOT_HEIGHT_PCT - 1}%`,
                             }}
-                            title={`${convertTo12Hour(start24)} ${booking.duration}h • ${bookingUsers[booking.userId] || "Guest"}${isPending ? " • Pending" : ""}`}
-                          >
-                            <div className="p-1 h-full flex flex-col justify-center min-w-0 overflow-hidden">
-                              <span className="text-[10px] font-semibold truncate block">
-                                {convertTo12Hour(start24)} {booking.duration}h
-                              </span>
-                              <span className="text-[9px] truncate block opacity-90">
-                                {bookingUsers[booking.userId] || "Guest"}
-                                {isPending && " • Pending"}
-                              </span>
-                            </div>
-                          </div>
+                            title={convertTo12Hour(time24) + " blocked"}
+                          />
                         );
                       })}
-                  </div>
-                )}
-
-                {/* No slots message when empty */}
-                {!dayUnavailable && !dayIsPast && blockedCount === 0 && dayBookings.length === 0 && (
-                  <div className="flex-1 flex items-center justify-center min-h-[200px]">
-                    <div className="text-xs text-gray-400 italic">No bookings</div>
+                      {/* Bookings - show time and name clearly */}
+                      {dayBookings
+                        .filter((b) => b.status !== "rejected")
+                        .map((booking) => {
+                          const start24 = convertTo24Hour(booking.time);
+                          const [startH] = start24.split(":").map(Number);
+                          const durationHours = Math.ceil(booking.duration);
+                          const topPct = (startH - 6) * SLOT_HEIGHT_PCT;
+                          const heightPct = durationHours * SLOT_HEIGHT_PCT;
+                          const isPending = booking.status === "pending";
+                          const displayName = bookingUsers[booking.userId] || "Guest";
+                          const displayTime = convertTo12Hour(start24);
+                          return (
+                            <div
+                              key={booking.id}
+                              className={`absolute left-1 right-1 rounded-md overflow-hidden flex flex-col justify-center ${
+                                isPending
+                                  ? "bg-amber-100 border border-amber-300"
+                                  : "bg-blue-100 border border-blue-300"
+                              }`}
+                              style={{
+                                top: `${topPct + 0.5}%`,
+                                height: `${heightPct - 1}%`,
+                              }}
+                              title={`${displayTime} · ${booking.duration}h · ${displayName}${isPending ? " · Pending" : ""}`}
+                            >
+                              <div className="px-2 py-1 h-full flex flex-col justify-center min-w-0">
+                                <span className="text-xs font-bold text-gray-900 truncate leading-tight">
+                                  {displayTime}
+                                </span>
+                                <span className="text-xs font-medium text-gray-700 truncate leading-tight">
+                                  {displayName}
+                                  {isPending && " · Pending"}
+                                </span>
+                                <span className="text-[10px] text-gray-600 truncate">
+                                  {booking.duration}h
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
                   </div>
                 )}
 
