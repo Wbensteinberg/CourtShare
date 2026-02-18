@@ -140,15 +140,19 @@ export async function sendOwnerBookingNotification(
     );
 
     if (result.error) {
-      console.error("[EMAIL] ❌ Resend API returned an error:", result.error);
       const errorMessage = result.error.message || "Failed to send email";
+      console.error("[EMAIL] ❌ Resend API error:", errorMessage);
 
-      // Don't fail the webhook if it's just a test domain limitation
-      if (errorMessage.includes("only send testing emails to your own email")) {
-        console.warn(
-          "[EMAIL] ⚠️ Test domain limitation - email not sent. Verify a domain in Resend to send to other addresses."
+      // Don't fail the webhook if it's Resend's test-domain restriction (can only send to your Resend account email)
+      const isTestDomainRestriction =
+        /only send.*your own email|testing emails to your own|verify.*domain/i.test(
+          errorMessage
         );
-        return; // Silently skip - don't throw
+      if (isTestDomainRestriction) {
+        console.warn(
+          "[EMAIL] ⚠️ Resend test-domain restriction: from=onboarding@resend.dev can only send to your Resend account email. Add a verified domain in Resend and set RESEND_FROM_EMAIL (e.g. CourtShare <notifications@courtshare.co>) in Vercel."
+        );
+        return;
       }
 
       throw new Error(errorMessage);

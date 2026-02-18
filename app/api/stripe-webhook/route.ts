@@ -8,7 +8,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: "2023-10-16",
 });
 
-// Stripe webhook signing secret (set in .env.local)
+// Stripe webhook signing secret. Must be set in env as STRIPE_WEBHOOK_SECRET (exact name).
+// In production (Vercel): use the signing secret from the Stripe Dashboard for the endpoint
+// https://courtshare.co/api/stripe-webhook (Developers → Webhooks → that endpoint → Reveal).
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
 
 export async function POST(req: NextRequest) {
@@ -112,6 +114,17 @@ export async function POST(req: NextRequest) {
         // SECURITY FIX 4: Only create booking after payment is confirmed via webhook
         const durationMinutes = expectedDurationMinutes;
 
+        // IDEMPOTENCY: Check if booking already exists for this session (prevent duplicate webhook processing)
+        const existingBookingBySession = await adminDb
+          .collection("bookings")
+          .where("sessionId", "==", session.id)
+          .get();
+        
+        if (!existingBookingBySession.empty) {
+          console.log("[WEBHOOK] Booking already exists for this session, skipping duplicate webhook:", session.id);
+          return NextResponse.json({ received: true, message: "Booking already processed" });
+        }
+
         // SECURITY: Final check for double bookings before creating booking (race condition protection)
         // This is the last line of defense in case two payments completed simultaneously
         const convertTo24Hour = (time12: string): string => {
@@ -148,6 +161,10 @@ export async function POST(req: NextRequest) {
 
         for (const bookingDoc of existingBookingsSnapshot.docs) {
           const existingBooking = bookingDoc.data();
+          // Skip if this is the same session (idempotency - webhook might be called multiple times)
+          if (existingBooking.sessionId === session.id) {
+            continue;
+          }
           // Check confirmed and pending bookings (rejected don't block)
           if (existingBooking.status === "confirmed" || existingBooking.status === "pending") {
             const existingDuration = Math.ceil((existingBooking.durationMinutes || existingBooking.duration * 60) / 60);
@@ -211,10 +228,15 @@ export async function POST(req: NextRequest) {
 
         // Fetch user details to send email notification (court already fetched above)
         try {
+          console.log("[WEBHOOK] Fetching player doc for userId:", metadata.userId);
           const playerDoc = await adminDb
             .collection("users")
             .doc(metadata.userId)
             .get();
+
+          if (!playerDoc.exists) {
+            console.warn("[WEBHOOK] Player doc not found for userId:", metadata.userId, "- skipping email");
+          }
 
           if (playerDoc.exists) {
             const playerData = playerDoc.data();
@@ -224,14 +246,21 @@ export async function POST(req: NextRequest) {
               return;
             }
 
-            // Fetch owner details
+            console.log("[WEBHOOK] Fetching owner doc for ownerId:", courtData.ownerId);
             const ownerDoc = await adminDb
               .collection("users")
               .doc(courtData.ownerId)
               .get();
             const ownerData = ownerDoc.exists ? ownerDoc.data() : null;
 
+            if (!ownerDoc.exists) {
+              console.warn("[WEBHOOK] Owner doc not found for ownerId:", courtData.ownerId, "- skipping email");
+            } else if (!ownerData?.email) {
+              console.warn("[WEBHOOK] Owner doc exists but email missing or empty - skipping email");
+            }
+
             if (ownerData?.email) {
+              console.log("[WEBHOOK] Sending owner notification to:", ownerData.email);
               // Calculate total price from stored metadata or compute it
               const durationMinutes = metadata.durationMinutes
                 ? Number(metadata.durationMinutes)
@@ -270,8 +299,11 @@ export async function POST(req: NextRequest) {
           // Don't fail the webhook if email fails - log and continue
           console.error(
             "[WEBHOOK] Failed to send email notification:",
-            emailError
+            emailError?.message ?? emailError
           );
+          if (emailError?.stack) {
+            console.error("[WEBHOOK] Email error stack:", emailError.stack);
+          }
         }
       } catch (err: any) {
         console.error(
