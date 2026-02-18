@@ -119,12 +119,12 @@ export async function sendOwnerBookingNotification(
               </div>
               
               <p style="font-size: 16px;">Please log in to your <a href="${
-                process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.app"
+                process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.co"
               }/dashboard/owner" style="color: #286a3a; text-decoration: none; font-weight: 600;">owner dashboard</a> to accept or reject this booking request.</p>
               
               <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center;">
                 <a href="${
-                  process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.app"
+                  process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.co"
                 }/dashboard/owner" style="display: inline-block; background: #286a3a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 10px;">View Dashboard</a>
               </div>
               
@@ -281,7 +281,7 @@ export async function sendPlayerBookingConfirmation(
               
               <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center;">
                 <a href="${
-                  process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.app"
+                  process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.co"
                 }/booking/${
         data.bookingId
       }" style="display: inline-block; background: #286a3a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 10px;">View Booking Details</a>
@@ -491,7 +491,7 @@ export async function sendPlayerRejectionNotification(
               </div>
               <p style="font-size: 16px;">You can browse other courts and book a different time.</p>
               <div style="margin-top: 20px; text-align: center;">
-                <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.app"}/courts" style="display: inline-block; background: #286a3a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Browse Courts</a>
+                <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.co"}/courts" style="display: inline-block; background: #286a3a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Browse Courts</a>
               </div>
               <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">This is an automated notification from CourtShare.</p>
             </div>

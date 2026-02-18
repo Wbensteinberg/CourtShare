@@ -28,11 +28,14 @@ interface Court {
   imageUrl: string;
   imageUrls?: string[];
   ownerId: string;
-  blockedDates?: string[]; // Array of date strings in YYYY-MM-DD format
-  blockedTimes?: { [date: string]: string[] }; // Object with date as key and array of time strings as value
-  maxAdvanceBookingDays?: number | null; // e.g. 30 = only available one month in advance
-  alwaysBlockedTimes?: string[]; // Times always blocked every day (24h format)
-  alwaysBlockedTimesByDay?: { [dayOfWeek: number]: string[] }; // 0=Sun, 1=Mon, etc.
+  numberOfCourts?: number;
+  blockedDates?: string[];
+  blockedTimes?: { [date: string]: string[] };
+  maxAdvanceBookingDays?: number | null;
+  alwaysBlockedTimes?: string[];
+  alwaysBlockedTimesByDay?: { [dayOfWeek: number]: string[] };
+  courtSpecificAlwaysBlockedTimes?: { [courtNum: string]: string[] };
+  courtSpecificAlwaysBlockedTimesByDay?: { [courtNum: string]: { [dayOfWeek: string]: string[] } };
 }
 
 interface CourtFormData {
@@ -68,6 +71,12 @@ export default function EditListingPage() {
   const [maxAdvanceBookingDays, setMaxAdvanceBookingDays] = useState<number | null>(null);
   const [alwaysBlockedTimes, setAlwaysBlockedTimes] = useState<string[]>([]);
   const [alwaysBlockedTimesByDay, setAlwaysBlockedTimesByDay] = useState<{ [dayOfWeek: number]: string[] }>({});
+
+  // Multi-court
+  const [numberOfCourts, setNumberOfCourts] = useState<number>(1);
+  const [courtSpecificAlwaysBlockedTimes, setCourtSpecificAlwaysBlockedTimes] = useState<{ [courtNum: string]: string[] }>({});
+  const [courtSpecificAlwaysBlockedTimesByDay, setCourtSpecificAlwaysBlockedTimesByDay] = useState<{ [courtNum: string]: { [dayOfWeek: string]: string[] } }>({});
+  const [expandedCourt, setExpandedCourt] = useState<number | null>(null);
   
   // New state for the beautiful UI
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -131,6 +140,9 @@ export default function EditListingPage() {
         setMaxAdvanceBookingDays(courtData.maxAdvanceBookingDays ?? null);
         setAlwaysBlockedTimes(courtData.alwaysBlockedTimes || []);
         setAlwaysBlockedTimesByDay(courtData.alwaysBlockedTimesByDay || {});
+        setNumberOfCourts(courtData.numberOfCourts || 1);
+        setCourtSpecificAlwaysBlockedTimes(courtData.courtSpecificAlwaysBlockedTimes || {});
+        setCourtSpecificAlwaysBlockedTimesByDay(courtData.courtSpecificAlwaysBlockedTimesByDay || {});
         
         // Update form default values
         form.setValue("courtName", courtData.name);
@@ -234,6 +246,33 @@ export default function EditListingPage() {
     );
   };
 
+  const formatTimeDisplay = (time: string): string => {
+    const hour = parseInt(time.split(":")[0], 10);
+    return hour < 12 ? `${hour === 0 ? 12 : hour}:00 AM` : `${hour === 12 ? 12 : hour - 12}:00 PM`;
+  };
+
+  const toggleCourtSpecificTime = (courtNum: number, time: string) => {
+    const key = String(courtNum);
+    setCourtSpecificAlwaysBlockedTimes(prev => {
+      const times = prev[key] || [];
+      const newTimes = times.includes(time) ? times.filter(t => t !== time) : [...times, time].sort();
+      return { ...prev, [key]: newTimes };
+    });
+  };
+
+  const toggleCourtSpecificTimeForDay = (courtNum: number, dayOfWeek: number, time: string) => {
+    const courtKey = String(courtNum);
+    const dayKey = String(dayOfWeek);
+    setCourtSpecificAlwaysBlockedTimesByDay(prev => {
+      const courtData = prev[courtKey] || {};
+      const dayTimes = courtData[dayKey] || [];
+      const newDayTimes = dayTimes.includes(time) ? dayTimes.filter(t => t !== time) : [...dayTimes, time].sort();
+      const newCourtData = { ...courtData };
+      if (newDayTimes.length === 0) { delete newCourtData[dayKey]; } else { newCourtData[dayKey] = newDayTimes; }
+      return { ...prev, [courtKey]: newCourtData };
+    });
+  };
+
   const toggleAlwaysBlockedTimeForDay = (dayOfWeek: number, time: string) => {
     setAlwaysBlockedTimesByDay(prev => {
       const dayTimes = prev[dayOfWeek] || [];
@@ -289,20 +328,27 @@ export default function EditListingPage() {
       // Use the selected main image
       const mainImageUrl = finalImageUrls[mainImageIndex] || finalImageUrls[0];
       
-      // Update court data in Firestore
-      await updateDoc(doc(db, "courts", courtId as string), {
+      const updateData: any = {
         name: data.courtName,
         location: data.location,
         address: data.fullAddress,
         accessInstructions: data.accessInstructions,
         price: Number(data.pricePerHour),
         description: data.description,
-        imageUrl: mainImageUrl, // Use selected main image
+        imageUrl: mainImageUrl,
         imageUrls: finalImageUrls,
+        numberOfCourts,
         maxAdvanceBookingDays: maxAdvanceBookingDays ?? null,
         alwaysBlockedTimes,
         alwaysBlockedTimesByDay,
-      });
+      };
+
+      if (numberOfCourts > 1) {
+        updateData.courtSpecificAlwaysBlockedTimes = courtSpecificAlwaysBlockedTimes;
+        updateData.courtSpecificAlwaysBlockedTimesByDay = courtSpecificAlwaysBlockedTimesByDay;
+      }
+
+      await updateDoc(doc(db, "courts", courtId as string), updateData);
       
       setSuccess(true);
       
@@ -811,6 +857,88 @@ export default function EditListingPage() {
                           ))}
                         </CardContent>
                       </Card>
+
+                      {/* Per-Court Availability (multi-court listings) */}
+                      {numberOfCourts > 1 && (
+                        <div className="space-y-4">
+                          <div className="my-4 border-t-2 border-emerald-200"></div>
+                          <h4 className="text-base font-semibold">Individual Court Availability</h4>
+                          <p className="text-sm text-gray-600">
+                            Optionally set additional blocked times for specific courts. These are added on top of the &quot;all courts&quot; settings above.
+                          </p>
+
+                          {Array.from({ length: numberOfCourts }, (_, i) => i + 1).map((courtNum) => (
+                            <Card key={courtNum} className="border-gray-200">
+                              <CardHeader className="pb-2 cursor-pointer" onClick={() => setExpandedCourt(expandedCourt === courtNum ? null : courtNum)}>
+                                <CardTitle className="text-base flex items-center justify-between">
+                                  <span>Court {courtNum}</span>
+                                  <span className="text-sm text-gray-400">{expandedCourt === courtNum ? "▼" : "▶"}</span>
+                                </CardTitle>
+                                <CardDescription className="text-xs text-gray-500">
+                                  {(courtSpecificAlwaysBlockedTimes[String(courtNum)] || []).length > 0
+                                    ? `${(courtSpecificAlwaysBlockedTimes[String(courtNum)] || []).length} additional blocked time(s)`
+                                    : "No additional restrictions"}
+                                </CardDescription>
+                              </CardHeader>
+
+                              {expandedCourt === courtNum && (
+                                <CardContent className="space-y-4 pt-0">
+                                  <div>
+                                    <FormLabel className="text-sm font-medium">Additional Always Blocked Times</FormLabel>
+                                    <p className="text-xs text-gray-500 mb-2">Blocked every day for Court {courtNum} only.</p>
+                                    <div className="flex flex-wrap gap-2">
+                                      {timeSlots.map((time) => {
+                                        const isBlocked = (courtSpecificAlwaysBlockedTimes[String(courtNum)] || []).includes(time);
+                                        const isGlobalBlocked = alwaysBlockedTimes.includes(time);
+                                        return (
+                                          <button key={time} type="button"
+                                            onClick={() => !isGlobalBlocked && toggleCourtSpecificTime(courtNum, time)}
+                                            disabled={isGlobalBlocked}
+                                            className={`px-2 py-1.5 rounded text-xs font-medium transition ${
+                                              isGlobalBlocked ? "bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed"
+                                              : isBlocked ? "bg-red-100 text-red-800 border border-red-300"
+                                              : "bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100"
+                                            }`}>
+                                            {formatTimeDisplay(time)}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <FormLabel className="text-sm font-medium">Additional Blocked on Specific Day</FormLabel>
+                                    {DAYS_OF_WEEK.map(({ value: dayOfWeek, label }) => (
+                                      <div key={dayOfWeek} className="space-y-1 mb-3">
+                                        <span className="text-xs font-medium text-gray-600">{label}</span>
+                                        <div className="flex flex-wrap gap-1">
+                                          {timeSlots.map((time) => {
+                                            const courtKey = String(courtNum);
+                                            const dayKey = String(dayOfWeek);
+                                            const isBlocked = ((courtSpecificAlwaysBlockedTimesByDay[courtKey] || {})[dayKey] || []).includes(time);
+                                            const isGlobalBlocked = alwaysBlockedTimes.includes(time) || (alwaysBlockedTimesByDay[dayOfWeek] || []).includes(time);
+                                            return (
+                                              <button key={time} type="button"
+                                                onClick={() => !isGlobalBlocked && toggleCourtSpecificTimeForDay(courtNum, dayOfWeek, time)}
+                                                disabled={isGlobalBlocked}
+                                                className={`px-1.5 py-1 rounded text-[10px] font-medium transition ${
+                                                  isGlobalBlocked ? "bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed"
+                                                  : isBlocked ? "bg-orange-100 text-orange-800 border border-orange-300"
+                                                  : "bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100"
+                                                }`}>
+                                                {formatTimeDisplay(time)}
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </CardContent>
+                              )}
+                            </Card>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Error and Success Messages */}

@@ -41,11 +41,14 @@ interface Court {
   description: string;
   imageUrl: string;
   imageUrls?: string[];
+  numberOfCourts?: number;
   blockedDates?: string[];
   blockedTimes?: { [date: string]: string[] };
   maxAdvanceBookingDays?: number | null;
   alwaysBlockedTimes?: string[];
   alwaysBlockedTimesByDay?: { [dayOfWeek: number]: string[] };
+  courtSpecificAlwaysBlockedTimes?: { [courtNum: string]: string[] };
+  courtSpecificAlwaysBlockedTimesByDay?: { [courtNum: string]: { [dayOfWeek: string]: string[] } };
   surface?: string;
   indoor?: boolean;
   amenities?: string[];
@@ -71,6 +74,7 @@ export default function CourtDetailPage() {
   const [bookingsForDate, setBookingsForDate] = useState<any[]>([]);
   const [fetchingBookings, setFetchingBookings] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [selectedCourtNumber, setSelectedCourtNumber] = useState<number>(1);
   const [showImageModal, setShowImageModal] = useState(false);
 
   // Time slots and durations
@@ -143,8 +147,11 @@ export default function CourtDetailPage() {
   // Compute all blocked times for the selected date
   const blockedTimes = new Set<string>();
 
-  // Add existing bookings
-  bookingsForDate.forEach((b) => {
+  // Add existing bookings (filtered by courtNumber for multi-court)
+  bookingsForDate.filter((b) => {
+    if ((court?.numberOfCourts || 1) <= 1) return true;
+    return (b.courtNumber || 1) === selectedCourtNumber;
+  }).forEach((b) => {
     const startHour = parseInt((b.time || "").split(":")[0], 10);
     const dur = Number(b.duration) || 1;
     for (let i = 0; i < dur; i++) {
@@ -165,6 +172,14 @@ export default function CourtDetailPage() {
     // Add always-blocked times for this day of week (0=Sun, 1=Mon, ...)
     const dayOfWeek = new Date(dateString).getDay();
     (court.alwaysBlockedTimesByDay?.[dayOfWeek] || []).forEach((time) => blockedTimes.add(time));
+    // Add court-specific blocked times for multi-court listings
+    if ((court.numberOfCourts || 1) > 1) {
+      const courtKey = String(selectedCourtNumber);
+      const courtSpecificAlways = (court.courtSpecificAlwaysBlockedTimes || {})[courtKey] || [];
+      courtSpecificAlways.forEach((time) => blockedTimes.add(time));
+      const courtSpecificForDay = ((court.courtSpecificAlwaysBlockedTimesByDay || {})[courtKey] || {})[String(dayOfWeek)] || [];
+      courtSpecificForDay.forEach((time) => blockedTimes.add(time));
+    }
   }
 
   // Helper function to convert 12-hour time to 24-hour format
@@ -199,10 +214,14 @@ export default function CourtDetailPage() {
     }
 
     // Check if a booking starting at this time with selected duration would conflict
-    // with any existing bookings
+    // with any existing bookings (filtered by courtNumber for multi-court)
     if (selectedDate && duration) {
       const bookingDuration = parseFloat(duration);
-      const wouldConflict = bookingsForDate.some((b) => {
+      const relevantBookings = bookingsForDate.filter((b) => {
+        if ((court?.numberOfCourts || 1) <= 1) return true;
+        return (b.courtNumber || 1) === selectedCourtNumber;
+      });
+      const wouldConflict = relevantBookings.some((b) => {
         const existingDuration = Number(b.duration) || 1;
         return timeRangesOverlap(
           time,
@@ -384,13 +403,13 @@ export default function CourtDetailPage() {
         },
         body: JSON.stringify({
           courtId: id,
-          // SECURITY FIX 1 & 2: Don't send userId or price - server will verify token and fetch price
           date:
             selectedDate instanceof Date
               ? selectedDate.toISOString().slice(0, 10)
               : selectedDate,
           time: selectedTime,
-          durationMinutes: durationMinutes, // SECURITY FIX 1: Send as minutes
+          durationMinutes: durationMinutes,
+          courtNumber: selectedCourtNumber,
         }),
       });
 
@@ -637,6 +656,34 @@ export default function CourtDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="p-6 pt-8 space-y-6">
+                  {/* Court Number Selection (only for multi-court listings) */}
+                  {court.numberOfCourts && court.numberOfCourts > 1 && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium flex items-center gap-2">
+                        <Users className="w-4 h-4" />
+                        Court Number
+                      </Label>
+                      <Select
+                        value={String(selectedCourtNumber)}
+                        onValueChange={(v) => {
+                          setSelectedCourtNumber(Number(v));
+                          setSelectedTime("");
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-lg">
+                          {Array.from({ length: court.numberOfCourts }, (_, i) => i + 1).map((n) => (
+                            <SelectItem key={n} value={String(n)} className="hover:bg-green-50 cursor-pointer">
+                              Court {n}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   {/* Date Selection */}
                   <div className="space-y-2">
                     <Label
@@ -716,6 +763,12 @@ export default function CourtDetailPage() {
 
                   {/* Price Summary */}
                   <div className="border-t border-gray-200 pt-4 space-y-2">
+                    {court.numberOfCourts && court.numberOfCourts > 1 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Court</span>
+                        <span className="font-medium">Court {selectedCourtNumber}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-sm">
                       <span>
                         Court rental ({duration}{" "}

@@ -55,10 +55,13 @@ interface Court {
   price?: number;
   surface?: string;
   indoor?: boolean;
+  numberOfCourts?: number;
   blockedTimes?: { [date: string]: string[] };
   blockedDates?: string[];
   alwaysBlockedTimes?: string[];
   alwaysBlockedTimesByDay?: { [dayOfWeek: number]: string[] };
+  courtSpecificAlwaysBlockedTimes?: { [courtNum: string]: string[] };
+  courtSpecificAlwaysBlockedTimesByDay?: { [courtNum: string]: { [dayOfWeek: string]: string[] } };
   maxAdvanceBookingDays?: number | null;
 }
 
@@ -70,6 +73,7 @@ interface Booking {
   time: string;
   duration: number;
   status: string;
+  courtNumber?: number;
 }
 
 export default function OwnerDashboard() {
@@ -838,34 +842,83 @@ export default function OwnerDashboard() {
                   </CardHeader>
 
                   <CardContent className="px-6 pb-6">
-                    {/* Weekly Calendar View */}
-                    <InlineWeeklyCalendar
-                      courtId={court.id}
-                      blockedTimes={court.blockedTimes}
-                      blockedDates={court.blockedDates}
-                      alwaysBlockedTimes={court.alwaysBlockedTimes}
-                      alwaysBlockedTimesByDay={court.alwaysBlockedTimesByDay}
-                      maxAdvanceBookingDays={court.maxAdvanceBookingDays}
-                      bookings={courtBookings}
-                      bookingUsers={bookingUsers}
-                      onBlockedTimesUpdate={(blockedTimes) =>
-                        handleBlockedTimesUpdate(court.id, blockedTimes)
-                      }
-                      onBookingUpdate={async (bookingId, status, bookingFromModal) => {
-                        if (status === "confirmed") {
-                          if (bookingFromModal) {
-                            setAcceptBookingConfirm({
-                              booking: { ...bookingFromModal, courtId: court.id },
-                              court,
-                            });
-                          } else {
-                            await handleAcceptBooking(bookingId);
-                          }
-                        } else if (status === "rejected") {
-                          await handleRejectBooking(bookingId);
+                    {/* Weekly Calendar View(s) */}
+                    {(court.numberOfCourts || 1) > 1 ? (
+                      <div className="space-y-2">
+                        {Array.from({ length: court.numberOfCourts || 1 }, (_, i) => i + 1).map((courtNum) => {
+                          const mergedAlwaysBlocked = [
+                            ...(court.alwaysBlockedTimes || []),
+                            ...((court.courtSpecificAlwaysBlockedTimes || {})[String(courtNum)] || []),
+                          ];
+                          const mergedByDay: { [dayOfWeek: number]: string[] } = { ...(court.alwaysBlockedTimesByDay || {}) };
+                          const courtSpecificByDay = (court.courtSpecificAlwaysBlockedTimesByDay || {})[String(courtNum)] || {};
+                          Object.entries(courtSpecificByDay).forEach(([dayKey, times]) => {
+                            const dayNum = Number(dayKey);
+                            mergedByDay[dayNum] = [...new Set([...(mergedByDay[dayNum] || []), ...times])].sort();
+                          });
+                          return (
+                            <InlineWeeklyCalendar
+                              key={courtNum}
+                              courtId={court.id}
+                              courtNumber={courtNum}
+                              courtLabel={`Court ${courtNum}`}
+                              blockedTimes={court.blockedTimes}
+                              blockedDates={court.blockedDates}
+                              alwaysBlockedTimes={mergedAlwaysBlocked}
+                              alwaysBlockedTimesByDay={mergedByDay}
+                              maxAdvanceBookingDays={court.maxAdvanceBookingDays}
+                              bookings={courtBookings}
+                              bookingUsers={bookingUsers}
+                              onBlockedTimesUpdate={(blockedTimes) =>
+                                handleBlockedTimesUpdate(court.id, blockedTimes)
+                              }
+                              onBookingUpdate={async (bookingId, status, bookingFromModal) => {
+                                if (status === "confirmed") {
+                                  if (bookingFromModal) {
+                                    setAcceptBookingConfirm({
+                                      booking: { ...bookingFromModal, courtId: court.id },
+                                      court,
+                                    });
+                                  } else {
+                                    await handleAcceptBooking(bookingId);
+                                  }
+                                } else if (status === "rejected") {
+                                  await handleRejectBooking(bookingId);
+                                }
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <InlineWeeklyCalendar
+                        courtId={court.id}
+                        blockedTimes={court.blockedTimes}
+                        blockedDates={court.blockedDates}
+                        alwaysBlockedTimes={court.alwaysBlockedTimes}
+                        alwaysBlockedTimesByDay={court.alwaysBlockedTimesByDay}
+                        maxAdvanceBookingDays={court.maxAdvanceBookingDays}
+                        bookings={courtBookings}
+                        bookingUsers={bookingUsers}
+                        onBlockedTimesUpdate={(blockedTimes) =>
+                          handleBlockedTimesUpdate(court.id, blockedTimes)
                         }
-                      }}
-                    />
+                        onBookingUpdate={async (bookingId, status, bookingFromModal) => {
+                          if (status === "confirmed") {
+                            if (bookingFromModal) {
+                              setAcceptBookingConfirm({
+                                booking: { ...bookingFromModal, courtId: court.id },
+                                court,
+                              });
+                            } else {
+                              await handleAcceptBooking(bookingId);
+                            }
+                          } else if (status === "rejected") {
+                            await handleRejectBooking(bookingId);
+                          }
+                        }}
+                      />
+                    )}
 
                     {/* Pending Bookings Section */}
                     <div className="space-y-3 mt-6">
@@ -915,6 +968,13 @@ export default function OwnerDashboard() {
                                           {booking.time} ({booking.duration}h)
                                         </span>
                                       </div>
+                                      {(court.numberOfCourts || 1) > 1 && (
+                                        <div className="flex items-center space-x-1 text-xs">
+                                          <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 border-emerald-300 text-emerald-700">
+                                            Court {booking.courtNumber || 1}
+                                          </Badge>
+                                        </div>
+                                      )}
                                       <div className="flex items-center space-x-2 text-xs text-slate-400">
                                         <div className="w-5 h-5 rounded bg-slate-600 flex items-center justify-center">
                                           <User className="h-3 w-3 text-slate-300" />

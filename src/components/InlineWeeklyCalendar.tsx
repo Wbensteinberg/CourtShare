@@ -12,10 +12,13 @@ interface Booking {
   duration: number;
   status: string;
   userId: string;
+  courtNumber?: number;
 }
 
 interface InlineWeeklyCalendarProps {
   courtId: string;
+  courtNumber?: number;
+  courtLabel?: string;
   blockedTimes?: { [date: string]: string[] };
   blockedDates?: string[];
   alwaysBlockedTimes?: string[];
@@ -29,16 +32,21 @@ interface InlineWeeklyCalendarProps {
 
 export default function InlineWeeklyCalendar({
   courtId,
+  courtNumber,
+  courtLabel,
   blockedTimes = {},
   blockedDates = [],
   alwaysBlockedTimes = [],
   alwaysBlockedTimesByDay = {},
   maxAdvanceBookingDays = null,
-  bookings = [],
+  bookings: allBookings = [],
   bookingUsers = {},
   onBlockedTimesUpdate,
   onBookingUpdate,
 }: InlineWeeklyCalendarProps) {
+  const bookings = courtNumber != null
+    ? allBookings.filter((b) => (b.courtNumber || 1) === courtNumber)
+    : allBookings;
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [isDayModalOpen, setIsDayModalOpen] = useState(false);
@@ -209,7 +217,14 @@ export default function InlineWeeklyCalendar({
 
   return (
     <>
-      <div className="border-t border-gray-100 pt-6 mt-6">
+      <div className={`${courtLabel ? "pt-4 mt-2" : "border-t border-gray-100 pt-6 mt-6"}`}>
+        {courtLabel && (
+          <div className="mb-3">
+            <span className="text-sm font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+              {courtLabel}
+            </span>
+          </div>
+        )}
         {/* Week Navigation */}
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-900">

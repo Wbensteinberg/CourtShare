@@ -165,6 +165,10 @@ export async function POST(req: NextRequest) {
           if (existingBooking.sessionId === session.id) {
             continue;
           }
+          // Skip bookings with different courtNumber
+          const bookingCourtNum = existingBooking.courtNumber || 1;
+          const newCourtNum = Number(metadata.courtNumber) || 1;
+          if (bookingCourtNum !== newCourtNum) continue;
           // Check confirmed and pending bookings (rejected don't block)
           if (existingBooking.status === "confirmed" || existingBooking.status === "pending") {
             const existingDuration = Math.ceil((existingBooking.durationMinutes || existingBooking.duration * 60) / 60);
@@ -206,6 +210,7 @@ export async function POST(req: NextRequest) {
           userId: metadata.userId,
           date: metadata.date,
           time: metadata.time,
+          courtNumber: Number(metadata.courtNumber) || 1,
           duration: durationMinutes / 60, // Store as hours for backward compatibility
           durationMinutes: durationMinutes, // Also store as minutes
           status: "pending", // Requires host approval - SECURITY FIX 4: Only confirmed after webhook

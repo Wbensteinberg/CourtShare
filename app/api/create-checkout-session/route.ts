@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
 
   // SECURITY FIX 1: Only accept courtId, date, time, and durationMinutes from client
   // DO NOT accept price - fetch from court document
-  const { courtId, date, time, durationMinutes } = await req.json();
+  const { courtId, date, time, durationMinutes, courtNumber } = await req.json();
 
   try {
     // SECURITY: Validate all inputs
@@ -235,6 +235,15 @@ export async function POST(req: NextRequest) {
       ...alwaysBlocked,
       ...alwaysBlockedForDay,
     ]);
+    // Add court-specific blocked times for multi-court listings
+    const courtNumberNum = courtNumber ? Number(courtNumber) : 1;
+    if (courtData.numberOfCourts > 1 && courtNumberNum) {
+      const courtKey = String(courtNumberNum);
+      const courtSpecificAlways = (courtData.courtSpecificAlwaysBlockedTimes || {})[courtKey] || [];
+      const courtSpecificForDay = ((courtData.courtSpecificAlwaysBlockedTimesByDay || {})[courtKey] || {})[String(dayOfWeek)] || [];
+      courtSpecificAlways.forEach((t: string) => allBlockedSet.add(t));
+      courtSpecificForDay.forEach((t: string) => allBlockedSet.add(t));
+    }
 
     // Check that no hour in the booking range overlaps with blocked times
     // (e.g. 1pm + 3h spans 1pm-4pm; if 3pm is blocked, reject)
@@ -289,6 +298,10 @@ export async function POST(req: NextRequest) {
     // Check each existing booking for conflicts
     for (const bookingDoc of bookingsSnapshot.docs) {
       const booking = bookingDoc.data();
+      
+      // For multi-court listings, only check bookings for the same court number
+      const bookingCourtNum = booking.courtNumber || 1;
+      if (bookingCourtNum !== courtNumberNum) continue;
       
       // Only check confirmed and pending bookings (rejected bookings don't block)
       if (booking.status === "confirmed" || booking.status === "pending") {
@@ -375,13 +388,14 @@ export async function POST(req: NextRequest) {
       ],
       metadata: {
         courtId,
-        userId, // Now verified from Firebase token
+        userId,
         date,
         time,
-        durationMinutes: durationMinutesNum.toString(), // Store as minutes
+        durationMinutes: durationMinutesNum.toString(),
         ownerId,
-        pricePerHour: pricePerHour.toString(), // Store for reference
-        totalAmountCents: totalAmountCents.toString(), // Store for reference
+        courtNumber: String(courtNumberNum),
+        pricePerHour: pricePerHour.toString(),
+        totalAmountCents: totalAmountCents.toString(),
       },
       success_url: `${req.nextUrl.origin}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${req.nextUrl.origin}/courts/${courtId}`,
