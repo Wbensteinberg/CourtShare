@@ -453,7 +453,7 @@ export default function CourtsPage() {
                 </li>
                 <li>
                   <a
-                    href="#"
+                    href="/privacy"
                     className="hover:text-white transition-colors cursor-pointer"
                   >
                     Privacy
@@ -461,7 +461,7 @@ export default function CourtsPage() {
                 </li>
                 <li>
                   <a
-                    href="#"
+                    href="/terms"
                     className="hover:text-white transition-colors cursor-pointer"
                   >
                     Terms
