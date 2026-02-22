@@ -41,12 +41,10 @@ const HeroSection = () => {
                 Tennis Court
               </span>
             </h1>
-            {/* Paragraph - commented out for now */}
-            {/* <p className="text-base md:text-xl lg:text-2xl text-white/90 max-w-2xl mx-auto leading-relaxed px-4">
-              Discover and book premium tennis courts in your area. From clay to
-              hard courts, indoor to outdoor - find your ideal playing
-              experience.
-            </p> */}
+            <p className="text-base md:text-xl text-white/80 max-w-2xl mx-auto leading-relaxed px-4 mt-2">
+              Discover and book tennis courts near you. Browse availability,
+              pick your time, and book instantly — all in one place.
+            </p>
           </div>
 
           {/* Stats - commented out for now */}
