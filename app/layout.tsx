@@ -15,6 +15,9 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "CourtShare - Book Premium Tennis Courts",
+  icons: {
+    icon: "/icon.png",
+  },
   description:
     "Discover and book premium tennis courts in your area. Find courts close to you, book instantly, and play on the best courts available.",
   openGraph: {

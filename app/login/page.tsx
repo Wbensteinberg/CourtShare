@@ -2,14 +2,14 @@
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import AppHeader from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
-import { LogIn, Mail, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { LogIn, Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle } from "lucide-react";
 
 const googleProvider = new GoogleAuthProvider();
 
@@ -19,6 +19,10 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetStatus, setResetStatus] = useState<"idle" | "loading" | "sent" | "error">("idle");
+  const [resetError, setResetError] = useState("");
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect");
@@ -48,6 +52,18 @@ function LoginForm() {
     }
   };
 
+  const handleResetPassword = async () => {
+    setResetStatus("loading");
+    setResetError("");
+    try {
+      await sendPasswordResetEmail(auth, resetEmail);
+      setResetStatus("sent");
+    } catch (err: any) {
+      setResetError("Couldn't send reset email. Check the address and try again.");
+      setResetStatus("error");
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -65,7 +81,13 @@ function LoginForm() {
       }
       router.push(redirect || "/courts");
     } catch (err: any) {
-      setError(err.message || "Login failed");
+      if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" || err.code === "auth/user-not-found") {
+        setError("Incorrect email or password. If you signed up with Google, use the 'Continue with Google' button below.");
+      } else if (err.code === "auth/too-many-requests") {
+        setError("Too many failed attempts. Please try again later or reset your password.");
+      } else {
+        setError(err.message || "Login failed");
+      }
     } finally {
       setLoading(false);
     }
@@ -189,30 +211,82 @@ function LoginForm() {
                 </svg>
                 Continue with Google
               </Button>
+            </form>
+
+            {/* Forgot Password — outside main form to avoid nested <form> */}
+            <div className="mt-4 space-y-4">
+              {!showForgotPassword ? (
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => { setShowForgotPassword(true); setResetEmail(email); }}
+                    className="text-emerald-600 hover:text-emerald-700 text-xs font-semibold hover:underline transition-colors cursor-pointer"
+                  >
+                    Forgot your password?
+                  </button>
+                </div>
+              ) : (
+                <div className="border border-gray-200 rounded-xl p-4 space-y-3">
+                  <p className="text-sm font-semibold text-gray-800">Reset your password</p>
+                  {resetStatus === "sent" ? (
+                    <div className="flex items-center gap-2 text-emerald-700">
+                      <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                      <p className="text-sm">Reset email sent — check your inbox and spam folder.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input
+                          type="email"
+                          placeholder="Enter your email"
+                          value={resetEmail}
+                          onChange={(e) => setResetEmail(e.target.value)}
+                          className="pl-9 h-10 border border-gray-200 rounded-lg text-sm focus:border-emerald-500 focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                        />
+                      </div>
+                      {resetError && <p className="text-red-500 text-xs">{resetError}</p>}
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          onClick={handleResetPassword}
+                          disabled={resetStatus === "loading" || !resetEmail}
+                          className="flex-1 h-9 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg"
+                        >
+                          {resetStatus === "loading" ? "Sending..." : "Send Reset Email"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => { setShowForgotPassword(false); setResetStatus("idle"); setResetError(""); }}
+                          className="h-9 text-xs px-3 rounded-lg border-gray-200 cursor-pointer"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Footer links */}
-              <div className="text-center pt-1 space-y-2">
-                <a href="#" className="text-emerald-600 hover:text-emerald-700 text-xs font-semibold hover:underline transition-colors block">
-                  Forgot your password?
-                </a>
-                <div className="border-t border-gray-100 pt-3 space-y-1">
-                  <p className="text-gray-500 text-xs">
-                    Don&apos;t have an account?{" "}
-                    <a
-                      href={redirect ? `/signup?redirect=${encodeURIComponent(redirect)}` : "/signup"}
-                      className="text-emerald-600 hover:text-emerald-700 font-bold hover:underline transition-colors"
-                    >
-                      Sign up here
-                    </a>
-                  </p>
-                  <p className="text-gray-400 text-xs">
-                    <a href="/terms" className="hover:text-emerald-600 hover:underline transition-colors">Terms</a>
-                    {" · "}
-                    <a href="/privacy" className="hover:text-emerald-600 hover:underline transition-colors">Privacy</a>
-                  </p>
-                </div>
+              <div className="text-center space-y-1 border-t border-gray-100 pt-3">
+                <p className="text-gray-500 text-xs">
+                  Don&apos;t have an account?{" "}
+                  <a
+                    href={redirect ? `/signup?redirect=${encodeURIComponent(redirect)}` : "/signup"}
+                    className="text-emerald-600 hover:text-emerald-700 font-bold hover:underline transition-colors"
+                  >
+                    Sign up here
+                  </a>
+                </p>
+                <p className="text-gray-400 text-xs">
+                  <a href="/terms" className="hover:text-emerald-600 hover:underline transition-colors">Terms</a>
+                  {" · "}
+                  <a href="/privacy" className="hover:text-emerald-600 hover:underline transition-colors">Privacy</a>
+                </p>
               </div>
-            </form>
+            </div>
           </CardContent>
         </Card>
       </div>
