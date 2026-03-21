@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db, getStorageInstance } from "@/lib/firebase";
 import { collection, addDoc } from "firebase/firestore";
@@ -35,6 +35,11 @@ import { Upload, Calendar as CalendarIcon, Clock, Trophy, Settings2 } from "luci
 import { useForm } from "react-hook-form";
 import AppHeader from "@/components/AppHeader";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
+import { WaiverAcknowledgmentDialog } from "@/components/WaiverAcknowledgmentDialog";
+import {
+  OWNER_LISTING_WAIVER_INTRO,
+  OWNER_LISTING_WAIVER_BODY,
+} from "@/lib/waivers";
 
 interface CourtFormData {
   courtName: string;
@@ -52,6 +57,9 @@ const CreateListing = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingListingDataRef = useRef<CourtFormData | null>(null);
+  const [ownerWaiverOpen, setOwnerWaiverOpen] = useState(false);
+  const [ownerWaiverChecked, setOwnerWaiverChecked] = useState(false);
   const router = useRouter();
   const { user } = useAuth();
 
@@ -155,7 +163,12 @@ const CreateListing = () => {
     });
   };
 
-  const onSubmit = async (data: CourtFormData) => {
+  useEffect(() => {
+    if (ownerWaiverOpen) setOwnerWaiverChecked(false);
+  }, [ownerWaiverOpen]);
+
+  /** Validates form; opens waiver dialog before Firestore write. */
+  const trySubmitListing = (data: CourtFormData) => {
     setError("");
     if (!data.courtName || !data.location || !data.fullAddress || !data.pricePerHour || !data.description) {
       setError("Please fill in all required fields.");
@@ -169,7 +182,15 @@ const CreateListing = () => {
       setError("Please upload at least one image.");
       return;
     }
+    pendingListingDataRef.current = data;
+    setOwnerWaiverOpen(true);
+  };
 
+  const executeListingSubmit = async (data: CourtFormData) => {
+    if (!user) {
+      setError("You must be logged in to create a listing.");
+      return;
+    }
     setSaving(true);
     try {
       const storage = getStorageInstance();
@@ -214,6 +235,13 @@ const CreateListing = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  const confirmOwnerWaiverAndSubmit = async () => {
+    const data = pendingListingDataRef.current;
+    if (!data) return;
+    setOwnerWaiverOpen(false);
+    await executeListingSubmit(data);
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -264,7 +292,7 @@ const CreateListing = () => {
 
               <CardContent className="space-y-8">
                 <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  <form onSubmit={form.handleSubmit(trySubmitListing)} className="space-y-6">
                     {/* Basic Information */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <FormField control={form.control} name="courtName" render={({ field }) => (
@@ -640,6 +668,20 @@ const CreateListing = () => {
           </div>
         </div>
       </section>
+
+      <WaiverAcknowledgmentDialog
+        open={ownerWaiverOpen}
+        onOpenChange={setOwnerWaiverOpen}
+        title="Owner acknowledgment & release"
+        introBeforeTerms={OWNER_LISTING_WAIVER_INTRO}
+        body={OWNER_LISTING_WAIVER_BODY}
+        agreeLabel="I have read and agree to this acknowledgment, and I confirm that I have authority to list this facility. I understand CourtShare’s role is limited to providing software as described above."
+        confirmButtonText="Agree & publish listing"
+        checked={ownerWaiverChecked}
+        onCheckedChange={setOwnerWaiverChecked}
+        onConfirm={confirmOwnerWaiverAndSubmit}
+        confirmDisabled={saving}
+      />
 
       <div className="w-full bg-slate-900 py-16 mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">

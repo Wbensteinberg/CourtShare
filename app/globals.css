@@ -217,6 +217,23 @@ html {
   animation: fadeInUp 0.6s ease-out;
 }
 
+/* Booking success page — indeterminate progress while Suspense hydrates */
+@keyframes booking-bar-indeterminate {
+  0% {
+    left: -45%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+.booking-progress-indeterminate {
+  position: absolute;
+  top: 0;
+  left: -45%;
+  animation: booking-bar-indeterminate 1.35s ease-in-out infinite;
+}
+
 /* Container utility */
 .container {
   width: 100%;

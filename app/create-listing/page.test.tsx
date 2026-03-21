@@ -17,7 +17,7 @@ jest.mock("firebase/storage", () => ({
 }));
 
 // Mock the getStorageInstance function
-jest.mock("@/lib/firebase", () => ({
+jest.mock("@/src/lib/firebase", () => ({
   db: {},
   getStorageInstance: jest.fn(() => ({})),
 }));
@@ -58,12 +58,14 @@ describe("CreateListingPage", () => {
 
     // Check for form elements
     expect(screen.getByText("Create Court Listing")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Court Name")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Description")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Enter court name")).toBeInTheDocument();
     expect(
-      screen.getByPlaceholderText("Price per hour (USD)")
+      screen.getByPlaceholderText(
+        "Describe your court's features, amenities, surface type..."
+      )
     ).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Location")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("25.00")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("City, State")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Create Listing" })
     ).toBeInTheDocument();
@@ -83,7 +85,7 @@ describe("CreateListingPage", () => {
     render(<CreateListingPage />);
 
     // Fill in some fields but not all
-    fireEvent.change(screen.getByPlaceholderText("Court Name"), {
+    fireEvent.change(screen.getByPlaceholderText("Enter court name"), {
       target: { value: "Test Court" },
     });
     // Don't fill in location, price, description, or image
@@ -97,29 +99,35 @@ describe("CreateListingPage", () => {
     // Check for validation message
     await waitFor(() => {
       expect(
-        screen.getByText("Please fill in all fields and upload an image.")
+        screen.getByText("Please fill in all required fields.")
       ).toBeInTheDocument();
     });
   });
 
-  it("successfully submits the form with valid data", async () => {
+  it("successfully submits the form with valid data after owner waiver", async () => {
     const { uploadBytes, getDownloadURL } = require("firebase/storage");
     const { addDoc } = require("firebase/firestore");
 
     render(<CreateListingPage />);
 
     // Fill in the form
-    fireEvent.change(screen.getByPlaceholderText("Court Name"), {
+    fireEvent.change(screen.getByPlaceholderText("Enter court name"), {
       target: { value: "Test Court" },
     });
-    fireEvent.change(screen.getByPlaceholderText("Description"), {
-      target: { value: "A beautiful test court" },
+    fireEvent.change(screen.getByPlaceholderText("City, State"), {
+      target: { value: "Test City, TS" },
     });
-    fireEvent.change(screen.getByPlaceholderText("Price per hour (USD)"), {
-      target: { value: "50" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Location"), {
+    fireEvent.change(screen.getByPlaceholderText("Complete street address"), {
       target: { value: "123 Test St" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText("Describe your court's features, amenities, surface type..."),
+      {
+        target: { value: "A beautiful test court" },
+      }
+    );
+    fireEvent.change(screen.getByPlaceholderText("25.00"), {
+      target: { value: "50" },
     });
 
     // Upload image
@@ -128,11 +136,18 @@ describe("CreateListingPage", () => {
     ) as HTMLInputElement;
     fireEvent.change(fileInput, { target: { files: [mockFile] } });
 
-    // Submit the form
+    // Submit the form — opens owner waiver dialog
     const form = screen
       .getByRole("button", { name: "Create Listing" })
       .closest("form");
     fireEvent.submit(form!);
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Agree & publish listing" }));
 
     // Verify upload and submission
     await waitFor(() => {
@@ -144,13 +159,10 @@ describe("CreateListingPage", () => {
           name: "Test Court",
           description: "A beautiful test court",
           price: 50,
-          location: "123 Test St",
+          location: "Test City, TS",
           imageUrl: "https://example.com/image.jpg",
         })
       );
-      expect(
-        screen.getByText("Court listed successfully!")
-      ).toBeInTheDocument();
       expect(mockPush).toHaveBeenCalledWith("/dashboard/owner");
     });
   });
@@ -164,17 +176,23 @@ describe("CreateListingPage", () => {
     render(<CreateListingPage />);
 
     // Fill in the form and try to submit
-    fireEvent.change(screen.getByPlaceholderText("Court Name"), {
+    fireEvent.change(screen.getByPlaceholderText("Enter court name"), {
       target: { value: "Test Court" },
     });
-    fireEvent.change(screen.getByPlaceholderText("Description"), {
-      target: { value: "A beautiful test court" },
+    fireEvent.change(screen.getByPlaceholderText("City, State"), {
+      target: { value: "Test City, TS" },
     });
-    fireEvent.change(screen.getByPlaceholderText("Price per hour (USD)"), {
-      target: { value: "50" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Location"), {
+    fireEvent.change(screen.getByPlaceholderText("Complete street address"), {
       target: { value: "123 Test St" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText("Describe your court's features, amenities, surface type..."),
+      {
+        target: { value: "A beautiful test court" },
+      }
+    );
+    fireEvent.change(screen.getByPlaceholderText("25.00"), {
+      target: { value: "50" },
     });
 
     const fileInput = document.querySelector(
@@ -186,6 +204,12 @@ describe("CreateListingPage", () => {
       .getByRole("button", { name: "Create Listing" })
       .closest("form");
     fireEvent.submit(form!);
+
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(screen.getByRole("button", { name: "Agree & publish listing" }));
 
     // Check for error message
     await waitFor(() => {

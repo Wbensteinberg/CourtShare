@@ -78,6 +78,15 @@ export default function TermsPage() {
               The Service is provided &quot;as is.&quot; We do not guarantee uninterrupted or error-free operation. To the fullest extent permitted by law, CourtShare and its operators are not liable for indirect, incidental, special, or consequential damages arising from your use of the Service or from interactions with other users or third parties.
             </p>
           </section>
+
+          <section className="mb-8">
+            <h2 className="text-xl font-semibold text-slate-800 mt-6 mb-3">
+              8. In-app acknowledgments
+            </h2>
+            <p className="text-slate-600 leading-relaxed">
+              Certain actions (such as publishing a listing or proceeding to pay for a booking) may require you to review and accept short on-screen acknowledgments that summarize key points from these Terms, including assumption of risk and limitations on CourtShare&apos;s role. Those acknowledgments are part of your agreement with us and supplement this document; if there is any conflict, the fuller provisions in these Terms control where applicable law allows.
+            </p>
+          </section>
         </div>
 
         <div className="mt-12 pt-8 border-t border-slate-200 flex flex-wrap gap-4">

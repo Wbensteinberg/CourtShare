@@ -28,6 +28,11 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { WaiverAcknowledgmentDialog } from "@/components/WaiverAcknowledgmentDialog";
+import {
+  PLAYER_BOOKING_WAIVER_INTRO,
+  PLAYER_BOOKING_WAIVER_BODY,
+} from "@/lib/waivers";
 import { format } from "date-fns";
 import ReactDatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -76,6 +81,8 @@ export default function CourtDetailPage() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [selectedCourtNumber, setSelectedCourtNumber] = useState<number>(1);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [playerWaiverOpen, setPlayerWaiverOpen] = useState(false);
+  const [playerWaiverChecked, setPlayerWaiverChecked] = useState(false);
 
   // Time slots and durations
   const timeSlots = [
@@ -327,37 +334,34 @@ export default function CourtDetailPage() {
     fetchBookings();
   }, [id, selectedDate]);
 
+  useEffect(() => {
+    if (playerWaiverOpen) setPlayerWaiverChecked(false);
+  }, [playerWaiverOpen]);
+
+  /** Validates booking, then shows waiver before payment. */
   const handleCheckout = async () => {
-    // Wait for auth to finish loading before checking
     if (authLoading) {
       console.log("[BOOKING] Auth still loading, waiting...");
-      return; // Don't do anything while auth is loading
+      return;
     }
 
-    // Double-check auth state directly from Firebase
     const currentUser = auth.currentUser;
     if (!user && !currentUser) {
-      console.log(
-        "[BOOKING] No user found in context or auth, redirecting to login"
-      );
       router.push(`/login?redirect=/courts/${id}`);
       return;
     }
 
-    // Use currentUser if user from context is null (race condition fix)
     const activeUser = user || currentUser;
     if (!activeUser) {
-      console.log("[BOOKING] No active user, redirecting to login");
       router.push(`/login?redirect=/courts/${id}`);
       return;
     }
 
-    console.log("[BOOKING] User authenticated:", activeUser.uid);
     if (!selectedDate || !selectedTime || !duration) {
       alert("Please fill out all fields.");
       return;
     }
-    // Prevent double booking - check for time range overlaps including duration
+
     const bookingDuration = parseFloat(duration);
     const hasConflict = bookingsForDate.some((b) => {
       const existingDuration = Number(b.duration) || 1;
@@ -374,7 +378,6 @@ export default function CourtDetailPage() {
       return;
     }
 
-    // Prevent booking that overlaps with blocked times (e.g. 1pm + 3h when 3pm is blocked)
     const time24 = convertTo24Hour(selectedTime);
     const startHour = parseInt(time24.split(":")[0], 10);
     for (let i = 0; i < bookingDuration; i++) {
@@ -382,10 +385,30 @@ export default function CourtDetailPage() {
       const hourStr = hour.toString().padStart(2, "0") + ":00";
       if (blockedTimes.has(hourStr)) {
         setBookingStatus("conflict");
-        alert("This booking would overlap with blocked time slots. Please choose a different time or duration.");
+        alert(
+          "This booking would overlap with blocked time slots. Please choose a different time or duration."
+        );
         return;
       }
     }
+
+    setPlayerWaiverOpen(true);
+  };
+
+  const confirmPlayerWaiverAndCheckout = async () => {
+    setPlayerWaiverOpen(false);
+    await performCheckout();
+  };
+
+  /** Runs Stripe checkout after waiver is accepted. */
+  const performCheckout = async () => {
+    const currentUser = auth.currentUser;
+    const activeUser = user || currentUser;
+    if (!activeUser) {
+      router.push(`/login?redirect=/courts/${id}`);
+      return;
+    }
+
     setBookingStatus("loading");
     try {
       // SECURITY FIX 2: Get Firebase ID token for authentication
@@ -821,6 +844,20 @@ export default function CourtDetailPage() {
           </div>
         </div>
       </div>
+
+      <WaiverAcknowledgmentDialog
+        open={playerWaiverOpen}
+        onOpenChange={setPlayerWaiverOpen}
+        title="Booking acknowledgment & assumption of risk"
+        introBeforeTerms={PLAYER_BOOKING_WAIVER_INTRO}
+        body={PLAYER_BOOKING_WAIVER_BODY}
+        agreeLabel="I have read and agree to this acknowledgment. I understand CourtShare does not operate the facility and I assume the risks of athletic activity as described above."
+        confirmButtonText="Agree & continue to payment"
+        checked={playerWaiverChecked}
+        onCheckedChange={setPlayerWaiverChecked}
+        onConfirm={confirmPlayerWaiverAndCheckout}
+        confirmDisabled={bookingStatus === "loading"}
+      />
 
       {/* Image Modal */}
       {showImageModal && (
