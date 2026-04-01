@@ -7,11 +7,11 @@ import { doc, getDoc } from "firebase/firestore";
 import Image from "next/image";
 import {
   collection,
-  addDoc,
-  Timestamp,
   query,
   where,
   getDocs,
+  setDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { useAuth } from "@/lib/AuthContext";
 import { ArrowLeft, MapPin, Star, Clock, Calendar, Users } from "lucide-react";
@@ -32,6 +32,7 @@ import { WaiverAcknowledgmentDialog } from "@/components/WaiverAcknowledgmentDia
 import {
   PLAYER_BOOKING_WAIVER_INTRO,
   PLAYER_BOOKING_WAIVER_BODY,
+  PLAYER_BOOKING_WAIVER_VERSION,
 } from "@/lib/waivers";
 import { format } from "date-fns";
 import ReactDatePicker from "react-datepicker";
@@ -396,6 +397,28 @@ export default function CourtDetailPage() {
   };
 
   const confirmPlayerWaiverAndCheckout = async () => {
+    const currentUser = auth.currentUser;
+    const activeUser = user || currentUser;
+    if (!activeUser) {
+      router.push(`/login?redirect=/courts/${id}`);
+      return;
+    }
+
+    try {
+      await setDoc(
+        doc(db, "users", activeUser.uid),
+        {
+          playerBookingWaiverVersionAccepted: PLAYER_BOOKING_WAIVER_VERSION,
+          playerBookingWaiverAcceptedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch {
+      setBookingStatus("error");
+      alert("Failed to record waiver acceptance. Please try again.");
+      return;
+    }
+
     setPlayerWaiverOpen(false);
     await performCheckout();
   };

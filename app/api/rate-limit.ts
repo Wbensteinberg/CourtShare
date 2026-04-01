@@ -1,36 +1,63 @@
-// Simple rate limiting utility
-// For production, consider using a proper rate limiting service like Upstash Redis
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";
 
-interface RateLimitStore {
+interface RateLimitResult {
+  allowed: boolean;
+  remaining: number;
+  resetTime: number;
+}
+
+interface LocalRateLimitStore {
   [key: string]: {
     count: number;
     resetTime: number;
   };
 }
 
-const store: RateLimitStore = {};
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const MAX_REQUESTS_PER_WINDOW = 10;
 
-const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
-const MAX_REQUESTS_PER_WINDOW = 10; // Max 10 requests per minute per IP/user
+const hasUpstashConfig =
+  !!process.env.UPSTASH_REDIS_REST_URL &&
+  !!process.env.UPSTASH_REDIS_REST_TOKEN;
 
-export function checkRateLimit(identifier: string): {
-  allowed: boolean;
-  remaining: number;
-  resetTime: number;
-} {
+const upstashRatelimit = hasUpstashConfig
+  ? new Ratelimit({
+      redis: new Redis({
+        url: process.env.UPSTASH_REDIS_REST_URL!,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+      }),
+      limiter: Ratelimit.fixedWindow(MAX_REQUESTS_PER_WINDOW, "60 s"),
+      prefix: "courtshare:rate-limit",
+      analytics: true,
+    })
+  : null;
+
+// Local fallback for development or if Upstash env vars are missing.
+const localStore: LocalRateLimitStore = {};
+
+export async function checkRateLimit(identifier: string): Promise<RateLimitResult> {
+  if (upstashRatelimit) {
+    const result = await upstashRatelimit.limit(identifier);
+    return {
+      allowed: result.success,
+      remaining: Math.max(0, result.remaining ?? 0),
+      resetTime: result.reset ?? Date.now() + RATE_LIMIT_WINDOW_MS,
+    };
+  }
+
   const now = Date.now();
-  const record = store[identifier];
+  const record = localStore[identifier];
 
   if (!record || now > record.resetTime) {
-    // New window or expired
-    store[identifier] = {
+    localStore[identifier] = {
       count: 1,
-      resetTime: now + RATE_LIMIT_WINDOW,
+      resetTime: now + RATE_LIMIT_WINDOW_MS,
     };
     return {
       allowed: true,
       remaining: MAX_REQUESTS_PER_WINDOW - 1,
-      resetTime: now + RATE_LIMIT_WINDOW,
+      resetTime: now + RATE_LIMIT_WINDOW_MS,
     };
   }
 
@@ -50,13 +77,14 @@ export function checkRateLimit(identifier: string): {
   };
 }
 
-// Clean up old entries periodically
-setInterval(() => {
-  const now = Date.now();
-  Object.keys(store).forEach((key) => {
-    if (store[key].resetTime < now) {
-      delete store[key];
-    }
-  });
-}, RATE_LIMIT_WINDOW);
+if (!upstashRatelimit) {
+  setInterval(() => {
+    const now = Date.now();
+    Object.keys(localStore).forEach((key) => {
+      if (localStore[key].resetTime < now) {
+        delete localStore[key];
+      }
+    });
+  }, RATE_LIMIT_WINDOW_MS);
+}
 

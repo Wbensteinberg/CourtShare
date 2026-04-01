@@ -3,6 +3,9 @@
  * Full terms: /terms — these supplement but do not replace the Terms of Service.
  */
 
+export const OWNER_LISTING_WAIVER_VERSION = "owner-listing-v1";
+export const PLAYER_BOOKING_WAIVER_VERSION = "player-booking-v1";
+
 export const OWNER_LISTING_WAIVER_INTRO =
   "Before your listing goes live, please read and accept the following. This acknowledgment is in addition to our ";
 

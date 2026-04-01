@@ -12,17 +12,28 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
 // In production (Vercel): use the signing secret from the Stripe Dashboard for the endpoint
 // https://courtshare.co/api/stripe-webhook (Developers → Webhooks → that endpoint → Reveal).
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
+const ALERT_WEBHOOK_URL =
+  process.env.WEBHOOK_ALERT_WEBHOOK_URL || process.env.SLACK_WEBHOOK_URL;
+
+async function sendWebhookAlert(title: string, details: string) {
+  if (!ALERT_WEBHOOK_URL) return;
+  try {
+    await fetch(ALERT_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: `:rotating_light: ${title}\n${details}`,
+      }),
+    });
+  } catch (alertErr) {
+    console.error("[WEBHOOK] Failed to send alert notification:", alertErr);
+  }
+}
 
 export async function POST(req: NextRequest) {
   console.log(
     "[WEBHOOK] Stripe webhook POST handler called at",
     new Date().toISOString()
-  );
-
-  // Log all headers for debugging
-  console.log(
-    "[WEBHOOK] Request headers:",
-    Object.fromEntries(req.headers.entries())
   );
 
   const sig = req.headers.get("stripe-signature");
@@ -35,8 +46,10 @@ export async function POST(req: NextRequest) {
   try {
     if (!sig || !endpointSecret) {
       console.error("[WEBHOOK] Missing Stripe signature or webhook secret");
-      console.error("[WEBHOOK] sig:", sig);
-      console.error("[WEBHOOK] endpointSecret exists:", !!endpointSecret);
+      await sendWebhookAlert(
+        "Stripe webhook misconfigured",
+        `Missing signature or STRIPE_WEBHOOK_SECRET. endpointSecret=${!!endpointSecret}`
+      );
       return NextResponse.json(
         { error: "Missing Stripe signature or webhook secret" },
         { status: 400 }
@@ -48,6 +61,10 @@ export async function POST(req: NextRequest) {
     console.error(
       "[WEBHOOK] Webhook signature verification failed:",
       err.message
+    );
+    await sendWebhookAlert(
+      "Stripe webhook signature verification failed",
+      err.message || "Unknown signature verification error"
     );
     return NextResponse.json(
       { error: `Webhook Error: ${err.message}` },
@@ -195,6 +212,10 @@ export async function POST(req: NextRequest) {
                 }
               } catch (refundError) {
                 console.error("[WEBHOOK] Failed to refund double booking:", refundError);
+                await sendWebhookAlert(
+                  "Webhook refund failed after double-booking detection",
+                  `Session ${session.id} could not be auto-refunded.`
+                );
               }
               // Don't create the booking - return error
               return NextResponse.json(
@@ -314,6 +335,10 @@ export async function POST(req: NextRequest) {
         console.error(
           "[WEBHOOK] Failed to write booking to Firestore:",
           err.message
+        );
+        await sendWebhookAlert(
+          "Webhook failed writing booking to Firestore",
+          err.message || "Unknown Firestore write failure"
         );
         return NextResponse.json(
           { error: "Failed to write booking to Firestore" },

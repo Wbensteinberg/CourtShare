@@ -26,6 +26,9 @@ jest.mock("@/src/lib/firebase", () => ({
 jest.mock("firebase/firestore", () => ({
   getFirestore: jest.fn(),
   collection: jest.fn(),
+  doc: jest.fn(),
+  setDoc: jest.fn(() => Promise.resolve()),
+  serverTimestamp: jest.fn(() => ({ __serverTimestamp: true })),
   addDoc: jest.fn(() => Promise.resolve({ id: "mock-doc-id" })),
   Timestamp: {
     now: jest.fn(() => ({ seconds: 1234567890, nanoseconds: 0 })),

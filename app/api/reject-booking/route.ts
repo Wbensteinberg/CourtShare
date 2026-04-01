@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
           { status: 500 }
         );
       }
-      const decodedToken = await adminAuth.verifyIdToken(idToken);
+      const decodedToken = await adminAuth.verifyIdToken(idToken, true);
       userId = decodedToken.uid;
     } catch (err: any) {
       return NextResponse.json(

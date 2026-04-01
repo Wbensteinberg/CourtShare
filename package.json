@@ -46,6 +46,8 @@
     "@shadcn/ui": "^0.0.4",
     "@stripe/stripe-js": "^2.4.0",
     "@tailwindcss/oxide": "^4.1.11",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.37.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",

@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     req.headers.get("x-forwarded-for") ||
     req.headers.get("x-real-ip") ||
     "unknown";
-  const rateLimitResult = checkRateLimit(
+  const rateLimitResult = await checkRateLimit(
     `${ip}-${req.headers.get("user-agent")}-connect`
   );
 
@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const decodedToken = await adminAuth.verifyIdToken(idToken, true);
     userId = decodedToken.uid;
   } catch (err: any) {
     console.error("Error verifying ID token:", err);

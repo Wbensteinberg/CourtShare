@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { db, getStorageInstance } from "@/lib/firebase";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,7 @@ import { WaiverAcknowledgmentDialog } from "@/components/WaiverAcknowledgmentDia
 import {
   OWNER_LISTING_WAIVER_INTRO,
   OWNER_LISTING_WAIVER_BODY,
+  OWNER_LISTING_WAIVER_VERSION,
 } from "@/lib/waivers";
 
 interface CourtFormData {
@@ -239,7 +240,22 @@ const CreateListing = () => {
 
   const confirmOwnerWaiverAndSubmit = async () => {
     const data = pendingListingDataRef.current;
-    if (!data) return;
+    if (!data || !user) return;
+
+    try {
+      await setDoc(
+        doc(db, "users", user.uid),
+        {
+          ownerListingWaiverVersionAccepted: OWNER_LISTING_WAIVER_VERSION,
+          ownerListingWaiverAcceptedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      setError("Failed to record waiver acceptance. Please try again.");
+      return;
+    }
+
     setOwnerWaiverOpen(false);
     await executeListingSubmit(data);
   };
