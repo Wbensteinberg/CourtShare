@@ -697,15 +697,15 @@ export default function OwnerDashboard() {
                     </Button>
                   </div>
                   <div className="pt-4 border-t border-emerald-200">
-                    <a
-                      href={`https://dashboard.stripe.com/connect/accounts/${stripeAccountStatus.accountId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-emerald-700 hover:text-emerald-900 flex items-center gap-2 hover:cursor-pointer"
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateStripeAccount()}
+                      disabled={connectingStripe}
+                      className="text-sm text-emerald-700 hover:text-emerald-900 flex items-center gap-2 hover:cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed bg-transparent border-0 p-0 text-left"
                     >
                       View payments, balance, and transaction history in Stripe
                       <ExternalLink className="h-3 w-3" />
-                    </a>
+                    </button>
                   </div>
                 </CardContent>
               </Card>
