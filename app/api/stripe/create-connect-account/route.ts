@@ -27,7 +27,9 @@ function isStripeConnectAccountMissing(err: unknown): boolean {
 
   return (
     typeof stripeErr.message === "string" &&
-    /no such account/i.test(stripeErr.message)
+    /(no such account|does not have access to account|application access may have been revoked)/i.test(
+      stripeErr.message
+    )
   );
 }
 
