@@ -1,11 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { FieldValue } from "firebase-admin/firestore";
 import { adminDb, adminAuth } from "@/lib/firebase-admin";
 import { checkRateLimit } from "../../rate-limit";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
 });
+
+function isStripeConnectAccountMissing(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const stripeErr = err as {
+    code?: string;
+    type?: string;
+    statusCode?: number;
+    message?: string;
+  };
+
+  if (stripeErr.code === "resource_missing") return true;
+  if (
+    stripeErr.type === "StripeInvalidRequestError" &&
+    stripeErr.statusCode === 404
+  ) {
+    return true;
+  }
+
+  return (
+    typeof stripeErr.message === "string" &&
+    /no such account/i.test(stripeErr.message)
+  );
+}
 
 export async function POST(req: NextRequest) {
   // SECURITY: Rate limiting to prevent abuse
@@ -77,16 +101,36 @@ export async function POST(req: NextRequest) {
 
     // Check if user already has a Stripe account
     const userDoc = await adminDb.collection("users").doc(userId).get();
-    const userData = userDoc.data();
+    let userData = userDoc.data();
 
+    let existingAccount: Stripe.Account | null = null;
     if (userData?.stripeAccountId) {
-      // Account already exists, check if it needs onboarding
-      console.log(
-        "[CONNECT] User already has account:",
-        userData.stripeAccountId
-      );
-      const account = await stripe.accounts.retrieve(userData.stripeAccountId);
+      try {
+        existingAccount = await stripe.accounts.retrieve(
+          userData.stripeAccountId
+        );
+      } catch (retrieveErr: unknown) {
+        if (isStripeConnectAccountMissing(retrieveErr)) {
+          console.warn(
+            "[CONNECT] Clearing stale stripeAccountId (wrong mode or deleted):",
+            userData.stripeAccountId
+          );
+          await adminDb
+            .collection("users")
+            .doc(userId)
+            .update({
+              stripeAccountId: FieldValue.delete(),
+              stripeAccountStatus: FieldValue.delete(),
+              payoutEnabled: FieldValue.delete(),
+            });
+        } else {
+          throw retrieveErr;
+        }
+      }
+    }
 
+    if (existingAccount) {
+      const account = existingAccount;
       // Check if this is an update request (from request body)
       const isUpdate = requestBody.update === true;
 
@@ -135,6 +179,10 @@ export async function POST(req: NextRequest) {
             : "restricted",
       });
     }
+
+    // Refresh user after possible stale-ID clear
+    const refreshedDoc = await adminDb.collection("users").doc(userId).get();
+    userData = refreshedDoc.data() ?? userData;
 
     // Debug: Log API key info (first few chars only for security)
     const apiKeyPrefix =

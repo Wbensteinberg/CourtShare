@@ -213,7 +213,13 @@ export default function OwnerDashboard() {
             "[OWNER DASHBOARD] Stripe account check failed:",
             errorData
           );
-          // Don't set error state - just log it, allow UI to show default state
+          // Still show Connect flow so owners aren't stuck with no payout UI (e.g. transient errors).
+          if (res.status !== 401) {
+            setStripeAccountStatus({
+              hasAccount: false,
+              status: "check_failed",
+            });
+          }
           return;
         }
 
@@ -228,7 +234,10 @@ export default function OwnerDashboard() {
             err
           );
         }
-        // Don't set error state - allow UI to show default state
+        setStripeAccountStatus({
+          hasAccount: false,
+          status: "check_failed",
+        });
       } finally {
         setCheckingStripe(false);
       }
@@ -559,6 +568,15 @@ export default function OwnerDashboard() {
                     <h3 className="text-lg font-bold text-amber-900 mb-2">
                       Connect Your Bank Account
                     </h3>
+                    {stripeAccountStatus.status === "check_failed" && (
+                      <p className="text-sm text-amber-900/90 mb-3 rounded-md bg-amber-100/80 border border-amber-200 px-3 py-2">
+                        We couldn&apos;t verify your payout status (for example
+                        after switching Stripe to live mode). Use the button
+                        below to connect or finish setup—if you already
+                        connected in test mode, you may need to connect again
+                        for live payouts.
+                      </p>
+                    )}
                     <p className="text-amber-800 mb-4">
                       To receive payments from bookings, you need to connect
                       your bank account. This is secure and handled by Stripe.

@@ -1,10 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
+import { FieldValue } from "firebase-admin/firestore";
 import { adminDb, adminAuth } from "@/lib/firebase-admin";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
 });
+
+function isStripeConnectAccountMissing(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const stripeErr = err as {
+    code?: string;
+    type?: string;
+    statusCode?: number;
+    message?: string;
+  };
+
+  if (stripeErr.code === "resource_missing") return true;
+  if (
+    stripeErr.type === "StripeInvalidRequestError" &&
+    stripeErr.statusCode === 404
+  ) {
+    return true;
+  }
+
+  return (
+    typeof stripeErr.message === "string" &&
+    /no such account/i.test(stripeErr.message)
+  );
+}
 
 export async function POST(req: NextRequest) {
   // SECURITY: Verify Firebase ID token instead of accepting userId from client
@@ -55,8 +79,26 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Check account status with Stripe
-    const account = await stripe.accounts.retrieve(userData.stripeAccountId);
+    let account: Stripe.Account;
+    try {
+      account = await stripe.accounts.retrieve(userData.stripeAccountId);
+    } catch (retrieveErr: unknown) {
+      if (isStripeConnectAccountMissing(retrieveErr)) {
+        await adminDb
+          .collection("users")
+          .doc(userId)
+          .update({
+            stripeAccountId: FieldValue.delete(),
+            stripeAccountStatus: FieldValue.delete(),
+            payoutEnabled: FieldValue.delete(),
+          });
+        return NextResponse.json({
+          hasAccount: false,
+          status: "none",
+        });
+      }
+      throw retrieveErr;
+    }
 
     // Update Firestore with current status
     const accountStatus = account.details_submitted
