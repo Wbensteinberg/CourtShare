@@ -7,8 +7,22 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
 });
 
-// Platform commission rate (0% for now, can be changed later)
-const PLATFORM_COMMISSION_RATE = 0; // 0 = 0%, 0.05 = 5%, etc.
+/**
+ * Estimated Stripe processing for a successful US card charge (standard online pricing).
+ * Platform pays this on destination charges; we withhold it from the owner's transfer via
+ * application_fee_amount. If your Stripe pricing differs, adjust these constants.
+ * @see https://stripe.com/pricing
+ */
+const STRIPE_US_CARD_PERCENT = 0.029;
+const STRIPE_US_CARD_FIXED_CENTS = 30;
+/** Extra cents on top of the estimate to avoid a negative platform balance from rounding / IC+ variance. */
+const PLATFORM_FEE_BUFFER_CENTS = 2;
+
+function estimatedUsCardProcessingFeeCents(chargeAmountCents: number): number {
+  return Math.ceil(
+    chargeAmountCents * STRIPE_US_CARD_PERCENT + STRIPE_US_CARD_FIXED_CENTS
+  );
+}
 
 export async function POST(req: NextRequest) {
   console.log("[CHECKOUT] Request received");
@@ -354,10 +368,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // SECURITY FIX 3: Ensure commission is integer cents
-    const commissionAmount = Math.round(
-      totalAmountCents * PLATFORM_COMMISSION_RATE
+    // Application fee (owner's share): enough to cover estimated Stripe fees on this charge.
+    // Booker still pays only totalAmountCents; owner receives (total − fee).
+    const estimatedStripeFeeCents = estimatedUsCardProcessingFeeCents(
+      totalAmountCents
     );
+    const commissionAmount = estimatedStripeFeeCents + PLATFORM_FEE_BUFFER_CENTS;
+
+    if (commissionAmount >= totalAmountCents) {
+      return NextResponse.json(
+        {
+          error:
+            "This booking amount is too low to cover card processing. Try a longer booking or contact support.",
+        },
+        { status: 400 }
+      );
+    }
 
     // Build checkout session with fraud prevention
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
@@ -429,7 +455,7 @@ export async function POST(req: NextRequest) {
           );
           sessionParams.payment_intent_data = {
             ...sessionParams.payment_intent_data,
-            application_fee_amount: commissionAmount, // Platform commission (0% for now)
+            application_fee_amount: commissionAmount, // Covers est. Stripe fees + buffer; owner nets the rest
             transfer_data: {
               destination: stripeAccountId, // Send remaining amount to owner's account
               // Stripe automatically calculates: owner receives = totalAmount - commissionAmount
