@@ -8,7 +8,13 @@ import {
   ReactNode,
 } from "react";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "./firebase";
+import { auth, isMockMode } from "./firebase";
+import {
+  getMockAuthUser,
+  getMockProfile,
+  setMockUserRole,
+  subscribeToMockAuthChanges,
+} from "./mockData";
 
 type AuthContextType = {
   user: User | null;
@@ -30,6 +36,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isOwner, setIsOwner] = useState(false);
 
   useEffect(() => {
+    if (isMockMode) {
+      const syncMockAuth = () => {
+        const mockUser = getMockAuthUser();
+        const mockProfile = mockUser ? getMockProfile(mockUser.uid) : null;
+        setUser(mockUser);
+        setIsOwner(!!mockProfile?.isOwner);
+        setLoading(false);
+      };
+
+      syncMockAuth();
+      return subscribeToMockAuthChanges(syncMockAuth);
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
@@ -51,8 +70,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, []);
 
+  const handleSetIsOwner = (nextIsOwner: boolean) => {
+    setIsOwner(nextIsOwner);
+
+    if (isMockMode) {
+      const mockUser = getMockAuthUser();
+      if (mockUser) {
+        setMockUserRole(mockUser.uid, nextIsOwner);
+      }
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, isOwner, setIsOwner }}>
+    <AuthContext.Provider
+      value={{ user, loading, isOwner, setIsOwner: handleSetIsOwner }}
+    >
       {children}
     </AuthContext.Provider>
   );

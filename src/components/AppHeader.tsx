@@ -2,11 +2,16 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import { signOut } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, isMockMode } from "@/lib/firebase";
 import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Menu, X, MapPin, User } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  getMockProfile,
+  setMockUserRole,
+  signOutMockUser,
+} from "@/lib/mockData";
 
 export default function AppHeader() {
   const { user, isOwner, setIsOwner } = useAuth();
@@ -51,15 +56,26 @@ export default function AppHeader() {
   }, [menuOpen]);
 
   const handleLogout = async () => {
-    await signOut(auth);
+    if (isMockMode) {
+      signOutMockUser();
+    } else {
+      await signOut(auth);
+    }
     setMenuOpen(false);
     router.push("/login");
+    router.refresh();
   };
 
   const handleToggleRole = async () => {
     if (!user) return;
     const newIsOwner = !isOwner;
-    await updateDoc(doc(db, "users", user.uid), { isOwner: newIsOwner });
+
+    if (isMockMode) {
+      setMockUserRole(user.uid, newIsOwner);
+    } else {
+      await updateDoc(doc(db, "users", user.uid), { isOwner: newIsOwner });
+    }
+
     setIsOwner(newIsOwner);
     setMenuOpen(false);
   };
@@ -82,11 +98,16 @@ export default function AppHeader() {
       }
 
       try {
-        const userRef = doc(db, "users", user.uid);
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          const userData = userSnap.data();
-          setProfileImageUrl(userData.profileImageUrl || "");
+        if (isMockMode) {
+          const mockProfile = getMockProfile(user.uid);
+          setProfileImageUrl(mockProfile?.profileImageUrl || "");
+        } else {
+          const userRef = doc(db, "users", user.uid);
+          const userSnap = await getDoc(userRef);
+          if (userSnap.exists()) {
+            const userData = userSnap.data();
+            setProfileImageUrl(userData.profileImageUrl || "");
+          }
         }
       } catch (error) {
         console.error("Error fetching profile image:", error);

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { db, auth } from "@/lib/firebase";
+import { db, auth, isMockMode } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import Image from "next/image";
 import {
@@ -37,6 +37,12 @@ import {
 import { format } from "date-fns";
 import ReactDatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import {
+  createMockBooking,
+  getMockAuthUser,
+  getMockBookingsForCourtAndDate,
+  getMockCourtById,
+} from "@/lib/mockData";
 
 interface Court {
   name: string;
@@ -288,12 +294,17 @@ export default function CourtDetailPage() {
     setError("");
     const fetchCourt = async () => {
       try {
-        const docRef = doc(db, "courts", id);
-        const snapshot = await getDoc(docRef);
-        if (snapshot.exists()) {
-          setCourt(snapshot.data() as Court);
+        if (isMockMode) {
+          const mockCourt = getMockCourtById(id);
+          setCourt((mockCourt as Court | null) || null);
         } else {
-          setCourt(null);
+          const docRef = doc(db, "courts", id);
+          const snapshot = await getDoc(docRef);
+          if (snapshot.exists()) {
+            setCourt(snapshot.data() as Court);
+          } else {
+            setCourt(null);
+          }
         }
       } catch (err: any) {
         setError(err.message || "Failed to fetch court");
@@ -313,19 +324,22 @@ export default function CourtDetailPage() {
     setFetchingBookings(true);
     const fetchBookings = async () => {
       try {
-        const q = query(
-          collection(db, "bookings"),
-          where("courtId", "==", id),
-          where(
-            "date",
-            "==",
-            selectedDate instanceof Date
-              ? selectedDate.toISOString().slice(0, 10)
-              : selectedDate
-          )
-        );
-        const snap = await getDocs(q);
-        setBookingsForDate(snap.docs.map((doc) => doc.data()));
+        const bookingDate =
+          selectedDate instanceof Date
+            ? selectedDate.toISOString().slice(0, 10)
+            : String(selectedDate);
+
+        if (isMockMode) {
+          setBookingsForDate(getMockBookingsForCourtAndDate(id, bookingDate));
+        } else {
+          const q = query(
+            collection(db, "bookings"),
+            where("courtId", "==", id),
+            where("date", "==", bookingDate)
+          );
+          const snap = await getDocs(q);
+          setBookingsForDate(snap.docs.map((doc) => doc.data()));
+        }
       } catch (e) {
         setBookingsForDate([]);
       } finally {
@@ -346,7 +360,7 @@ export default function CourtDetailPage() {
       return;
     }
 
-    const currentUser = auth.currentUser;
+    const currentUser = isMockMode ? getMockAuthUser() : auth.currentUser;
     if (!user && !currentUser) {
       router.push(`/login?redirect=/courts/${id}`);
       return;
@@ -397,10 +411,16 @@ export default function CourtDetailPage() {
   };
 
   const confirmPlayerWaiverAndCheckout = async () => {
-    const currentUser = auth.currentUser;
+    const currentUser = isMockMode ? getMockAuthUser() : auth.currentUser;
     const activeUser = user || currentUser;
     if (!activeUser) {
       router.push(`/login?redirect=/courts/${id}`);
+      return;
+    }
+
+    if (isMockMode) {
+      setPlayerWaiverOpen(false);
+      await performCheckout();
       return;
     }
 
@@ -425,7 +445,7 @@ export default function CourtDetailPage() {
 
   /** Runs Stripe checkout after waiver is accepted. */
   const performCheckout = async () => {
-    const currentUser = auth.currentUser;
+    const currentUser = isMockMode ? getMockAuthUser() : auth.currentUser;
     const activeUser = user || currentUser;
     if (!activeUser) {
       router.push(`/login?redirect=/courts/${id}`);
@@ -434,6 +454,25 @@ export default function CourtDetailPage() {
 
     setBookingStatus("loading");
     try {
+      if (isMockMode) {
+        const mockBooking = await createMockBooking({
+          courtId: id,
+          userId: activeUser.uid,
+          date:
+            selectedDate instanceof Date
+              ? selectedDate.toISOString().slice(0, 10)
+              : String(selectedDate),
+          time: selectedTime,
+          duration: Math.round(parseFloat(duration)),
+          status: "pending",
+          courtNumber: selectedCourtNumber,
+        });
+
+        setBookingStatus("success");
+        router.push(`/booking/${mockBooking.id}`);
+        return;
+      }
+
       // SECURITY FIX 2: Get Firebase ID token for authentication
       const idToken = await activeUser.getIdToken();
 

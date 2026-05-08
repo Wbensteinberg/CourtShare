@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { useRouter } from "next/navigation";
-import { db } from "@/lib/firebase";
+import { db, isMockMode } from "@/lib/firebase";
 import {
   collection,
   query,
@@ -28,6 +28,12 @@ import {
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import GoogleMapsLink from "@/components/GoogleMapsLink";
+import {
+  getMockBookingById,
+  getMockBookingsForUser,
+  getMockCourtById,
+  updateMockBooking,
+} from "@/lib/mockData";
 
 interface Booking {
   id: string;
@@ -81,37 +87,25 @@ export default function PlayerDashboard() {
     setLoading(true);
     setError("");
     try {
-      // Fetch bookings for this user
-      console.log("[PLAYER DASHBOARD] Fetching bookings for user:", user.uid);
-      const bookingsSnap = await getDocs(
-        query(collection(db, "bookings"), where("userId", "==", user.uid))
-      );
-      console.log(
-        "[PLAYER DASHBOARD] Found",
-        bookingsSnap.docs.length,
-        "bookings"
-      );
-      const bookingsData: Booking[] = bookingsSnap.docs.map((doc) => {
-        const data = doc.data();
-        console.log(
-          "[PLAYER DASHBOARD] Booking:",
-          doc.id,
-          "userId:",
-          data.userId,
-          "status:",
-          data.status
-        );
-        return {
-          id: doc.id,
-          ...data,
-        };
-      }) as Booking[];
+      const bookingsData: Booking[] = isMockMode
+        ? (getMockBookingsForUser(user.uid) as Booking[])
+        : ((await getDocs(
+            query(collection(db, "bookings"), where("userId", "==", user.uid))
+          )).docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Booking[]);
       setBookings(bookingsData);
-      // Fetch all courts for these bookings
       const courtIds = Array.from(new Set(bookingsData.map((b) => b.courtId)));
       const courtsMap: Record<string, Court> = {};
       await Promise.all(
         courtIds.map(async (courtId) => {
+          if (isMockMode) {
+            const court = getMockCourtById(courtId);
+            if (court) courtsMap[courtId] = court as Court;
+            return;
+          }
+
           const courtDoc = await getDoc(doc(db, "courts", courtId));
           if (courtDoc.exists()) {
             courtsMap[courtId] = { id: courtId, ...courtDoc.data() } as Court;
@@ -141,18 +135,22 @@ export default function PlayerDashboard() {
     }
     setCancelling(bookingId);
     try {
-      const idToken = await user.getIdToken();
-      const res = await fetch("/api/cancel-booking", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ bookingId }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to cancel booking");
+      if (isMockMode) {
+        await updateMockBooking(bookingId, { status: "cancelled" });
+      } else {
+        const idToken = await user.getIdToken();
+        const res = await fetch("/api/cancel-booking", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ bookingId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to cancel booking");
+        }
       }
       setBookings((prev) =>
         prev.map((b) =>

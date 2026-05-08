@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { db } from "@/lib/firebase";
+import { db, isMockMode } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { useAuth } from "@/lib/AuthContext";
 import Image from "next/image";
@@ -18,6 +18,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { MapPin, ArrowLeft, X } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
+import {
+  getMockBookingById,
+  getMockCourtById,
+  updateMockBooking,
+} from "@/lib/mockData";
 
 interface Booking {
   id: string;
@@ -62,36 +67,56 @@ export default function BookingDetailsPage() {
       setError("");
 
       try {
-        // Fetch booking details
-        const bookingRef = doc(db, "bookings", bookingId as string);
-        const bookingSnap = await getDoc(bookingRef);
+        const bookingData = isMockMode
+          ? (getMockBookingById(bookingId as string) as Booking | null)
+          : null;
 
-        if (!bookingSnap.exists()) {
+        if (isMockMode && !bookingData) {
           setError("Booking not found");
           setLoading(false);
           return;
         }
 
-        const bookingData = {
-          id: bookingSnap.id,
-          ...bookingSnap.data(),
-        } as Booking;
+        const resolvedBooking = isMockMode
+          ? bookingData
+          : await (async () => {
+              const bookingRef = doc(db, "bookings", bookingId as string);
+              const bookingSnap = await getDoc(bookingRef);
+              if (!bookingSnap.exists()) return null;
+              return {
+                id: bookingSnap.id,
+                ...bookingSnap.data(),
+              } as Booking;
+            })();
+
+        if (!resolvedBooking) {
+          setError("Booking not found");
+          setLoading(false);
+          return;
+        }
 
         // Check if this booking belongs to the current user
-        if (bookingData.userId !== user.uid) {
+        if (resolvedBooking.userId !== user.uid) {
           setError("You don't have permission to view this booking");
           setLoading(false);
           return;
         }
 
-        setBooking(bookingData);
+        setBooking(resolvedBooking);
 
         // Fetch court details
-        const courtRef = doc(db, "courts", bookingData.courtId);
-        const courtSnap = await getDoc(courtRef);
+        if (isMockMode) {
+          const mockCourt = getMockCourtById(resolvedBooking.courtId);
+          if (mockCourt) {
+            setCourt(mockCourt as Court);
+          }
+        } else {
+          const courtRef = doc(db, "courts", resolvedBooking.courtId);
+          const courtSnap = await getDoc(courtRef);
 
-        if (courtSnap.exists()) {
-          setCourt(courtSnap.data() as Court);
+          if (courtSnap.exists()) {
+            setCourt(courtSnap.data() as Court);
+          }
         }
       } catch (err: any) {
         setError(err.message || "Failed to fetch booking details");
@@ -138,18 +163,22 @@ export default function BookingDetailsPage() {
 
     setCancelling(true);
     try {
-      const idToken = await user.getIdToken();
-      const res = await fetch("/api/cancel-booking", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ bookingId: booking.id }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to cancel booking");
+      if (isMockMode) {
+        await updateMockBooking(booking.id, { status: "cancelled" });
+      } else {
+        const idToken = await user.getIdToken();
+        const res = await fetch("/api/cancel-booking", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ bookingId: booking.id }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to cancel booking");
+        }
       }
       router.push("/dashboard/player");
     } catch (err: any) {

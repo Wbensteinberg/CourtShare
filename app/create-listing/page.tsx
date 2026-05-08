@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { db, getStorageInstance } from "@/lib/firebase";
+import { db, getStorageInstance, isMockMode } from "@/lib/firebase";
 import { collection, addDoc, doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuth } from "@/lib/AuthContext";
@@ -41,6 +41,7 @@ import {
   OWNER_LISTING_WAIVER_BODY,
   OWNER_LISTING_WAIVER_VERSION,
 } from "@/lib/waivers";
+import { addMockCourt, fileToDataUrl, updateMockProfile } from "@/lib/mockData";
 
 interface CourtFormData {
   courtName: string;
@@ -194,14 +195,18 @@ const CreateListing = () => {
     }
     setSaving(true);
     try {
-      const storage = getStorageInstance();
-      const imageUrls: string[] = [];
+      const imageUrls: string[] = isMockMode
+        ? await Promise.all(selectedFiles.map((file) => fileToDataUrl(file)))
+        : [];
 
-      for (const file of selectedFiles) {
-        const imageRef = ref(storage, `courts/${Date.now()}_${file.name}`);
-        await uploadBytes(imageRef, file);
-        const url = await getDownloadURL(imageRef);
-        imageUrls.push(url);
+      if (!isMockMode) {
+        const storage = getStorageInstance();
+        for (const file of selectedFiles) {
+          const imageRef = ref(storage, `courts/${Date.now()}_${file.name}`);
+          await uploadBytes(imageRef, file);
+          const url = await getDownloadURL(imageRef);
+          imageUrls.push(url);
+        }
       }
 
       const courtDoc: any = {
@@ -229,7 +234,13 @@ const CreateListing = () => {
         courtDoc.courtSpecificAlwaysBlockedTimesByDay = courtSpecificAlwaysBlockedTimesByDay;
       }
 
-      await addDoc(collection(db, "courts"), courtDoc);
+      if (isMockMode) {
+        await addMockCourt(courtDoc);
+        await updateMockProfile(user.uid, { isOwner: true });
+      } else {
+        await addDoc(collection(db, "courts"), courtDoc);
+      }
+
       router.push("/dashboard/owner");
     } catch (err: any) {
       setError(err.message || "Failed to create listing");
@@ -241,6 +252,12 @@ const CreateListing = () => {
   const confirmOwnerWaiverAndSubmit = async () => {
     const data = pendingListingDataRef.current;
     if (!data || !user) return;
+
+    if (isMockMode) {
+      setOwnerWaiverOpen(false);
+      await executeListingSubmit(data);
+      return;
+    }
 
     try {
       await setDoc(

@@ -13,8 +13,14 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+export const isMockMode =
+  process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true" ||
+  !firebaseConfig.apiKey ||
+  !firebaseConfig.projectId ||
+  !firebaseConfig.authDomain;
+
 // Validate configuration and log helpful errors
-if (typeof window !== "undefined") {
+if (typeof window !== "undefined" && !isMockMode) {
   const missingVars: string[] = [];
   if (!firebaseConfig.apiKey) missingVars.push("NEXT_PUBLIC_FIREBASE_API_KEY");
   if (!firebaseConfig.projectId)
@@ -37,15 +43,27 @@ if (typeof window !== "undefined") {
 
 // Initialize Firebase (reuse existing app if already initialized)
 const app =
-  getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+  !isMockMode
+    ? getApps().length === 0
+      ? initializeApp(firebaseConfig)
+      : getApps()[0]
+    : null;
 
-export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const auth = app
+  ? getAuth(app)
+  : (null as unknown as ReturnType<typeof getAuth>);
+export const db = app
+  ? getFirestore(app)
+  : (null as unknown as ReturnType<typeof getFirestore>);
 
 // Lazy load storage to avoid permissions issues before authentication
 let storageInstance: ReturnType<typeof getStorage> | null = null;
 
 export const getStorageInstance = () => {
+  if (!app) {
+    throw new Error("Storage is unavailable in mock mode");
+  }
+
   if (!storageInstance) {
     storageInstance = getStorage(app);
   }

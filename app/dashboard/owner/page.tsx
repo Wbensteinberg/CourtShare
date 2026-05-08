@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/AuthContext";
 import { useRouter } from "next/navigation";
-import { db } from "@/lib/firebase";
+import { db, isMockMode } from "@/lib/firebase";
 import {
   collection,
   query,
@@ -46,6 +46,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  deleteMockCourt,
+  getMockBookingsForOwner,
+  getMockCourts,
+  getMockUserDisplayName,
+  updateMockBooking,
+  updateMockCourt,
+} from "@/lib/mockData";
 
 interface Court {
   id: string;
@@ -116,26 +124,26 @@ export default function OwnerDashboard() {
     setError("");
     const fetchData = async () => {
       try {
-        // Fetch courts owned by this user (assuming you store ownerId on court)
-        const courtsSnap = await getDocs(
-          query(collection(db, "courts"), where("ownerId", "==", user.uid))
-        );
-        const courtsData: Court[] = courtsSnap.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Court[];
+        const courtsData: Court[] = isMockMode
+          ? (getMockCourts().filter((court) => court.ownerId === user.uid) as Court[])
+          : ((await getDocs(
+              query(collection(db, "courts"), where("ownerId", "==", user.uid))
+            )).docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            })) as Court[]);
         setCourts(courtsData);
-        // Fetch bookings for these courts
         const courtIds = courtsData.map((c) => c.id);
         let bookingsData: Booking[] = [];
         if (courtIds.length > 0) {
-          const bookingsSnap = await getDocs(
-            query(collection(db, "bookings"), where("courtId", "in", courtIds))
-          );
-          bookingsData = bookingsSnap.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          })) as Booking[];
+          bookingsData = isMockMode
+            ? (getMockBookingsForOwner(user.uid) as Booking[])
+            : ((await getDocs(
+                query(collection(db, "bookings"), where("courtId", "in", courtIds))
+              )).docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+              })) as Booking[]);
         }
         setBookings(bookingsData);
 
@@ -144,25 +152,33 @@ export default function OwnerDashboard() {
         );
         if (uniqueUserIds.length > 0) {
           try {
-            const userEntries = await Promise.allSettled(
-              uniqueUserIds.map(async (userId) => {
-                const userDoc = await getDoc(doc(db, "users", userId));
-                const userData = userDoc.data();
-                const displayName =
-                  userData?.displayName ||
-                  userData?.name ||
-                  userData?.email ||
-                  userId;
-                return [userId, displayName] as const;
-              })
-            );
-            const resolvedEntries = userEntries
-              .filter(
-                (entry): entry is PromiseFulfilledResult<readonly [string, string]> =>
-                  entry.status === "fulfilled"
-              )
-              .map((entry) => entry.value);
-            setBookingUsers(Object.fromEntries(resolvedEntries));
+            if (isMockMode) {
+              setBookingUsers(
+                Object.fromEntries(
+                  uniqueUserIds.map((userId) => [userId, getMockUserDisplayName(userId)])
+                )
+              );
+            } else {
+              const userEntries = await Promise.allSettled(
+                uniqueUserIds.map(async (userId) => {
+                  const userDoc = await getDoc(doc(db, "users", userId));
+                  const userData = userDoc.data();
+                  const displayName =
+                    userData?.displayName ||
+                    userData?.name ||
+                    userData?.email ||
+                    userId;
+                  return [userId, displayName] as const;
+                })
+              );
+              const resolvedEntries = userEntries
+                .filter(
+                  (entry): entry is PromiseFulfilledResult<readonly [string, string]> =>
+                    entry.status === "fulfilled"
+                )
+                .map((entry) => entry.value);
+              setBookingUsers(Object.fromEntries(resolvedEntries));
+            }
           } catch (err) {
             console.warn(
               "[OWNER DASHBOARD] Unable to load booking user names:",
@@ -182,6 +198,18 @@ export default function OwnerDashboard() {
   // Check Stripe Connect account status
   useEffect(() => {
     if (!user) return;
+
+    if (isMockMode) {
+      setStripeAccountStatus({
+        hasAccount: true,
+        status: "mock_active",
+        accountId: "acct_mock",
+        chargesEnabled: true,
+        payoutsEnabled: true,
+        detailsSubmitted: true,
+      });
+      return;
+    }
 
     const checkStripeAccount = async () => {
       if (!user) return;
@@ -249,6 +277,18 @@ export default function OwnerDashboard() {
   const handleConnectStripe = async () => {
     if (!user) return;
 
+    if (isMockMode) {
+      setStripeAccountStatus({
+        hasAccount: true,
+        status: "mock_active",
+        accountId: "acct_mock",
+        chargesEnabled: true,
+        payoutsEnabled: true,
+        detailsSubmitted: true,
+      });
+      return;
+    }
+
     setConnectingStripe(true);
     try {
       // SECURITY: Get Firebase ID token and send in Authorization header
@@ -300,6 +340,10 @@ export default function OwnerDashboard() {
   const handleUpdateStripeAccount = async () => {
     if (!user) return;
 
+    if (isMockMode) {
+      return;
+    }
+
     setConnectingStripe(true);
     try {
       // SECURITY: Get Firebase ID token and send in Authorization header
@@ -345,7 +389,11 @@ export default function OwnerDashboard() {
       return;
     setDeletingCourtId(courtId);
     try {
-      await deleteDoc(doc(db, "courts", courtId));
+      if (isMockMode) {
+        await deleteMockCourt(courtId);
+      } else {
+        await deleteDoc(doc(db, "courts", courtId));
+      }
       setCourts((prev) => prev.filter((c) => c.id !== courtId));
     } catch (err: any) {
       alert(err.message || "Failed to delete court");
@@ -358,13 +406,20 @@ export default function OwnerDashboard() {
     setAcceptBookingConfirm(null);
     setUpdatingBookingId(bookingId);
     try {
-      // Update booking status
-      await updateDoc(doc(db, "bookings", bookingId), { status: "confirmed" });
+      if (isMockMode) {
+        await updateMockBooking(bookingId, { status: "confirmed" });
+      } else {
+        await updateDoc(doc(db, "bookings", bookingId), { status: "confirmed" });
+      }
       setBookings((prev) =>
         prev.map((b) =>
           b.id === bookingId ? { ...b, status: "confirmed" } : b
         )
       );
+
+      if (isMockMode) {
+        return;
+      }
 
       // Send confirmation email to player
       try {
@@ -421,18 +476,22 @@ export default function OwnerDashboard() {
     }
     setUpdatingBookingId(bookingId);
     try {
-      const idToken = await user.getIdToken();
-      const res = await fetch("/api/reject-booking", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ bookingId }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to reject booking");
+      if (isMockMode) {
+        await updateMockBooking(bookingId, { status: "rejected" });
+      } else {
+        const idToken = await user.getIdToken();
+        const res = await fetch("/api/reject-booking", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ bookingId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to reject booking");
+        }
       }
       setBookings((prev) =>
         prev.map((b) => (b.id === bookingId ? { ...b, status: "rejected" } : b))
@@ -449,7 +508,11 @@ export default function OwnerDashboard() {
     blockedTimes: { [date: string]: string[] }
   ) => {
     try {
-      await updateDoc(doc(db, "courts", courtId), { blockedTimes });
+      if (isMockMode) {
+        await updateMockCourt(courtId, { blockedTimes });
+      } else {
+        await updateDoc(doc(db, "courts", courtId), { blockedTimes });
+      }
       // Update local state
       setCourts((prev) =>
         prev.map((court) =>

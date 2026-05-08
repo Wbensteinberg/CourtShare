@@ -4,13 +4,14 @@ import { useState, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, isMockMode } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import AppHeader from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { UserPlus, Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle } from "lucide-react";
+import { signInMockUser } from "@/lib/mockData";
 
 const googleProvider = new GoogleAuthProvider();
 
@@ -31,6 +32,14 @@ function SignupForm() {
     setError("");
     setLoading(true);
     try {
+      if (isMockMode) {
+        signInMockUser(email || "demo@courtshare.co");
+        setSuccess(true);
+        router.push(redirect || "/courts");
+        router.refresh();
+        return;
+      }
+
       const result = await signInWithPopup(auth, googleProvider);
       const userRef = doc(db, "users", result.user.uid);
       const userSnap = await getDoc(userRef);
@@ -63,6 +72,14 @@ function SignupForm() {
     }
     setLoading(true);
     try {
+      if (isMockMode) {
+        signInMockUser(email || "demo@courtshare.co");
+        setSuccess(true);
+        router.push(redirect || "/courts");
+        router.refresh();
+        return;
+      }
+
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       await setDoc(doc(db, "users", userCredential.user.uid), {
         uid: userCredential.user.uid,

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { db, getStorageInstance } from "@/lib/firebase";
+import { db, getStorageInstance, isMockMode } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { useAuth } from "@/lib/AuthContext";
@@ -16,6 +16,12 @@ import { Upload, Calendar as CalendarIcon, Clock, Trophy, Edit3, Trash2, Setting
 import { useForm } from "react-hook-form";
 import AppHeader from "@/components/AppHeader";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
+import {
+  deleteMockCourt,
+  fileToDataUrl,
+  getMockCourtById,
+  updateMockCourt,
+} from "@/lib/mockData";
 
 interface Court {
   id: string;
@@ -105,52 +111,59 @@ export default function EditListingPage() {
       setError("");
       
       try {
-        const courtRef = doc(db, "courts", courtId as string);
-        const courtSnap = await getDoc(courtRef);
-        
-        if (!courtSnap.exists()) {
+        let resolvedCourt: Court | null = null;
+
+        if (isMockMode) {
+          resolvedCourt = getMockCourtById(courtId as string) as Court | null;
+        } else {
+          const courtRef = doc(db, "courts", courtId as string);
+          const snap = await getDoc(courtRef);
+          resolvedCourt = snap.exists()
+            ? ({ id: snap.id, ...snap.data() } as Court)
+            : null;
+        }
+
+        if (!resolvedCourt) {
           setError("Court not found");
           setLoading(false);
           return;
         }
         
-        const courtData = { id: courtSnap.id, ...courtSnap.data() } as Court;
-        
         // Check if this court belongs to the current user
-        if (courtData.ownerId !== user.uid) {
+        if (resolvedCourt.ownerId !== user.uid) {
           setError("You don't have permission to edit this court");
           setLoading(false);
           return;
         }
         
-        setCourt(courtData);
+        setCourt(resolvedCourt);
         
         // Populate form fields
-        setName(courtData.name);
-        setLocation(courtData.location);
-        setAddress(courtData.address || "");
-        setAccessInstructions(courtData.accessInstructions || "");
-        setPrice(courtData.price.toString());
-        setDescription(courtData.description);
-        setExistingImages(courtData.imageUrls || [courtData.imageUrl]);
+        setName(resolvedCourt.name);
+        setLocation(resolvedCourt.location);
+        setAddress(resolvedCourt.address || "");
+        setAccessInstructions(resolvedCourt.accessInstructions || "");
+        setPrice(resolvedCourt.price.toString());
+        setDescription(resolvedCourt.description);
+        setExistingImages(resolvedCourt.imageUrls || [resolvedCourt.imageUrl]);
         // Set the main image index to 0 (first image) by default
         setMainImageIndex(0);
         
         // Load availability data
-        setMaxAdvanceBookingDays(courtData.maxAdvanceBookingDays ?? null);
-        setAlwaysBlockedTimes(courtData.alwaysBlockedTimes || []);
-        setAlwaysBlockedTimesByDay(courtData.alwaysBlockedTimesByDay || {});
-        setNumberOfCourts(courtData.numberOfCourts || 1);
-        setCourtSpecificAlwaysBlockedTimes(courtData.courtSpecificAlwaysBlockedTimes || {});
-        setCourtSpecificAlwaysBlockedTimesByDay(courtData.courtSpecificAlwaysBlockedTimesByDay || {});
+        setMaxAdvanceBookingDays(resolvedCourt.maxAdvanceBookingDays ?? null);
+        setAlwaysBlockedTimes(resolvedCourt.alwaysBlockedTimes || []);
+        setAlwaysBlockedTimesByDay(resolvedCourt.alwaysBlockedTimesByDay || {});
+        setNumberOfCourts(resolvedCourt.numberOfCourts || 1);
+        setCourtSpecificAlwaysBlockedTimes(resolvedCourt.courtSpecificAlwaysBlockedTimes || {});
+        setCourtSpecificAlwaysBlockedTimesByDay(resolvedCourt.courtSpecificAlwaysBlockedTimesByDay || {});
         
         // Update form default values
-        form.setValue("courtName", courtData.name);
-        form.setValue("location", courtData.location);
-        form.setValue("fullAddress", courtData.address || "");
-        form.setValue("accessInstructions", courtData.accessInstructions || "");
-        form.setValue("pricePerHour", courtData.price.toString());
-        form.setValue("description", courtData.description);
+        form.setValue("courtName", resolvedCourt.name);
+        form.setValue("location", resolvedCourt.location);
+        form.setValue("fullAddress", resolvedCourt.address || "");
+        form.setValue("accessInstructions", resolvedCourt.accessInstructions || "");
+        form.setValue("pricePerHour", resolvedCourt.price.toString());
+        form.setValue("description", resolvedCourt.description);
         
       } catch (err: any) {
         setError(err.message || "Failed to fetch court details");
@@ -216,7 +229,11 @@ export default function EditListingPage() {
     if (!courtId) return;
     setDeletingListing(true);
     try {
-      await deleteDoc(doc(db, "courts", courtId));
+      if (isMockMode) {
+        await deleteMockCourt(courtId);
+      } else {
+        await deleteDoc(doc(db, "courts", courtId));
+      }
       router.push("/dashboard/owner");
     } catch (err: any) {
       setError(err.message || "Failed to delete listing");
@@ -306,15 +323,18 @@ export default function EditListingPage() {
     setSaving(true);
     
     try {
-      const storage = getStorageInstance();
-      const newImageUrls: string[] = [];
+      const newImageUrls: string[] = isMockMode
+        ? await Promise.all(images.map((image) => fileToDataUrl(image)))
+        : [];
       
-      // Upload new images
-      for (const image of images) {
-        const imageRef = ref(storage, `courts/${Date.now()}_${image.name}`);
-        await uploadBytes(imageRef, image);
-        const imageUrl = await getDownloadURL(imageRef);
-        newImageUrls.push(imageUrl);
+      if (!isMockMode) {
+        const storage = getStorageInstance();
+        for (const image of images) {
+          const imageRef = ref(storage, `courts/${Date.now()}_${image.name}`);
+          await uploadBytes(imageRef, image);
+          const imageUrl = await getDownloadURL(imageRef);
+          newImageUrls.push(imageUrl);
+        }
       }
       
       // Combine existing images (not removed) with new images
@@ -348,7 +368,11 @@ export default function EditListingPage() {
         updateData.courtSpecificAlwaysBlockedTimesByDay = courtSpecificAlwaysBlockedTimesByDay;
       }
 
-      await updateDoc(doc(db, "courts", courtId as string), updateData);
+      if (isMockMode) {
+        await updateMockCourt(courtId as string, updateData);
+      } else {
+        await updateDoc(doc(db, "courts", courtId as string), updateData);
+      }
       
       setSuccess(true);
       

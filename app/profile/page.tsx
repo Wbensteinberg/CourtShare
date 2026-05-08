@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { db, getStorageInstance } from "@/lib/firebase";
+import { db, getStorageInstance, isMockMode } from "@/lib/firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuth } from "@/lib/AuthContext";
@@ -31,6 +31,11 @@ import {
   Calendar,
   Star,
 } from "lucide-react";
+import {
+  fileToDataUrl,
+  getMockProfile,
+  updateMockProfile,
+} from "@/lib/mockData";
 
 interface UserProfile {
   uid: string;
@@ -95,17 +100,38 @@ export default function ProfilePage() {
       setError("");
 
       try {
-        const userRef = doc(db, "users", user.uid);
-        const userSnap = await getDoc(userRef);
-
-        if (userSnap.exists()) {
-          const userData = userSnap.data() as UserProfile;
-          setProfile(userData);
-          setDisplayName(userData.displayName || "");
-          setBio(userData.bio || "");
-          setProfileImagePreview(userData.profileImageUrl || "");
+        if (isMockMode) {
+          const userData = getMockProfile(user.uid) as UserProfile | null;
+          if (userData) {
+            setProfile(userData);
+            setDisplayName(userData.displayName || "");
+            setBio(userData.bio || "");
+            setProfileImagePreview(userData.profileImageUrl || "");
+          }
         } else {
-          // Create basic profile if it doesn't exist
+          const userRef = doc(db, "users", user.uid);
+          const userSnap = await getDoc(userRef);
+
+          if (userSnap.exists()) {
+            const userData = userSnap.data() as UserProfile;
+            setProfile(userData);
+            setDisplayName(userData.displayName || "");
+            setBio(userData.bio || "");
+            setProfileImagePreview(userData.profileImageUrl || "");
+          } else {
+            const basicProfile: UserProfile = {
+              uid: user.uid,
+              email: user.email || "",
+              displayName: "",
+              bio: "",
+              profileImageUrl: "",
+              isOwner: false,
+            };
+            setProfile(basicProfile);
+          }
+        }
+
+        if (isMockMode && !getMockProfile(user.uid)) {
           const basicProfile: UserProfile = {
             uid: user.uid,
             email: user.email || "",
@@ -229,27 +255,36 @@ export default function ProfilePage() {
     try {
       let profileImageUrl = profile?.profileImageUrl || "";
 
-      // Upload new profile image if selected
-      if (profileImage) {
-        const storage = getStorageInstance();
-        const imageRef = ref(
-          storage,
-          `profiles/${user.uid}_${Date.now()}_${profileImage.name}`
-        );
-        await uploadBytes(imageRef, profileImage);
-        profileImageUrl = await getDownloadURL(imageRef);
-      }
+      if (isMockMode) {
+        if (profileImage) {
+          profileImageUrl = await fileToDataUrl(profileImage);
+        }
 
-      // Update user profile in Firestore
-      await updateDoc(doc(db, "users", user.uid), {
-        displayName,
-        bio,
-        profileImageUrl,
-      });
+        await updateMockProfile(user.uid, {
+          displayName,
+          bio,
+          profileImageUrl,
+        });
+      } else {
+        if (profileImage) {
+          const storage = getStorageInstance();
+          const imageRef = ref(
+            storage,
+            `profiles/${user.uid}_${Date.now()}_${profileImage.name}`
+          );
+          await uploadBytes(imageRef, profileImage);
+          profileImageUrl = await getDownloadURL(imageRef);
+        }
+
+        await updateDoc(doc(db, "users", user.uid), {
+          displayName,
+          bio,
+          profileImageUrl,
+        });
+      }
 
       setSuccess(true);
 
-      // Update local state
       setProfile((prev) =>
         prev
           ? {
@@ -261,10 +296,7 @@ export default function ProfilePage() {
           : null
       );
 
-      // Clear the file input
       setProfileImage(null);
-
-      // Redirect to courts page after successful save
       router.push("/courts");
     } catch (err: any) {
       setError(err.message || "Failed to update profile");

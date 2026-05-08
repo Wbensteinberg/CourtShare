@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { db } from "@/lib/firebase";
+import { db, isMockMode } from "@/lib/firebase";
 import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
 import Image from "next/image";
 import { useAuth } from "@/lib/AuthContext";
@@ -17,6 +17,7 @@ import {
   formatDistance,
   type Coordinates,
 } from "@/lib/geolocation";
+import { getMockCourts, setMockUserRole } from "@/lib/mockData";
 
 interface Court {
   id: string;
@@ -52,11 +53,12 @@ export default function CourtsPage() {
       setLoading(true);
       setError("");
       try {
-        const querySnapshot = await getDocs(collection(db, "courts"));
-        const courtsData: Court[] = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Court[];
+        const courtsData: Court[] = isMockMode
+          ? (getMockCourts() as Court[])
+          : ((await getDocs(collection(db, "courts"))).docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            })) as Court[]);
         setCourts(courtsData);
       } catch (err: any) {
         console.error("Error fetching courts:", err);
@@ -130,7 +132,11 @@ export default function CourtsPage() {
   const handleToggleRole = async () => {
     if (!user) return;
     const newIsOwner = !isOwner;
-    await updateDoc(doc(db, "users", user.uid), { isOwner: newIsOwner });
+    if (isMockMode) {
+      setMockUserRole(user.uid, newIsOwner);
+    } else {
+      await updateDoc(doc(db, "users", user.uid), { isOwner: newIsOwner });
+    }
     setIsOwner(newIsOwner);
     // Do not route anywhere after toggling mode
   };

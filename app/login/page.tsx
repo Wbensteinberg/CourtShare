@@ -3,13 +3,14 @@
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail } from "firebase/auth";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, isMockMode } from "@/lib/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import AppHeader from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { LogIn, Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle } from "lucide-react";
+import { signInMockUser } from "@/lib/mockData";
 
 const googleProvider = new GoogleAuthProvider();
 
@@ -31,6 +32,13 @@ function LoginForm() {
     setError("");
     setLoading(true);
     try {
+      if (isMockMode) {
+        signInMockUser(email || "demo@courtshare.co");
+        router.push(redirect || "/courts");
+        router.refresh();
+        return;
+      }
+
       const result = await signInWithPopup(auth, googleProvider);
       const userRef = doc(db, "users", result.user.uid);
       const userSnap = await getDoc(userRef);
@@ -56,6 +64,10 @@ function LoginForm() {
     setResetStatus("loading");
     setResetError("");
     try {
+      if (isMockMode) {
+        setResetStatus("sent");
+        return;
+      }
       await sendPasswordResetEmail(auth, resetEmail);
       setResetStatus("sent");
     } catch (err: any) {
@@ -69,6 +81,13 @@ function LoginForm() {
     setError("");
     setLoading(true);
     try {
+      if (isMockMode) {
+        signInMockUser(email || "demo@courtshare.co");
+        router.push(redirect || "/courts");
+        router.refresh();
+        return;
+      }
+
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const userRef = doc(db, "users", userCredential.user.uid);
       const userSnap = await getDoc(userRef);
