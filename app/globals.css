@@ -1,31 +1,7 @@
 @import "tailwindcss";
-
-:root {
-  --background: #ffffff;
-  --foreground: #0a0f1a;
-  --green-primary: #10b981;
-  --primary: #10b981;
-  --primary-foreground: #ffffff;
-  --muted-foreground: #64748b;
-  --court-yellow: #fbbf24;
-  --accent: #06b6d4;
-  --gradient-start: #10b981;
-  --gradient-end: #059669;
-  --gradient-accent: #06b6d4;
-  --emerald-50: #ecfdf5;
-  --emerald-100: #d1fae5;
-  --emerald-500: #10b981;
-  --emerald-600: #059669;
-  --emerald-700: #047857;
-  --teal-500: #14b8a6;
-  --teal-600: #0d9488;
-  --cyan-400: #22d3ee;
-  --cyan-500: #06b6d4;
-}
+@import "./theme.css";
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -52,7 +28,7 @@ html {
 }
 
 .bg-gradient-tennis {
-  background: linear-gradient(135deg, #10b981 0%, #059669 30%, #047857 60%, #065f46 100%);
+  background: linear-gradient(135deg, var(--site-accent) 0%, var(--site-accent) 100%);
   background-size: 400% 400%;
   animation: gradientFlow 15s ease infinite;
 }
@@ -73,7 +49,7 @@ html {
 }
 
 .bg-gradient-primary {
-  background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);
+  background: linear-gradient(135deg, var(--site-accent) 0%, var(--site-accent) 100%);
   background-size: 200% 200%;
   animation: gradientShift 8s ease infinite;
 }
@@ -85,7 +61,7 @@ html {
 }
 
 .hover\:bg-primary-glow:hover {
-  background: linear-gradient(135deg, #20542e 0%, #1a4a28 100%);
+  background: linear-gradient(135deg, var(--site-accent-hover) 0%, var(--site-accent-hover) 100%);
 }
 
 .shadow-card {
@@ -101,17 +77,17 @@ html {
 
 .shadow-glow {
   box-shadow: 
-    0 0 0 1px rgba(16, 185, 129, 0.1),
-    0 4px 12px rgba(16, 185, 129, 0.15),
-    0 8px 24px rgba(16, 185, 129, 0.1),
+    0 0 0 1px color-mix(in srgb, var(--site-accent) 10%, transparent),
+    0 4px 12px color-mix(in srgb, var(--site-accent) 15%, transparent),
+    0 8px 24px color-mix(in srgb, var(--site-accent) 10%, transparent),
     0 16px 48px rgba(0, 0, 0, 0.08);
 }
 
 .shadow-glow-hover:hover {
   box-shadow: 
-    0 0 0 1px rgba(16, 185, 129, 0.2),
-    0 8px 16px rgba(16, 185, 129, 0.2),
-    0 16px 32px rgba(16, 185, 129, 0.15),
+    0 0 0 1px color-mix(in srgb, var(--site-accent) 20%, transparent),
+    0 8px 16px color-mix(in srgb, var(--site-accent) 20%, transparent),
+    0 16px 32px color-mix(in srgb, var(--site-accent) 15%, transparent),
     0 24px 64px rgba(0, 0, 0, 0.12);
   transform: translateY(-4px) scale(1.01);
 }
@@ -134,10 +110,10 @@ html {
 }
 
 .glass-emerald {
-  background: rgba(16, 185, 129, 0.1);
+  background: color-mix(in srgb, var(--site-accent) 10%, transparent);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(16, 185, 129, 0.2);
+  border: 1px solid color-mix(in srgb, var(--site-accent) 20%, transparent);
 }
 
 .transition-smooth {
@@ -171,12 +147,12 @@ html {
 /* Pulse glow animation - more refined */
 @keyframes pulse-glow {
   0%, 100% { 
-    box-shadow: 0 0 20px rgba(16, 185, 129, 0.2),
-                0 0 40px rgba(16, 185, 129, 0.1);
+    box-shadow: 0 0 20px color-mix(in srgb, var(--site-accent) 20%, transparent),
+                0 0 40px color-mix(in srgb, var(--site-accent) 10%, transparent);
   }
   50% { 
-    box-shadow: 0 0 30px rgba(16, 185, 129, 0.4),
-                0 0 60px rgba(16, 185, 129, 0.2);
+    box-shadow: 0 0 30px color-mix(in srgb, var(--site-accent) 40%, transparent),
+                0 0 60px color-mix(in srgb, var(--site-accent) 20%, transparent);
   }
 }
 
@@ -259,8 +235,21 @@ html {
 
 .react-datepicker__input-container input:focus {
   outline: none;
-  border-color: #16a34a;
-  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.1);
+  border-color: var(--site-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--site-accent) 10%, transparent);
+}
+
+.search-date-input {
+  height: 3.5rem !important;
+  border-radius: 1rem !important;
+  border-color: #e2e8f0 !important;
+  background: #ffffff !important;
+  padding-left: 3rem !important;
+  padding-right: 1rem !important;
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  color: #0f172a !important;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05) !important;
 }
 
 .react-datepicker {
@@ -282,18 +271,18 @@ html {
 }
 
 .react-datepicker__day:hover {
-  background-color: #dcfce7 !important;
-  color: #166534 !important;
+  background-color: var(--site-accent-soft) !important;
+  color: var(--site-accent) !important;
 }
 
 .react-datepicker__day--selected {
-  background-color: #16a34a !important;
+  background-color: var(--site-accent) !important;
   color: white !important;
 }
 
 .react-datepicker__day--today {
-  background-color: #dcfce7 !important;
-  color: #166534 !important;
+  background-color: var(--site-accent-soft) !important;
+  color: var(--site-accent) !important;
   font-weight: 600;
 }
 
@@ -337,30 +326,30 @@ html {
 }
 
 .rdp-button:hover:not([disabled]) {
-  background-color: #dcfce7 !important;
-  color: #166534 !important;
+  background-color: var(--site-accent-soft) !important;
+  color: var(--site-accent) !important;
   transform: scale(1.05) !important;
 }
 
 .rdp-button[aria-selected="true"] {
-  background-color: #16a34a !important;
+  background-color: var(--site-accent) !important;
   color: white !important;
   font-weight: 600 !important;
 }
 
 .rdp-button[aria-selected="true"]:hover {
-  background-color: #15803d !important;
+  background-color: var(--site-accent-hover) !important;
   transform: scale(1.05) !important;
 }
 
 .rdp-button.rdp-day_today {
-  background-color: #dcfce7 !important;
-  color: #166534 !important;
+  background-color: var(--site-accent-soft) !important;
+  color: var(--site-accent) !important;
   font-weight: 600 !important;
 }
 
 .rdp-button.rdp-day_today[aria-selected="true"] {
-  background-color: #16a34a !important;
+  background-color: var(--site-accent) !important;
   color: white !important;
 }
 

@@ -390,7 +390,7 @@ export default function EditListingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#286a3a] px-4">
+      <div className="min-h-screen flex items-center justify-center bg-primary px-4">
         <div className="text-white text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
           <p>Loading court details...</p>
@@ -401,14 +401,14 @@ export default function EditListingPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#286a3a] px-4">
+      <div className="min-h-screen flex items-center justify-center bg-primary px-4">
         <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 mx-auto text-center">
           <div className="text-6xl mb-4">❌</div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Error</h2>
           <p className="text-gray-600 mb-6">{error}</p>
           <button
             onClick={() => router.push("/dashboard/owner")}
-            className="bg-[#286a3a] text-white py-3 px-6 rounded-lg font-semibold hover:bg-[#20542e] transition hover:cursor-pointer"
+            className="bg-primary text-white py-3 px-6 rounded-lg font-semibold hover:bg-primary transition hover:cursor-pointer"
           >
             Back to Dashboard
           </button>
@@ -419,14 +419,14 @@ export default function EditListingPage() {
 
   if (!court) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#286a3a] px-4">
+      <div className="min-h-screen flex items-center justify-center bg-primary px-4">
         <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 mx-auto text-center">
           <div className="text-6xl mb-4">❓</div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Court Not Found</h2>
           <p className="text-gray-600 mb-6">The court you're looking for doesn't exist.</p>
           <button
             onClick={() => router.push("/dashboard/owner")}
-            className="bg-[#286a3a] text-white py-3 px-6 rounded-lg font-semibold hover:bg-[#20542e] transition hover:cursor-pointer"
+            className="bg-primary text-white py-3 px-6 rounded-lg font-semibold hover:bg-primary transition hover:cursor-pointer"
           >
             Back to Dashboard
           </button>

@@ -712,28 +712,6 @@ export default function CourtDetailPage() {
 
           {/* Booking Form */}
           <div className="lg:sticky lg:top-8">
-            {user && isOwner ? (
-              <Card className="shadow-elegant border-0 rounded-3xl">
-                <CardHeader className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 text-white border-0 rounded-t-3xl">
-                  <CardTitle className="text-2xl font-black tracking-tight">
-                    Owner Mode Active
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-8 space-y-6">
-                  <p className="text-center text-gray-600 font-medium leading-relaxed">
-                    You're currently in owner mode. Switch to player mode to
-                    book courts.
-                  </p>
-                  <Button
-                    className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold py-4 rounded-2xl shadow-xl hover:shadow-glow-hover transition-all duration-300 transform hover:scale-[1.02]"
-                    size="lg"
-                    onClick={() => router.push("/dashboard/owner")}
-                  >
-                    Go to Owner Dashboard
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
               <Card className="shadow-elegant border-0 rounded-3xl">
                 <CardHeader className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 text-white border-0 rounded-t-3xl">
                   <CardTitle className="text-2xl font-black tracking-tight">
@@ -902,7 +880,6 @@ export default function CourtDetailPage() {
                   </p>
                 </CardContent>
               </Card>
-            )}
           </div>
         </div>
       </div>

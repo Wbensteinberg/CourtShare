@@ -23,6 +23,10 @@ import {
   getMockCourtById,
   updateMockBooking,
 } from "@/lib/mockData";
+import {
+  formatBookingDateLong,
+  isBookingCancellable,
+} from "@/lib/bookingDates";
 
 interface Booking {
   id: string;
@@ -128,26 +132,8 @@ export default function BookingDetailsPage() {
     fetchBooking();
   }, [bookingId, user]);
 
-  const parseBookingDateTime = (dateStr: string, timeStr: string): Date => {
-    const parts = timeStr.split(" ");
-    const [hours, minutes] = (parts[0] || "0:0").split(":").map(Number);
-    const period = parts[1];
-    let hour24 = hours;
-    if (period === "PM" && hours !== 12) hour24 = hours + 12;
-    else if (period === "AM" && hours === 12) hour24 = 0;
-    const dateTimeStr = `${dateStr}T${hour24.toString().padStart(2, "0")}:${(minutes || 0).toString().padStart(2, "0")}:00`;
-    return new Date(dateTimeStr);
-  };
-
   const canCancelBooking = (): boolean => {
-    if (!booking) return false;
-    try {
-      const bookingDateTime = parseBookingDateTime(booking.date, booking.time);
-      const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000);
-      return bookingDateTime >= oneHourFromNow;
-    } catch {
-      return false;
-    }
+    return booking ? isBookingCancellable(booking) : false;
   };
 
   const handleCancel = async () => {
@@ -186,22 +172,6 @@ export default function BookingDetailsPage() {
     } finally {
       setCancelling(false);
     }
-  };
-
-  const formatDate = (dateString: string) => {
-    // Parse date string (format: "YYYY-MM-DD") as local date to avoid timezone issues
-    const [year, month, day] = dateString.split("-").map(Number);
-    const date = new Date(year, month - 1, day); // month is 0-indexed in Date constructor
-    return date.toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
-
-  const formatTime = (timeString: string) => {
-    return timeString;
   };
 
   const getStatusBadge = (status: string) => {
@@ -364,13 +334,13 @@ export default function BookingDetailsPage() {
                   <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100">
                     <p className="text-xs font-medium text-gray-500">Date</p>
                     <p className="font-semibold text-gray-900 truncate mt-0.5">
-                      {formatDate(booking.date)}
+                      {formatBookingDateLong(booking.date)}
                     </p>
                   </div>
                   <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100">
                     <p className="text-xs font-medium text-gray-500">Time</p>
                     <p className="font-semibold text-gray-900 mt-0.5">
-                      {formatTime(booking.time)} · {booking.duration}h
+                      {booking.time} · {booking.duration}h
                     </p>
                   </div>
                   <div className="p-4 rounded-xl bg-gray-50/80 border border-gray-100">

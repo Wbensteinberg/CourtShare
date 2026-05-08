@@ -1,6 +1,7 @@
 "use client";
 
 import type { User } from "firebase/auth";
+import { theme } from "./theme";
 
 export type MockUserProfile = {
   uid: string;
@@ -142,8 +143,8 @@ const createSeedDb = (): MockDb => {
       accessInstructions: "Check in with the front desk and use court gate code 4411.",
       price: 48,
       description: "Bright outdoor hard courts with shade seating, water refill, and quick freeway access.",
-      imageUrl: createImageDataUrl("Sunset Baseline Club", "#10b981"),
-      imageUrls: [createImageDataUrl("Sunset Baseline Club", "#10b981")],
+      imageUrl: createImageDataUrl("Sunset Baseline Club", theme.colors.brandGreen),
+      imageUrls: [createImageDataUrl("Sunset Baseline Club", theme.colors.brandGreen)],
       ownerId: "mock-user-2",
       latitude: 34.0195,
       longitude: -118.4912,

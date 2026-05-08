@@ -20,7 +20,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  ArrowLeft,
+  Building2,
+  ChevronDown,
+  ChevronUp,
   Edit3,
   Trash2,
   Calendar,
@@ -35,6 +37,8 @@ import {
   Banknote,
   Settings,
   ExternalLink,
+  Plus,
+  ListChecks,
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import InlineWeeklyCalendar from "@/components/InlineWeeklyCalendar";
@@ -54,6 +58,12 @@ import {
   updateMockBooking,
   updateMockCourt,
 } from "@/lib/mockData";
+import {
+  isPastOrInactiveBooking,
+  parseBookingDateTime,
+  sortBookingsAscending,
+  sortBookingsDescending,
+} from "@/lib/bookingDates";
 
 interface Court {
   id: string;
@@ -111,6 +121,7 @@ export default function OwnerDashboard() {
   } | null>(null);
   const [checkingStripe, setCheckingStripe] = useState(false);
   const [connectingStripe, setConnectingStripe] = useState(false);
+  const [expandedCourtId, setExpandedCourtId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -574,565 +585,508 @@ export default function OwnerDashboard() {
     );
   }
 
+  const courtsById = Object.fromEntries(courts.map((court) => [court.id, court]));
+  const activeBookings = bookings.filter(
+    (booking) => booking.status !== "cancelled" && booking.status !== "rejected"
+  );
+  const pendingBookings = activeBookings
+    .filter((booking) => booking.status === "pending")
+    .sort(sortBookingsAscending);
+  const upcomingBookings = activeBookings
+    .filter(
+      (booking) =>
+        booking.status === "confirmed" &&
+        parseBookingDateTime(booking.date, booking.time) >= new Date()
+    )
+    .sort(sortBookingsAscending);
+  const pastBookings = bookings
+    .filter((booking) => isPastOrInactiveBooking(booking))
+    .sort(sortBookingsDescending);
+  const estimatedRevenue = bookings
+    .filter((booking) => booking.status === "confirmed")
+    .reduce((sum, booking) => {
+      const court = courtsById[booking.courtId];
+      return sum + (court?.price || 0) * booking.duration;
+    }, 0);
+  const pendingPayments = pendingBookings.reduce((sum, booking) => {
+    const court = courtsById[booking.courtId];
+    return sum + (court?.price || 0) * booking.duration;
+  }, 0);
+
   return (
-    <div className="min-h-screen bg-white w-full">
+    <div className="min-h-screen bg-slate-50 w-full">
       <AppHeader />
 
-      {/* Hero Section - Same as /courts page */}
-      <section className="relative overflow-hidden w-full bg-gradient-tennis text-white">
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 opacity-20 animate-pulse"></div>
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-          <div className="absolute top-20 left-10 w-96 h-96 bg-gradient-to-br from-white/8 to-emerald-300/5 rounded-full blur-3xl animate-float"></div>
-          <div
-            className="absolute bottom-20 right-10 w-[500px] h-[500px] bg-gradient-to-br from-cyan-400/8 to-teal-300/5 rounded-full blur-3xl animate-float"
-            style={{ animationDelay: "2s" }}
-          ></div>
-          <div
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-gradient-to-br from-emerald-400/6 to-cyan-300/4 rounded-full blur-3xl animate-float"
-            style={{ animationDelay: "4s" }}
-          ></div>
-        </div>
-        <div className="relative w-full flex flex-col items-center py-20 md:py-28 px-4 z-10">
-          <div className="max-w-6xl w-full mx-auto text-center space-y-8">
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-black tracking-tighter text-white drop-shadow-2xl leading-[1.1]">
+      <main className="w-full">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <div className="flex flex-col gap-4 border-b border-slate-200 pb-6 xl:flex-row xl:items-center xl:justify-between">
+            <h1 className="text-3xl font-bold text-slate-950">
               Owner Dashboard
             </h1>
-            <p className="text-xl md:text-2xl text-white/95 max-w-2xl mx-auto font-medium">
-              Welcome! Here are your courts and bookings.
-            </p>
-          </div>
-        </div>
-        <div className="absolute left-0 bottom-[-1px] w-full z-10">
-          <svg
-            viewBox="0 0 1440 120"
-            className="w-full h-12 md:h-16"
-            preserveAspectRatio="none"
-          >
-            <path
-              fill="#ffffff"
-              d="M0,96L48,90.7C96,85,192,75,288,70C384,65,480,65,576,70C672,75,768,85,864,90C960,95,1056,95,1152,90C1248,85,1344,75,1392,70L1440,65L1440,120L1392,120C1344,120,1248,120,1152,120C1056,120,960,120,864,120C768,120,672,120,576,120C480,120,384,120,288,120C192,120,96,120,48,120L0,120Z"
-              className="animate-pulse"
-              style={{ animationDuration: "3s" }}
-            />
-          </svg>
-        </div>
-      </section>
-
-      {/* Main Content */}
-      <main className="w-full bg-gradient-to-b from-white via-slate-100 to-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          {/* Stripe Connect Status Card */}
-          {stripeAccountStatus && !stripeAccountStatus.hasAccount && (
-            <Card className="mb-8 border-2 border-amber-200 bg-amber-50/50">
-              <CardContent className="p-6">
-                <div className="flex items-start space-x-4">
-                  <AlertCircle className="h-6 w-6 text-amber-600 mt-1 flex-shrink-0" />
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-amber-900 mb-2">
-                      Connect Your Bank Account
-                    </h3>
-                    <p className="text-amber-800 mb-4">
-                      To receive payments from bookings, you need to connect
-                      your bank account. This is secure and handled by Stripe.
+            <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+              {[
+                { label: "Upcoming bookings", value: upcomingBookings.length },
+                { label: "Pending requests", value: pendingBookings.length },
+                { label: "Past bookings", value: pastBookings.length },
+                { label: "Total Revenue", value: `$${estimatedRevenue.toFixed(0)}` },
+                { label: "Pending Payments", value: `$${pendingPayments.toFixed(0)}` },
+              ].map(({ label, value }) => (
+                <Card
+                  key={label}
+                  className="min-w-28 rounded-[32px] border-slate-200 bg-white shadow-sm"
+                >
+                  <CardContent className="p-3">
+                    <p className="text-xs font-medium text-slate-500">{label}</p>
+                    <p className="mt-1 text-xl font-semibold text-slate-950">
+                      {value}
                     </p>
-                    <div className="bg-white/60 rounded-lg p-4 mb-4 border border-amber-200">
-                      <p className="text-sm font-semibold text-amber-900 mb-2">
-                        What you'll need:
-                      </p>
-                      <ul className="text-sm text-amber-800 space-y-1 list-disc list-inside">
-                        <li>
-                          <strong>Industry:</strong> Select "Property rentals"
-                        </li>
-                        <li>
-                          <strong>Website:</strong> Use{" "}
-                          <code className="bg-amber-100 px-1 rounded">
-                            courtshare.com
-                          </code>{" "}
-                          or click "Add product description instead" and
-                          describe your court
-                        </li>
-                        <li>
-                          <strong>Personal info:</strong> Your legal name, date
-                          of birth, address, and SSN (for tax purposes)
-                        </li>
-                        <li>
-                          <strong>Bank account:</strong> For test mode, Stripe
-                          will provide test account numbers
-                        </li>
-                      </ul>
-                    </div>
-                    <Button
-                      onClick={handleConnectStripe}
-                      disabled={connectingStripe}
-                      className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white"
-                    >
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      {connectingStripe
-                        ? "Connecting..."
-                        : "Connect Bank Account"}
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                  </CardContent>
+                </Card>
+              ))}
+            </section>
+          </div>
 
-          {stripeAccountStatus?.hasAccount &&
-            stripeAccountStatus.status === "pending" && (
-              <Card className="mb-8 border-2 border-blue-200 bg-blue-50/50">
-                <CardContent className="p-6">
-                  <div className="flex items-start space-x-4">
-                    <AlertCircle className="h-6 w-6 text-blue-600 mt-1 flex-shrink-0" />
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-blue-900 mb-2">
-                        Complete Your Bank Account Setup
-                      </h3>
-                      <p className="text-blue-800 mb-4">
-                        Your Stripe account is being set up. Please complete the
-                        onboarding process to start receiving payments.
-                      </p>
-                      <div className="bg-white/60 rounded-lg p-4 mb-4 border border-blue-200">
-                        <p className="text-sm font-semibold text-blue-900 mb-2">
-                          Quick guide for Stripe forms:
-                        </p>
-                        <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-                          <li>
-                            <strong>Industry:</strong> Select "Recreation and
-                            sports" or "Rental and leasing services"
-                          </li>
-                          <li>
-                            <strong>Website:</strong> Use{" "}
-                            <code className="bg-blue-100 px-1 rounded">
-                              courtshare.com
-                            </code>{" "}
-                            or click "Add product description instead"
-                          </li>
-                          <li>
-                            <strong>All other fields:</strong> Use your real
-                            information (or test data if in test mode)
-                          </li>
-                        </ul>
-                      </div>
-                      <Button
-                        onClick={handleConnectStripe}
-                        disabled={connectingStripe}
-                        className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white"
-                      >
-                        <CreditCard className="h-4 w-4 mr-2" />
-                        {connectingStripe ? "Loading..." : "Complete Setup"}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-          {/* Success: Account is Active */}
-          {stripeAccountStatus?.hasAccount &&
-            stripeAccountStatus.status === "active" && (
-              <Card className="mb-8 border-2 border-emerald-200 bg-emerald-50/50 shadow-lg">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-4">
-                      <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 shadow-lg">
-                        <CheckCircle2 className="h-6 w-6 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-emerald-900 flex items-center mb-1">
-                          <Banknote className="h-5 w-5 mr-2" />
-                          Bank Account Connected
-                        </h3>
-                        <p className="text-emerald-800 text-sm">
-                          Your Stripe account is fully set up and verified.
-                          You're ready to receive payments from bookings!
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      onClick={handleUpdateStripeAccount}
-                      disabled={connectingStripe}
-                      variant="outline"
-                      size="sm"
-                      className="border-emerald-300 text-emerald-700 hover:bg-emerald-100 hover:cursor-pointer"
-                    >
-                      <Settings className="h-4 w-4 mr-2" />
-                      {connectingStripe ? "Loading..." : "Edit Account"}
-                    </Button>
-                  </div>
-                  <div className="pt-4 border-t border-emerald-200">
-                    <button
-                      type="button"
-                      onClick={() => handleUpdateStripeAccount()}
-                      disabled={connectingStripe}
-                      className="text-sm text-emerald-700 hover:text-emerald-900 flex items-center gap-2 hover:cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed bg-transparent border-0 p-0 text-left"
-                    >
-                      View payments, balance, and transaction history in Stripe
-                      <ExternalLink className="h-3 w-3" />
-                    </button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-          {/* Restricted: Account needs attention */}
-          {stripeAccountStatus?.hasAccount &&
-            stripeAccountStatus.status === "restricted" && (
-              <Card className="mb-8 border-2 border-amber-200 bg-amber-50/50">
-                <CardContent className="p-6">
-                  <div className="flex items-start space-x-4">
-                    <AlertCircle className="h-6 w-6 text-amber-600 mt-1 flex-shrink-0" />
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-amber-900 mb-2">
-                        Account Setup Incomplete
-                      </h3>
-                      <p className="text-amber-800 mb-4">
-                        Your Stripe account needs additional information to
-                        enable payouts. Please complete the setup process.
-                      </p>
-                      <Button
-                        onClick={handleConnectStripe}
-                        disabled={connectingStripe}
-                        className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white"
-                      >
-                        <CreditCard className="h-4 w-4 mr-2" />
-                        {connectingStripe ? "Loading..." : "Complete Setup"}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-          {/* Courts Section */}
-          {courts.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-slate-600 text-lg font-medium">
-                You have no courts listed yet.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {courts.map((court) => {
-                const courtBookings = bookings.filter(
-                  (booking) =>
-                    booking.courtId === court.id &&
-                    booking.status !== "cancelled"
-                );
-                const now = new Date();
-                
-                // Helper to convert 12-hour time to 24-hour format
-                const convertTo24Hour = (time12: string): string => {
-                  if (/^\d{2}:\d{2}$/.test(time12)) {
-                    return time12; // Already in 24-hour format
-                  }
-                  const [timePart, period] = time12.split(" ");
-                  const [hours, minutes] = timePart.split(":").map(Number);
-                  let hours24 = hours;
-                  if (period === "PM" && hours !== 12) {
-                    hours24 = hours + 12;
-                  } else if (period === "AM" && hours === 12) {
-                    hours24 = 0;
-                  }
-                  return `${hours24.toString().padStart(2, "0")}:${(minutes || 0).toString().padStart(2, "0")}`;
-                };
-                
-                // Filter pending bookings that haven't passed yet
-                const pendingBookings = courtBookings.filter((booking) => {
-                  if (booking.status !== "pending") return false;
-                  
-                  // Parse booking date and time
-                  const bookingDate = new Date(booking.date);
-                  if (Number.isNaN(bookingDate.getTime())) return false;
-                  
-                  // Get booking time in 24-hour format
-                  const time24 = convertTo24Hour(booking.time);
-                  const [hours, minutes] = time24.split(":").map(Number);
-                  
-                  // Create a Date object for the booking date/time
-                  const bookingDateTime = new Date(bookingDate);
-                  bookingDateTime.setHours(hours, minutes, 0, 0);
-                  
-                  // Only include if booking date/time is in the future
-                  return bookingDateTime > now;
-                });
-
-                return (
-                  <Card
-                    key={court.id}
-                    className="overflow-hidden hover:shadow-2xl hover:shadow-emerald-500/20 transition-all duration-500 border-0 shadow-xl bg-white/95 backdrop-blur-sm border border-slate-200/60 border-l-4 border-l-emerald-500 rounded-3xl transform hover:-translate-y-1"
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <aside>
+              <Card className="rounded-[32px] border-slate-200 bg-white shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between border-b border-slate-200 p-5">
+                  <h2 className="text-lg font-semibold text-slate-950">
+                    Your courts
+                  </h2>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-lg border-black bg-white text-black hover:bg-slate-100 hover:text-black"
+                    onClick={() => router.push("/create-listing")}
                   >
-                  <CardHeader className="pb-3 px-6 pt-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="relative w-16 h-16 rounded-lg overflow-hidden shadow-md">
-                          {court.imageUrl ? (
-                            <Image
-                              src={court.imageUrl}
-                              alt={court.name}
-                              fill
-                              className="object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full bg-gradient-to-br from-green-100 to-blue-100 flex items-center justify-center">
-                              <span className="text-3xl">🎾</span>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Listing
+                  </Button>
+                </CardHeader>
+                <CardContent className="space-y-4 p-5">
+
+              {courts.length === 0 ? (
+                <div className="rounded-[32px] border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
+                  You have no courts listed yet.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {courts.map((court) => {
+                    const courtBookings = bookings.filter(
+                      (booking) =>
+                        booking.courtId === court.id &&
+                        booking.status !== "cancelled"
+                    );
+                    const courtPendingBookings = courtBookings.filter(
+                      (booking) =>
+                        booking.status === "pending" &&
+                        parseBookingDateTime(booking.date, booking.time) > new Date()
+                    );
+
+                    return (
+                      <Card
+                        key={court.id}
+                        className="overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-sm"
+                      >
+                        <CardHeader className="p-4">
+                          <div className="flex gap-3">
+                            <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-[24px] bg-slate-100">
+                              {court.imageUrl ? (
+                                <Image
+                                  src={court.imageUrl}
+                                  alt={court.name}
+                                  fill
+                                  className="object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-sm text-slate-400">
+                                  Court
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h3 className="truncate text-base font-semibold text-slate-950">
+                                {court.name}
+                              </h3>
+                              <p className="mt-1 flex items-center text-sm text-slate-600">
+                                <MapPin className="mr-1.5 h-4 w-4 text-slate-400" />
+                                {court.location}
+                              </p>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                <Badge variant="outline" className="rounded-md">
+                                  ${court.price || 0}/hr
+                                </Badge>
+                                {court.surface && (
+                                  <Badge variant="outline" className="rounded-md">
+                                    {court.surface}
+                                  </Badge>
+                                )}
+                                <Badge variant="outline" className="rounded-md">
+                                  {courtPendingBookings.length} pending
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="space-y-3 border-t border-slate-100 p-4">
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button
+                              size="sm"
+                              className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                              onClick={() =>
+                                router.push(`/edit-listing/${court.id}`)
+                              }
+                            >
+                              <Edit3 className="mr-2 h-4 w-4" />
+                              Edit listing
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-lg border-slate-300"
+                              onClick={() =>
+                                setExpandedCourtId(
+                                  expandedCourtId === court.id ? null : court.id
+                                )
+                              }
+                            >
+                              {expandedCourtId === court.id ? (
+                                <ChevronUp className="mr-2 h-4 w-4" />
+                              ) : (
+                                <ChevronDown className="mr-2 h-4 w-4" />
+                              )}
+                              Availability
+                            </Button>
+                          </div>
+
+                          {expandedCourtId === court.id && (
+                            <div className="border-t border-slate-200 pt-4">
+                              {(court.numberOfCourts || 1) > 1 ? (
+                                <div className="space-y-2">
+                                  {Array.from(
+                                    { length: court.numberOfCourts || 1 },
+                                    (_, i) => i + 1
+                                  ).map((courtNum) => {
+                                    const mergedAlwaysBlocked = [
+                                      ...(court.alwaysBlockedTimes || []),
+                                      ...((court.courtSpecificAlwaysBlockedTimes || {})[
+                                        String(courtNum)
+                                      ] || []),
+                                    ];
+                                    const mergedByDay: {
+                                      [dayOfWeek: number]: string[];
+                                    } = { ...(court.alwaysBlockedTimesByDay || {}) };
+                                    const courtSpecificByDay =
+                                      (court.courtSpecificAlwaysBlockedTimesByDay || {})[
+                                        String(courtNum)
+                                      ] || {};
+                                    Object.entries(courtSpecificByDay).forEach(
+                                      ([dayKey, times]) => {
+                                        const dayNum = Number(dayKey);
+                                        mergedByDay[dayNum] = [
+                                          ...new Set([
+                                            ...(mergedByDay[dayNum] || []),
+                                            ...times,
+                                          ]),
+                                        ].sort();
+                                      }
+                                    );
+                                    return (
+                                      <InlineWeeklyCalendar
+                                        key={courtNum}
+                                        courtId={court.id}
+                                        courtNumber={courtNum}
+                                        courtLabel={`Court ${courtNum}`}
+                                        blockedTimes={court.blockedTimes}
+                                        blockedDates={court.blockedDates}
+                                        alwaysBlockedTimes={mergedAlwaysBlocked}
+                                        alwaysBlockedTimesByDay={mergedByDay}
+                                        maxAdvanceBookingDays={
+                                          court.maxAdvanceBookingDays
+                                        }
+                                        bookings={courtBookings}
+                                        bookingUsers={bookingUsers}
+                                        onBlockedTimesUpdate={(blockedTimes) =>
+                                          handleBlockedTimesUpdate(
+                                            court.id,
+                                            blockedTimes
+                                          )
+                                        }
+                                        onBookingUpdate={async (
+                                          bookingId,
+                                          status,
+                                          bookingFromModal
+                                        ) => {
+                                          if (status === "confirmed") {
+                                            if (bookingFromModal) {
+                                              setAcceptBookingConfirm({
+                                                booking: {
+                                                  ...bookingFromModal,
+                                                  courtId: court.id,
+                                                },
+                                                court,
+                                              });
+                                            } else {
+                                              await handleAcceptBooking(bookingId);
+                                            }
+                                          } else if (status === "rejected") {
+                                            await handleRejectBooking(bookingId);
+                                          }
+                                        }}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <InlineWeeklyCalendar
+                                  courtId={court.id}
+                                  blockedTimes={court.blockedTimes}
+                                  blockedDates={court.blockedDates}
+                                  alwaysBlockedTimes={court.alwaysBlockedTimes}
+                                  alwaysBlockedTimesByDay={
+                                    court.alwaysBlockedTimesByDay
+                                  }
+                                  maxAdvanceBookingDays={
+                                    court.maxAdvanceBookingDays
+                                  }
+                                  bookings={courtBookings}
+                                  bookingUsers={bookingUsers}
+                                  onBlockedTimesUpdate={(blockedTimes) =>
+                                    handleBlockedTimesUpdate(court.id, blockedTimes)
+                                  }
+                                  onBookingUpdate={async (
+                                    bookingId,
+                                    status,
+                                    bookingFromModal
+                                  ) => {
+                                    if (status === "confirmed") {
+                                      if (bookingFromModal) {
+                                        setAcceptBookingConfirm({
+                                          booking: {
+                                            ...bookingFromModal,
+                                            courtId: court.id,
+                                          },
+                                          court,
+                                        });
+                                      } else {
+                                        await handleAcceptBooking(bookingId);
+                                      }
+                                    } else if (status === "rejected") {
+                                      await handleRejectBooking(bookingId);
+                                    }
+                                  }}
+                                />
+                              )}
                             </div>
                           )}
-                          <div className="absolute inset-0 bg-gradient-to-br from-green-600/20 to-blue-600/20"></div>
-                        </div>
-                        <div>
-                          <h3 className="text-xl font-bold text-gray-900 mb-1">
-                            {court.name}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+                </CardContent>
+              </Card>
+            </aside>
+
+            <section>
+              <Card className="rounded-[32px] border-slate-200 bg-white shadow-sm">
+                <CardHeader className="border-b border-slate-200 p-5">
+                  <h2 className="text-lg font-semibold text-slate-950">
+                    Bookings
+                  </h2>
+                </CardHeader>
+                <CardContent className="space-y-3 p-5">
+
+          <details open className="group overflow-hidden rounded-[32px] border border-slate-200 bg-white">
+            <summary className="flex cursor-pointer list-none items-center justify-between border-b border-slate-200 p-5">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-slate-950">
+                  Pending Requests
+                </h2>
+                <Badge
+                  variant="outline"
+                  className="rounded-md border-amber-200 bg-amber-50 text-amber-700"
+                >
+                  {pendingBookings.length} pending
+                </Badge>
+              </div>
+              <ChevronDown className="h-5 w-5 text-slate-500 group-open:hidden" />
+              <ChevronUp className="hidden h-5 w-5 text-slate-500 group-open:block" />
+            </summary>
+
+            {pendingBookings.length === 0 ? (
+              <div className="p-8 text-center text-sm text-slate-500">
+                No pending booking requests right now.
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-200">
+                {pendingBookings.map((booking) => {
+                  const court = courtsById[booking.courtId];
+                  return (
+                    <div
+                      key={booking.id}
+                      className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end"
+                    >
+                      <div className="min-w-0">
+                        <div className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap">
+                          <h3 className="font-semibold text-slate-950">
+                            {court?.name || booking.courtId}
                           </h3>
-                          <div className="flex items-center text-gray-600 mb-2">
-                            <MapPin className="h-4 w-4 mr-2 text-emerald-600" />
-                            <span className="text-sm">@{court.location}</span>
-                          </div>
-                          {court.surface && (
-                            <Badge
-                              variant="outline"
-                              className="text-xs px-2 py-1 border-green-200 text-green-700"
-                            >
-                              {court.surface}
-                            </Badge>
-                          )}
+                          <Badge variant="outline" className="rounded-md">
+                            Court {booking.courtNumber || 1}
+                          </Badge>
+                          {getStatusBadge(booking.status)}
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
+                          <span className="inline-flex items-center">
+                            <Calendar className="mr-1.5 h-4 w-4 text-slate-400" />
+                            {booking.date}
+                          </span>
+                          <span className="inline-flex items-center">
+                            <Clock className="mr-1.5 h-4 w-4 text-slate-400" />
+                            {booking.time} for {booking.duration}h
+                          </span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
+                          <span className="inline-flex items-center">
+                            <User className="mr-1.5 h-4 w-4 text-slate-400" />
+                            {bookingUsers[booking.userId] ||
+                              `${booking.userId.slice(0, 12)}...`}
+                          </span>
+                          <span className="inline-flex items-center font-semibold text-emerald-700">
+                            <Banknote className="mr-1.5 h-4 w-4" />
+                            ${((court?.price || 0) * booking.duration).toFixed(2)}
+                          </span>
                         </div>
                       </div>
-
-                      <div className="flex space-x-2">
+                      <div className="flex items-center gap-2 lg:justify-end lg:self-end">
                         <Button
                           size="sm"
-                          className="gap-1 hover:cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-xs font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                          className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
                           onClick={() =>
-                            router.push(`/edit-listing/${court.id}`)
+                            court && setAcceptBookingConfirm({ booking, court })
                           }
+                          disabled={updatingBookingId === booking.id || !court}
                         >
-                          <Edit3 className="h-3 w-3" />
-                          Edit
+                          <Check className="mr-2 h-4 w-4" />
+                          Accept
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-lg border-black text-black hover:bg-slate-100 hover:text-black"
+                          onClick={() => handleRejectBooking(booking.id)}
+                          disabled={updatingBookingId === booking.id}
+                        >
+                          <X className="mr-2 h-4 w-4" />
+                          Decline
                         </Button>
                       </div>
                     </div>
-                  </CardHeader>
+                  );
+                })}
+              </div>
+            )}
+          </details>
 
-                  <CardContent className="px-6 pb-6">
-                    {/* Weekly Calendar View(s) */}
-                    {(court.numberOfCourts || 1) > 1 ? (
-                      <div className="space-y-2">
-                        {Array.from({ length: court.numberOfCourts || 1 }, (_, i) => i + 1).map((courtNum) => {
-                          const mergedAlwaysBlocked = [
-                            ...(court.alwaysBlockedTimes || []),
-                            ...((court.courtSpecificAlwaysBlockedTimes || {})[String(courtNum)] || []),
-                          ];
-                          const mergedByDay: { [dayOfWeek: number]: string[] } = { ...(court.alwaysBlockedTimesByDay || {}) };
-                          const courtSpecificByDay = (court.courtSpecificAlwaysBlockedTimesByDay || {})[String(courtNum)] || {};
-                          Object.entries(courtSpecificByDay).forEach(([dayKey, times]) => {
-                            const dayNum = Number(dayKey);
-                            mergedByDay[dayNum] = [...new Set([...(mergedByDay[dayNum] || []), ...times])].sort();
-                          });
-                          return (
-                            <InlineWeeklyCalendar
-                              key={courtNum}
-                              courtId={court.id}
-                              courtNumber={courtNum}
-                              courtLabel={`Court ${courtNum}`}
-                              blockedTimes={court.blockedTimes}
-                              blockedDates={court.blockedDates}
-                              alwaysBlockedTimes={mergedAlwaysBlocked}
-                              alwaysBlockedTimesByDay={mergedByDay}
-                              maxAdvanceBookingDays={court.maxAdvanceBookingDays}
-                              bookings={courtBookings}
-                              bookingUsers={bookingUsers}
-                              onBlockedTimesUpdate={(blockedTimes) =>
-                                handleBlockedTimesUpdate(court.id, blockedTimes)
-                              }
-                              onBookingUpdate={async (bookingId, status, bookingFromModal) => {
-                                if (status === "confirmed") {
-                                  if (bookingFromModal) {
-                                    setAcceptBookingConfirm({
-                                      booking: { ...bookingFromModal, courtId: court.id },
-                                      court,
-                                    });
-                                  } else {
-                                    await handleAcceptBooking(bookingId);
-                                  }
-                                } else if (status === "rejected") {
-                                  await handleRejectBooking(bookingId);
-                                }
-                              }}
-                            />
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <InlineWeeklyCalendar
-                        courtId={court.id}
-                        blockedTimes={court.blockedTimes}
-                        blockedDates={court.blockedDates}
-                        alwaysBlockedTimes={court.alwaysBlockedTimes}
-                        alwaysBlockedTimesByDay={court.alwaysBlockedTimesByDay}
-                        maxAdvanceBookingDays={court.maxAdvanceBookingDays}
-                        bookings={courtBookings}
-                        bookingUsers={bookingUsers}
-                        onBlockedTimesUpdate={(blockedTimes) =>
-                          handleBlockedTimesUpdate(court.id, blockedTimes)
-                        }
-                        onBookingUpdate={async (bookingId, status, bookingFromModal) => {
-                          if (status === "confirmed") {
-                            if (bookingFromModal) {
-                              setAcceptBookingConfirm({
-                                booking: { ...bookingFromModal, courtId: court.id },
-                                court,
-                              });
-                            } else {
-                              await handleAcceptBooking(bookingId);
-                            }
-                          } else if (status === "rejected") {
-                            await handleRejectBooking(bookingId);
-                          }
-                        }}
-                      />
-                    )}
-
-                    {/* Pending Bookings Section */}
-                    <div className="space-y-3 mt-6">
-                      <div className="flex items-center space-x-2 mb-4">
-                        <h4 className="text-lg font-semibold text-gray-900">
-                          Pending Bookings
-                        </h4>
-                        <Badge
-                          variant="outline"
-                          className="ml-auto text-xs px-2 py-1 border-amber-300 bg-amber-50 text-amber-700"
+              <details open className="group overflow-hidden rounded-[32px] border border-slate-200 bg-white">
+                <summary className="flex cursor-pointer list-none items-center justify-between border-b border-slate-200 p-5">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-semibold text-slate-950">
+                      Upcoming
+                    </h2>
+                    <Badge variant="outline" className="rounded-md">
+                      {upcomingBookings.length} upcoming
+                    </Badge>
+                  </div>
+                  <ChevronDown className="h-5 w-5 text-slate-500 group-open:hidden" />
+                  <ChevronUp className="hidden h-5 w-5 text-slate-500 group-open:block" />
+                </summary>
+                {upcomingBookings.length === 0 ? (
+                  <div className="p-8 text-center text-sm text-slate-500">
+                    No upcoming bookings.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-200">
+                    {upcomingBookings.map((booking) => {
+                      const court = courtsById[booking.courtId];
+                      return (
+                        <div
+                          key={booking.id}
+                          className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between"
                         >
-                          {pendingBookings.length} pending
-                        </Badge>
-                      </div>
-
-                      {pendingBookings.length === 0 ? (
-                        <p className="text-gray-500 text-sm text-center py-4 bg-gray-50 rounded-lg border border-gray-200">
-                          No pending bookings for this court.
-                        </p>
-                      ) : (
-                        <div className="grid gap-3">
-                          {pendingBookings
-                            .sort((a, b) =>
-                              (a.date + a.time).localeCompare(b.date + b.time)
-                            )
-                            .map((booking) => (
-                              <Card
-                                key={booking.id}
-                                className="bg-amber-50/80 backdrop-blur-sm border border-amber-200/60 hover:border-amber-300 hover:bg-amber-50/40 transition-all duration-300 rounded-xl shadow-sm hover:shadow-md"
-                              >
-                                <CardContent className="p-3">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center space-x-4">
-                                      <div className="flex items-center space-x-2 text-xs">
-                                        <div className="w-5 h-5 rounded bg-amber-500 flex items-center justify-center">
-                                          <Calendar className="h-3 w-3 text-white" />
-                                        </div>
-                                        <span className="font-medium text-gray-900">
-                                          {booking.date}
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center space-x-2 text-xs">
-                                        <div className="w-5 h-5 rounded bg-orange-500 flex items-center justify-center">
-                                          <Clock className="h-3 w-3 text-white" />
-                                        </div>
-                                        <span className="text-gray-700">
-                                          {booking.time} ({booking.duration}h)
-                                        </span>
-                                      </div>
-                                      {(court.numberOfCourts || 1) > 1 && (
-                                        <div className="flex items-center space-x-1 text-xs">
-                                          <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 border-emerald-300 text-emerald-700">
-                                            Court {booking.courtNumber || 1}
-                                          </Badge>
-                                        </div>
-                                      )}
-                                      <div className="flex items-center space-x-2 text-xs text-slate-400">
-                                        <div className="w-5 h-5 rounded bg-slate-600 flex items-center justify-center">
-                                          <User className="h-3 w-3 text-slate-300" />
-                                        </div>
-                                        <span className="text-xs text-slate-300">
-                                          {bookingUsers[booking.userId] ||
-                                            `${booking.userId.slice(0, 12)}...`}
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center space-x-2 text-xs font-semibold text-emerald-700">
-                                        <Banknote className="h-3 w-3" />
-                                        <span>
-                                          ${((court.price || 0) * booking.duration).toFixed(2)}
-                                        </span>
-                                      </div>
-                                    </div>
-
-                                    <div className="flex items-center space-x-2">
-                                      <Button
-                                        size="sm"
-                                        className="h-7 px-3 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-xs cursor-pointer shadow-md hover:shadow-lg transition-all duration-300"
-                                        onClick={() =>
-                                          setAcceptBookingConfirm({ booking, court })
-                                        }
-                                        disabled={
-                                          updatingBookingId === booking.id
-                                        }
-                                      >
-                                        <Check className="h-3 w-3 mr-1" />
-                                        Accept
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="destructive"
-                                        className="h-7 px-3 text-xs cursor-pointer shadow-md hover:shadow-lg transition-all duration-300"
-                                        onClick={() =>
-                                          handleRejectBooking(booking.id)
-                                        }
-                                        disabled={
-                                          updatingBookingId === booking.id
-                                        }
-                                      >
-                                        <X className="h-3 w-3 mr-1" />
-                                        Decline
-                                      </Button>
-                                    </div>
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            ))}
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-semibold text-slate-950">
+                                {court?.name || booking.courtId}
+                              </h3>
+                              {getStatusBadge(booking.status)}
+                            </div>
+                            <p className="mt-1 text-sm text-slate-600">
+                              {booking.date} at {booking.time} for{" "}
+                              {booking.duration}h
+                            </p>
+                          </div>
+                          <span className="text-sm font-semibold text-emerald-700">
+                            ${((court?.price || 0) * booking.duration).toFixed(2)}
+                          </span>
                         </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-                );
-              })}
-            </div>
-          )}
+                      );
+                    })}
+                  </div>
+                )}
+              </details>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-16">
-            <Card className="text-center p-8 hover:shadow-xl transition-all duration-300 border-0 shadow-lg bg-gradient-to-br from-white to-slate-50/80 backdrop-blur-sm border border-slate-200/50">
-              <div className="text-4xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent mb-3">
-                {courts.length}
-              </div>
-              <div className="text-slate-700 text-lg font-medium">
-                Active Courts
-              </div>
-            </Card>
-            <Card className="text-center p-8 hover:shadow-xl transition-all duration-300 border-0 shadow-lg bg-gradient-to-br from-white to-slate-50/80 backdrop-blur-sm border border-slate-200/50">
-              <div className="text-4xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent mb-3">
-                {bookings.filter((b) => b.status !== "cancelled").length}
-              </div>
-              <div className="text-slate-700 text-lg font-medium">
-                Total Bookings
-              </div>
-            </Card>
-            <Card className="text-center p-8 hover:shadow-xl transition-all duration-300 border-0 shadow-lg bg-gradient-to-br from-white to-slate-50/80 backdrop-blur-sm border border-slate-200/50">
-              <div className="text-4xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent mb-3">
-                {bookings.filter((b) => b.status === "pending").length}
-              </div>
-              <div className="text-slate-700 text-lg font-medium">
-                Pending Requests
-              </div>
-            </Card>
+              <details className="group overflow-hidden rounded-[32px] border border-slate-200 bg-white">
+                <summary className="flex cursor-pointer list-none items-center justify-between border-b border-slate-200 p-5">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-semibold text-slate-950">
+                      Past
+                    </h2>
+                    <Badge variant="outline" className="rounded-md">
+                      {pastBookings.length} past
+                    </Badge>
+                  </div>
+                  <ChevronDown className="h-5 w-5 text-slate-500 group-open:hidden" />
+                  <ChevronUp className="hidden h-5 w-5 text-slate-500 group-open:block" />
+                </summary>
+                {pastBookings.length === 0 ? (
+                  <div className="p-8 text-center text-sm text-slate-500">
+                    No past bookings yet.
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-200">
+                    {pastBookings.map((booking) => {
+                      const court = courtsById[booking.courtId];
+                      return (
+                        <div
+                          key={booking.id}
+                          className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="font-semibold text-slate-950">
+                                {court?.name || booking.courtId}
+                              </h3>
+                              {getStatusBadge(booking.status)}
+                            </div>
+                            <p className="mt-1 text-sm text-slate-600">
+                              {booking.date} at {booking.time}
+                            </p>
+                          </div>
+                          <span className="text-sm text-slate-500">
+                            {booking.duration}h
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </details>
+                </CardContent>
+              </Card>
+            </section>
           </div>
         </div>
       </main>

@@ -1,8 +1,11 @@
 import { Resend } from "resend";
+import { theme } from "./theme";
 
 const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
+const brandGreen = theme.colors.brandGreen;
+const brandGreenSoft = theme.colors.brandGreenSoft;
 
 // Get the "from" email address - use env var or default to a test domain
 const getFromEmail = () => {
@@ -67,7 +70,7 @@ export async function sendOwnerBookingNotification(
             <title>New Booking Request</title>
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #286a3a 0%, #2d7a47 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+            <div style="background: ${brandGreen}; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
               <h1 style="color: white; margin: 0; font-size: 28px;">🎾 New Booking Request</h1>
             </div>
             
@@ -80,8 +83,8 @@ export async function sendOwnerBookingNotification(
                 data.courtName
               }</strong>.</p>
               
-              <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #286a3a;">
-                <h2 style="margin-top: 0; color: #286a3a; font-size: 20px;">Booking Details</h2>
+              <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
+                <h2 style="margin-top: 0; color: ${brandGreen}; font-size: 20px;">Booking Details</h2>
                 <table style="width: 100%; border-collapse: collapse;">
                   <tr>
                     <td style="padding: 8px 0; color: #6b7280; width: 120px;"><strong>Date:</strong></td>
@@ -120,12 +123,12 @@ export async function sendOwnerBookingNotification(
               
               <p style="font-size: 16px;">Please log in to your <a href="${
                 process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.co"
-              }/dashboard/owner" style="color: #286a3a; text-decoration: none; font-weight: 600;">owner dashboard</a> to accept or reject this booking request.</p>
+              }/dashboard/owner" style="color: ${brandGreen}; text-decoration: none; font-weight: 600;">owner dashboard</a> to accept or reject this booking request.</p>
               
               <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center;">
                 <a href="${
                   process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.co"
-                }/dashboard/owner" style="display: inline-block; background: #286a3a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 10px;">View Dashboard</a>
+                }/dashboard/owner" style="display: inline-block; background: ${brandGreen}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 10px;">View Dashboard</a>
               </div>
               
               <p style="font-size: 14px; color: #6b7280; margin-top: 30px; margin-bottom: 0;">This is an automated notification from CourtShare.</p>
@@ -222,7 +225,7 @@ export async function sendPlayerBookingConfirmation(
             <title>Booking Confirmed</title>
           </head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #286a3a 0%, #2d7a47 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+            <div style="background: ${brandGreen}; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
               <h1 style="color: white; margin: 0; font-size: 28px;">✅ Booking Confirmed!</h1>
             </div>
             
@@ -235,8 +238,8 @@ export async function sendPlayerBookingConfirmation(
                 data.courtName
               }</strong> has been confirmed by the court owner.</p>
               
-              <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981;">
-                <h2 style="margin-top: 0; color: #286a3a; font-size: 20px;">Booking Details</h2>
+              <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
+                <h2 style="margin-top: 0; color: ${brandGreen}; font-size: 20px;">Booking Details</h2>
                 <table style="width: 100%; border-collapse: collapse;">
                   <tr>
                     <td style="padding: 8px 0; color: #6b7280; width: 120px;"><strong>Court:</strong></td>
@@ -273,8 +276,8 @@ export async function sendPlayerBookingConfirmation(
                 </table>
               </div>
               
-              <div style="background: #ecfdf5; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #10b981;">
-                <p style="margin: 0; font-size: 14px; color: #065f46;">
+              <div style="background: ${brandGreenSoft}; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
+                <p style="margin: 0; font-size: 14px; color: ${brandGreen};">
                   <strong>📅 Don't forget!</strong> Your booking is confirmed. Please arrive on time and enjoy your game!
                 </p>
               </div>
@@ -284,7 +287,7 @@ export async function sendPlayerBookingConfirmation(
                   process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.co"
                 }/booking/${
         data.bookingId
-      }" style="display: inline-block; background: #286a3a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 10px;">View Booking Details</a>
+      }" style="display: inline-block; background: ${brandGreen}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 10px;">View Booking Details</a>
               </div>
               
               <p style="font-size: 14px; color: #6b7280; margin-top: 30px; margin-bottom: 0;">This is an automated confirmation from CourtShare.</p>
@@ -416,13 +419,13 @@ export async function sendPlayerCancellationConfirmation(
         <html>
           <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
           <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #286a3a 0%, #2d7a47 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+            <div style="background: ${brandGreen}; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
               <h1 style="color: white; margin: 0; font-size: 28px;">Reservation Cancelled</h1>
             </div>
             <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; border-top: none;">
               <p style="font-size: 16px;">Hello${data.playerName ? ` ${data.playerName}` : ""},</p>
               <p style="font-size: 16px;">You have successfully cancelled your reservation for <strong>${data.courtName}</strong>.</p>
-              <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #286a3a;">
+              <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
                 <p style="margin: 0 0 8px;"><strong>Date:</strong> ${formattedDate}</p>
                 <p style="margin: 0 0 8px;"><strong>Time:</strong> ${data.time} (${data.duration}h)</p>
                 <p style="margin: 0;"><strong>Refund:</strong> $${data.price.toFixed(2)} will be refunded to your original payment method. It may take a few business days to appear.</p>
@@ -491,7 +494,7 @@ export async function sendPlayerRejectionNotification(
               </div>
               <p style="font-size: 16px;">You can browse other courts and book a different time.</p>
               <div style="margin-top: 20px; text-align: center;">
-                <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.co"}/courts" style="display: inline-block; background: #286a3a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Browse Courts</a>
+                <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.co"}/courts" style="display: inline-block; background: ${brandGreen}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Browse Courts</a>
               </div>
               <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">This is an automated notification from CourtShare.</p>
             </div>

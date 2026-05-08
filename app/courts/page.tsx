@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, type SVGProps } from "react";
 import { useRouter } from "next/navigation";
 import { db, isMockMode } from "@/lib/firebase";
 import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
@@ -12,6 +12,7 @@ import AppHeader from "@/components/AppHeader";
 import HeroSection from "@/components/HeroSection";
 import SearchSection from "@/components/SearchSection";
 import CourtCard from "@/components/CourtCard";
+import { CalendarCheck, Search } from "lucide-react";
 import {
   calculateDistance,
   formatDistance,
@@ -29,6 +30,16 @@ interface Court {
   latitude?: number;
   longitude?: number;
   distance?: number; // Will be calculated and added
+}
+
+function TennisRacketIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
+      <ellipse cx="9" cy="8" rx="5" ry="6" strokeWidth="2" />
+      <path d="M12.5 12.5 21 21" strokeWidth="2" strokeLinecap="round" />
+      <path d="M6 5h6M5 8h8M6 11h6M9 2v12" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 export default function CourtsPage() {
@@ -159,7 +170,7 @@ export default function CourtsPage() {
   return (
     <div className="min-h-screen bg-white w-full">
       <AppHeader />
-      <div className="w-full bg-[#286a3a] flex flex-col items-center">
+      <div className="w-full bg-primary flex flex-col items-center">
         <HeroSection />
       </div>
       <main className="w-full bg-white">
@@ -172,172 +183,97 @@ export default function CourtsPage() {
               setMaxDistance(distance);
             }}
           />
-          {isOwner ? (
-            <div className="text-center py-12">
-              <div className="max-w-md mx-auto">
-                <div className="text-6xl mb-4">🏢</div>
-                <h2 className="text-2xl font-bold text-gray-800 mb-4">
-                  Owner Mode Active
-                </h2>
-                <p className="text-gray-600 mb-6">
-                  You're currently in owner mode. Switch to player mode to view
-                  and book courts.
-                </p>
-                <div className="space-y-3">
-                  <button
-                    onClick={handleToggleRole}
-                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 px-6 rounded-lg font-semibold transition hover:cursor-pointer"
-                  >
-                    Switch to Player Mode
-                  </button>
-                  <button
-                    onClick={() => router.push("/dashboard/owner")}
-                    className="w-full bg-gray-100 text-gray-700 py-3 px-6 rounded-lg font-semibold hover:bg-gray-200 transition hover:cursor-pointer"
-                  >
-                    Go to Owner Dashboard
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <>
-              {loading && (
-                <p className="text-center text-gray-600 mt-8">
-                  Loading courts...
-                </p>
-              )}
-              {error && (
-                <p className="text-center text-red-500 mt-8">{error}</p>
-              )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 mt-8">
-                {filteredCourts.map((court) => (
-                  <CourtCard
-                    key={court.id}
-                    court={{
-                      id: court.id,
-                      name: court.name,
-                      location: court.location,
-                      price: court.price,
-                      rating: 4.8, // Default or fetch if available
-                      reviewCount: 42, // Default or fetch if available
-                      image:
-                        court.imageUrl ||
-                        "https://placehold.co/400x300?text=Tennis+Court",
-                      surface: "Hard Court", // Default or fetch if available
-                      indoor: false, // Default or fetch if available
-                      amenities: ["Parking", "WiFi"], // Default or fetch if available
-                      availability: "Available", // Default or fetch if available
-                      distance: court.distance, // Pass calculated distance
-                    }}
-                    // Optionally, add onClick handlers for View Details/Book Now
-                  />
-                ))}
-              </div>
-              {!loading && filteredCourts.length === 0 && !error && (
-                <p className="text-center text-gray-500 mt-12">
-                  No courts found.
-                </p>
-              )}
-            </>
+          {loading && (
+            <p className="text-center text-gray-600 mt-8">Loading courts...</p>
+          )}
+          {error && <p className="text-center text-red-500 mt-8">{error}</p>}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 mt-8">
+            {filteredCourts.map((court) => (
+              <CourtCard
+                key={court.id}
+                court={{
+                  id: court.id,
+                  name: court.name,
+                  location: court.location,
+                  price: court.price,
+                  rating: 4.8,
+                  reviewCount: 42,
+                  image:
+                    court.imageUrl ||
+                    "https://placehold.co/400x300?text=Tennis+Court",
+                  surface: "Hard Court",
+                  indoor: false,
+                  amenities: ["Parking", "WiFi"],
+                  availability: "Available",
+                  distance: court.distance,
+                }}
+              />
+            ))}
+          </div>
+          {!loading && filteredCourts.length === 0 && !error && (
+            <p className="text-center text-gray-500 mt-12">No courts found.</p>
           )}
         </div>
       </main>
 
-      {/* How It Works Section - Modernized */}
-      <section className="py-24 bg-gradient-to-b from-white via-emerald-50/20 to-white">
+      {/* How It Works Section */}
+      <section className="py-24 bg-gradient-to-b from-white via-slate-50 to-white">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
             <h2 className="text-4xl md:text-5xl font-black mb-6 text-gray-900 tracking-tight">
               How It Works
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto font-medium">
-              Booking your perfect tennis court is simple and hassle-free
-            </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10 max-w-5xl mx-auto">
-            <div className="text-center space-y-6 group transform transition-all duration-500 hover:scale-105">
-              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mx-auto text-white text-3xl font-black shadow-xl group-hover:shadow-glow-hover transition-all duration-500 group-hover:rotate-6">
-                1
-              </div>
-              <h3 className="text-2xl font-extrabold text-gray-900 group-hover:text-emerald-600 transition-colors">
-                Search & Browse
+          <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 lg:grid-cols-2">
+            <div className="rounded-[32px] border border-slate-200 bg-white p-8 shadow-[0_20px_70px_rgba(15,23,42,0.08)]">
+              <h3 className="text-3xl font-black tracking-tight text-[var(--site-accent)]">
+                For Players
               </h3>
-              <p className="text-gray-600 leading-relaxed max-w-sm mx-auto">
-                Find courts near you with our advanced search filters. Browse by
-                location, price and availability.
-              </p>
-            </div>
-            <div className="text-center space-y-6 group transform transition-all duration-500 hover:scale-105">
-              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mx-auto text-white text-3xl font-black shadow-xl group-hover:shadow-glow-hover transition-all duration-500 group-hover:rotate-6">
-                2
+              <div className="mt-8 space-y-6">
+                {[
+                  {
+                    icon: Search,
+                    text: "Find courts near you easily that work with your availability.",
+                  },
+                  {
+                    icon: CalendarCheck,
+                    text: "Select your preferred time slot and book instantly.",
+                  },
+                  {
+                    icon: TennisRacketIcon,
+                    text: "Check-in at the court seamlessly and start playing!",
+                  },
+                ].map(({ icon: Icon, text }) => (
+                  <div key={text} className="flex items-start gap-4">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--site-accent)] text-white shadow-lg">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <p className="pt-2 text-base font-medium leading-7 text-slate-700">
+                      {text}
+                    </p>
+                  </div>
+                ))}
               </div>
-              <h3 className="text-2xl font-extrabold text-gray-900 group-hover:text-emerald-600 transition-colors">
-                Book Instantly
-              </h3>
-              <p className="text-gray-600 leading-relaxed max-w-sm mx-auto">
-                Select your preferred time slot and book instantly. Real-time
-                availability ensures you get the court you want.
-              </p>
             </div>
-            <div className="text-center space-y-6 group transform transition-all duration-500 hover:scale-105">
-              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center mx-auto text-white text-3xl font-black shadow-xl group-hover:shadow-glow-hover transition-all duration-500 group-hover:rotate-6">
-                3
-              </div>
-              <h3 className="text-2xl font-extrabold text-gray-900 group-hover:text-emerald-600 transition-colors">
-                Play & Enjoy
-              </h3>
-              <p className="text-gray-600 leading-relaxed max-w-sm mx-auto">
-                Show up and play! All bookings come with confirmation details
-                and easy check-in process.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
 
-      {/* CTA Section - Modernized */}
-      <section className="relative py-24 bg-gradient-tennis text-white overflow-hidden">
-        {/* Background effects */}
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-600/20 via-teal-600/20 to-cyan-600/20"></div>
-        <div className="absolute top-0 left-0 w-full h-full">
-          <div className="absolute top-20 left-20 w-64 h-64 bg-white/5 rounded-full blur-3xl animate-float"></div>
-          <div
-            className="absolute bottom-20 right-20 w-80 h-80 bg-cyan-300/10 rounded-full blur-3xl animate-float"
-            style={{ animationDelay: "2s" }}
-          ></div>
-        </div>
-
-        <div className="container mx-auto px-4 text-center relative z-10">
-          <h2 className="text-4xl md:text-6xl font-black mb-6 tracking-tight drop-shadow-2xl">
-            Ready to Book Your Court?
-          </h2>
-          <p className="text-xl md:text-2xl mb-12 max-w-3xl mx-auto text-white/95 font-medium leading-relaxed">
-            Join thousands of tennis players who trust CourtShare for their
-            court reservations
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-5">
-            {!user && (
+            <div className="flex min-h-[360px] flex-col justify-between rounded-[32px] bg-[var(--site-accent)] p-8 text-white shadow-[0_20px_70px_rgba(15,23,42,0.16)]">
+              <div>
+                <h3 className="text-3xl font-black tracking-tight">
+                  For Owners
+                </h3>
+                <p className="mt-6 max-w-md text-lg font-medium leading-8 text-white/82">
+                  Have a court? List it now to start earning.
+                </p>
+              </div>
               <button
-                onClick={() => router.push("/signup")}
-                className="glass px-10 py-4 rounded-2xl font-extrabold text-emerald-700 bg-white hover:bg-emerald-50 transition-all duration-300 shadow-xl hover:shadow-2xl transform hover:scale-105 cursor-pointer text-lg"
+                type="button"
+                onClick={() => router.push(user ? "/create-listing" : "/login")}
+                className="mt-10 w-fit rounded-full border border-white bg-white px-7 py-3 text-sm font-extrabold text-[var(--site-accent)] transition-colors hover:bg-slate-100"
               >
-                Sign Up Free
+                Create a Listing
               </button>
-            )}
-            <button
-              onClick={() => {
-                const searchSection = document.querySelector(
-                  "[data-search-section]"
-                );
-                if (searchSection) {
-                  searchSection.scrollIntoView({ behavior: "smooth" });
-                }
-              }}
-              className="glass-dark px-10 py-4 rounded-2xl font-extrabold text-white border-2 border-white/30 hover:border-white/50 hover:bg-white/10 transition-all duration-300 shadow-xl hover:shadow-2xl transform hover:scale-105 cursor-pointer text-lg"
-            >
-              Browse Courts
-            </button>
+            </div>
           </div>
         </div>
       </section>
@@ -347,7 +283,7 @@ export default function CourtsPage() {
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
             <div className="space-y-5">
-              <h3 className="font-black text-2xl bg-gradient-to-r from-emerald-400 to-teal-400 bg-clip-text text-transparent">
+              <h3 className="font-black text-2xl bg-gradient-to-r from-[#00d49e] to-[#00b88a] bg-clip-text text-transparent">
                 CourtShare
               </h3>
               <p className="text-sm text-gray-400 leading-relaxed max-w-xs">
@@ -401,9 +337,6 @@ export default function CourtsPage() {
                       if (!user) {
                         router.push("/signup");
                         return;
-                      }
-                      if (!isOwner) {
-                        await handleToggleRole();
                       }
                       router.push("/create-listing");
                     }}

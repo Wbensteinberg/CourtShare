@@ -28,6 +28,7 @@ interface AddressAutocompleteProps {
   placeholder?: string;
   className?: string;
   label?: string;
+  labelClassName?: string;
 }
 
 const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
@@ -36,6 +37,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   placeholder = "Enter address",
   className = "",
   label = "Address",
+  labelClassName = "",
 }) => {
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -210,9 +212,13 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
 
   return (
     <div className="relative">
-      <label className="text-sm font-semibold block mb-2">{label}</label>
+      {label && (
+        <label className={`block mb-2 text-sm font-semibold ${labelClassName}`}>
+          {label}
+        </label>
+      )}
       <div className="relative">
-        <MapPin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+        <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           ref={inputRef}
           type="text"
@@ -224,7 +230,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           className={`pl-10 ${className}`}
         />
         {isLoading && (
-          <div className="absolute right-3 top-3">
+          <div className="absolute right-3 top-1/2 -translate-y-1/2">
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
           </div>
         )}

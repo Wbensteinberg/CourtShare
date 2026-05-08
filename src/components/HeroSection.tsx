@@ -1,148 +1,48 @@
-import { Button } from "@/components/ui/button";
-import { ArrowRight, Play, MapPin, Calendar, Trophy } from "lucide-react";
-
 const HeroSection = () => {
   return (
-    <section className="relative overflow-hidden w-full bg-gradient-tennis text-white">
-      {/* Animated background gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-emerald-500 via-teal-500 to-cyan-500 opacity-20 animate-pulse"></div>
+    <section className="relative overflow-hidden w-full min-h-[700px] text-white">
+      <video
+        className="absolute inset-0 h-full w-full object-cover"
+        autoPlay
+        muted
+        loop
+        playsInline
+      >
+        <source src="/CourtShareHome.mov" type="video/mp4" />
+      </video>
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,18,28,0.22)_0%,rgba(7,18,28,0.38)_28%,rgba(7,18,28,0.68)_100%)]"></div>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(27,37,52,0.38),transparent_34%),radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_28%),radial-gradient(circle_at_bottom_center,rgba(27,37,52,0.5),transparent_42%)]"></div>
 
-      {/* Geometric shapes for visual interest - more refined */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-96 h-96 bg-gradient-to-br from-white/8 to-emerald-300/5 rounded-full blur-3xl animate-float"></div>
+        <div className="absolute top-24 left-10 h-80 w-80 rounded-full bg-white/8 blur-3xl"></div>
         <div
-          className="absolute bottom-20 right-10 w-[500px] h-[500px] bg-gradient-to-br from-cyan-400/8 to-teal-300/5 rounded-full blur-3xl animate-float"
-          style={{ animationDelay: "2s" }}
-        ></div>
-        <div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-gradient-to-br from-emerald-400/6 to-cyan-300/4 rounded-full blur-3xl animate-float"
-          style={{ animationDelay: "4s" }}
-        ></div>
-        {/* Additional subtle shapes */}
-        <div
-          className="absolute top-40 right-1/4 w-64 h-64 bg-white/3 rounded-full blur-2xl animate-float"
-          style={{ animationDelay: "1s" }}
-        ></div>
-        <div
-          className="absolute bottom-40 left-1/4 w-72 h-72 bg-teal-300/4 rounded-full blur-2xl animate-float"
-          style={{ animationDelay: "3s" }}
+          className="absolute right-0 top-32 h-[28rem] w-[28rem] rounded-full bg-emerald-300/12 blur-3xl"
         ></div>
       </div>
 
-      <div className="relative w-full flex flex-col items-center py-20 md:py-28 lg:py-36 px-4 z-10">
-        <div className="max-w-6xl w-full mx-auto text-center space-y-10 md:space-y-12 animate-fade-in-up">
-          {/* Headlines - more refined typography */}
-          <div className="space-y-8">
-            <h1 className="text-6xl md:text-8xl lg:text-9xl font-black tracking-tighter text-white drop-shadow-2xl leading-[1.1]">
-              <span className="block bg-gradient-to-r from-white via-emerald-50 to-cyan-50 bg-clip-text text-transparent pb-2">
-                Book Your Perfect
-              </span>
-              <span className="block bg-gradient-to-r from-yellow-300 via-yellow-200 to-amber-200 bg-clip-text text-transparent mt-3 drop-shadow-2xl">
-                Tennis Court
-              </span>
+      <div className="relative z-10 flex w-full flex-col items-center px-4 pb-24 pt-40 md:pt-48">
+        <div className="mx-auto flex w-full max-w-6xl flex-col items-center text-center animate-fade-in-up">
+          <div className="max-w-5xl space-y-6">
+            <h1 className="text-3xl font-black leading-[0.95] tracking-[-0.05em] text-white drop-shadow-2xl sm:text-6xl md:text-[5.5rem] lg:text-[5.9rem]">
+              Play on your dream
+              <span className="block text-emerald-50">tennis court.</span>
             </h1>
-            <p className="text-base md:text-xl text-white/80 max-w-2xl mx-auto leading-relaxed px-4 mt-2">
-              Discover and book tennis courts near you. Browse availability,
-              pick your time, and book instantly — all in one place.
+            <p className="mx-auto max-w-2xl text-base font-medium leading-7 text-white/82 sm:text-lg">
+              Find and reserve private tennis courts near you in just a few seconds!
             </p>
-          </div>
-
-          {/* Stats - commented out for now */}
-          {/* <div className="grid grid-cols-3 gap-4 md:gap-8 max-w-md mx-auto px-4">
-            <div className="text-center">
-              <div className="text-2xl md:text-3xl font-bold text-white">
-                1,200+
-              </div>
-              <div className="text-sm text-white/80">Courts Available</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl md:text-3xl font-bold text-white">
-                50k+
-              </div>
-              <div className="text-sm text-white/80">Happy Players</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl md:text-3xl font-bold text-white">
-                4.9★
-              </div>
-              <div className="text-sm text-white/80">Average Rating</div>
-            </div>
-          </div> */}
-
-          {/* CTA Buttons - commented out for now */}
-          {/* <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 px-4">
-            <Button
-              variant="secondary"
-              size="xl"
-              className="group shadow-elegant bg-white text-green-700 hover:bg-gray-100 border border-white"
-            >
-              <MapPin className="h-5 w-5 mr-2" />
-              Find Courts Near Me
-              <ArrowRight className="h-4 w-4 ml-2 group-hover:translate-x-1 transition-transform" />
-            </Button>
-            <Button
-              variant="outline"
-              size="xl"
-              className="bg-white/10 border-white/30 text-white hover:bg-white/20"
-            >
-              <Play className="h-5 w-5 mr-2" />
-              Watch Demo
-            </Button>
-          </div> */}
-
-          {/* Features - more refined */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-10 pt-16 md:pt-20 max-w-5xl mx-auto px-4">
-            <div className="text-center space-y-5 group cursor-pointer transform transition-all duration-500 hover:scale-105">
-              <div className="w-20 h-20 rounded-3xl glass-dark flex items-center justify-center mx-auto shadow-glow transition-all duration-500 group-hover:scale-110 group-hover:shadow-glow-hover group-hover:bg-white/25 group-hover:rotate-3">
-                <Calendar className="h-10 w-10 text-white group-hover:text-yellow-300 transition-all duration-300 drop-shadow-lg" />
-              </div>
-              <h3 className="font-bold text-xl text-white group-hover:text-yellow-300 transition-colors duration-300 tracking-tight">
-                Find a Court Whenever You Need
-              </h3>
-              <p className="text-sm text-white/85 leading-relaxed max-w-xs mx-auto -mt-2">
-                Book courts instantly with real-time availability and instant
-                confirmations
-              </p>
-            </div>
-            <div className="text-center space-y-5 group cursor-pointer transform transition-all duration-500 hover:scale-105">
-              <div className="w-20 h-20 rounded-3xl glass-dark flex items-center justify-center mx-auto shadow-glow transition-all duration-500 group-hover:scale-110 group-hover:shadow-glow-hover group-hover:bg-white/25 group-hover:rotate-3">
-                <MapPin className="h-10 w-10 text-white group-hover:text-yellow-300 transition-all duration-300 drop-shadow-lg" />
-              </div>
-              <h3 className="font-bold text-xl text-white group-hover:text-yellow-300 transition-colors duration-300 tracking-tight">
-                Find a Court Close to You
-              </h3>
-              <p className="text-sm text-white/85 leading-relaxed max-w-xs mx-auto -mt-2">
-                Wherever you are, discover courts nearby that fit your schedule
-                and preferences
-              </p>
-            </div>
-            <div className="text-center space-y-5 group cursor-pointer transform transition-all duration-500 hover:scale-105">
-              <div className="w-20 h-20 rounded-3xl glass-dark flex items-center justify-center mx-auto shadow-glow transition-all duration-500 group-hover:scale-110 group-hover:shadow-glow-hover group-hover:bg-white/25 group-hover:rotate-3">
-                <Trophy className="h-10 w-10 text-white group-hover:text-yellow-300 transition-all duration-300 drop-shadow-lg" />
-              </div>
-              <h3 className="font-bold text-xl text-white group-hover:text-yellow-300 transition-colors duration-300 tracking-tight">
-                All Courts in One Place
-              </h3>
-              <p className="text-sm text-white/85 leading-relaxed max-w-xs mx-auto -mt-2">
-                Choose from all courts in your area on one centralized booking
-                platform to get the best options
-              </p>
-            </div>
           </div>
         </div>
       </div>
 
-      {/* Bottom wave - smoother and more modern */}
       <div className="absolute left-0 bottom-[-1px] w-full z-10">
         <svg
           viewBox="0 0 1440 120"
-          className="w-full h-24 md:h-32"
+          className="h-18 w-full md:h-24"
           preserveAspectRatio="none"
         >
           <path
             fill="#ffffff"
-            d="M0,96L48,90.7C96,85,192,75,288,70C384,65,480,65,576,70C672,75,768,85,864,90C960,95,1056,95,1152,90C1248,85,1344,75,1392,70L1440,65L1440,120L1392,120C1344,120,1248,120,1152,120C1056,120,960,120,864,120C768,120,672,120,576,120C480,120,384,120,288,120C192,120,96,120,48,120L0,120Z"
-            className="animate-pulse"
+            d="M0,64C105,88,238,108,357,106C471,104,610,79,720,78C838,78,943,106,1054,111C1167,116,1285,97,1440,58V120H0Z"
           />
         </svg>
       </div>

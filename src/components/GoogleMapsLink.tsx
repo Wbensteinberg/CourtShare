@@ -18,11 +18,11 @@ const GoogleMapsLink: React.FC<GoogleMapsLinkProps> = ({
   const getVariantStyles = () => {
     switch (variant) {
       case 'button':
-        return 'inline-flex items-center gap-2 bg-[#286a3a] text-white py-3 px-6 rounded-lg hover:bg-[#20542e] transition-all duration-200 hover:cursor-pointer font-semibold shadow-md hover:shadow-lg';
+        return 'inline-flex items-center gap-2 bg-primary text-white py-3 px-6 rounded-lg hover:bg-primary transition-all duration-200 hover:cursor-pointer font-semibold shadow-md hover:shadow-lg';
       case 'link':
-        return 'text-[#286a3a] hover:text-[#20542e] hover:underline transition-colors duration-200 hover:cursor-pointer';
+        return 'text-primary hover:text-primary hover:underline transition-colors duration-200 hover:cursor-pointer';
       case 'icon':
-        return 'text-[#286a3a] hover:text-[#20542e] transition-colors duration-200 hover:cursor-pointer';
+        return 'text-primary hover:text-primary transition-colors duration-200 hover:cursor-pointer';
       default:
         return '';
     }

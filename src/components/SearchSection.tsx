@@ -19,10 +19,11 @@ import {
   Filter,
   X,
   Navigation,
+  Trophy,
 } from "lucide-react";
 import ReactDatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { getCurrentLocation, type Coordinates } from "@/lib/geolocation";
+import type { Coordinates } from "@/lib/geolocation";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 
 interface SearchSectionProps {
@@ -44,9 +45,9 @@ const SearchSection = ({
   const [time, setTime] = useState("anytime");
   const [activeFilters, setActiveFilters] = useState<string[]>([]);
   const [distanceFilter, setDistanceFilter] = useState<string>("10");
-  const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
-  const [locationLoading, setLocationLoading] = useState(false);
-  const [locationError, setLocationError] = useState("");
+  // const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
+  // const [locationLoading, setLocationLoading] = useState(false);
+  // const [locationError, setLocationError] = useState("");
 
   const popularFilters = [
     "Indoor Courts",
@@ -70,31 +71,31 @@ const SearchSection = ({
     setActiveFilters((prev) => prev.filter((f) => f !== filter));
   };
 
-  const handleGetCurrentLocation = async () => {
-    setLocationLoading(true);
-    setLocationError("");
+  // const handleGetCurrentLocation = async () => {
+  //   setLocationLoading(true);
+  //   setLocationError("");
+  //
+  //   try {
+  //     const coords = await getCurrentLocation();
+  //     setUserLocation(coords);
+  //     setLocation("Current Location");
+  //     setLocationError("");
+  //     onLocationChange?.("Current Location", coords);
+  //   } catch (error: any) {
+  //     setLocationError(error.message);
+  //     setUserLocation(null);
+  //     onLocationChange?.("", null);
+  //   } finally {
+  //     setLocationLoading(false);
+  //   }
+  // };
 
-    try {
-      const coords = await getCurrentLocation();
-      setUserLocation(coords);
-      setLocation("Current Location");
-      setLocationError("");
-      onLocationChange?.("Current Location", coords);
-    } catch (error: any) {
-      setLocationError(error.message);
-      setUserLocation(null);
-      onLocationChange?.("", null);
-    } finally {
-      setLocationLoading(false);
-    }
-  };
-
-  const clearLocation = () => {
-    setLocation("");
-    setUserLocation(null);
-    setLocationError("");
-    onLocationChange?.("", null);
-  };
+  // const clearLocation = () => {
+  //   setLocation("");
+  //   setUserLocation(null);
+  //   setLocationError("");
+  //   onLocationChange?.("", null);
+  // };
 
   const handleLocationInputChange = (value: string) => {
     setLocation(value);
@@ -116,32 +117,33 @@ const SearchSection = ({
 
   return (
     <div
-      className="w-full space-y-6 -mt-12 md:-mt-16 z-10 relative flex flex-col items-center mt-8"
+      className="relative z-20 mx-auto -mt-24 flex w-full max-w-6xl flex-col items-center space-y-5 px-4 md:-mt-28"
       data-search-section
     >
-      {/* Main Search Card */}
-      <Card className="bg-white border border-gray-300 shadow-md rounded-xl w-full max-w-6xl">
-        <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {/* Location */}
-            <div className="space-y-2">
+      <Card className="w-full overflow-visible rounded-[32px] border border-white/70 bg-white/92 shadow-[0_24px_80px_rgba(15,23,42,0.18)] backdrop-blur-xl">
+        <CardContent className="overflow-visible p-4 md:p-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-[1.45fr_0.9fr_0.95fr_0.95fr_64px] md:items-end">
+            <div className="min-w-0">
+              <label className="mb-3 block whitespace-nowrap text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                Where do you want to play?
+              </label>
               <AddressAutocomplete
                 value={location}
                 onChange={(address, coordinates) => {
                   handleLocationInputChange(address);
-                  if (coordinates) {
-                    setUserLocation(coordinates);
-                  }
+                  // if (coordinates) {
+                  //   setUserLocation(coordinates);
+                  // }
                 }}
                 placeholder="Enter city or zip code"
-                className="border-gray-300"
-                label="Location"
+                className="h-14 rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-base font-semibold text-slate-900 shadow-sm"
+                label=""
               />
-              <div className="flex gap-2 mt-2">
+              {/* <div className="mt-2 flex gap-2">
                 {location && (
                   <button
                     onClick={clearLocation}
-                    className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded transition-colors cursor-pointer"
+                    className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:bg-slate-100"
                     type="button"
                   >
                     Clear
@@ -150,7 +152,7 @@ const SearchSection = ({
                 <button
                   onClick={handleGetCurrentLocation}
                   disabled={locationLoading}
-                  className="px-3 py-1 text-xs bg-green-100 hover:bg-green-200 text-green-700 rounded transition-colors disabled:opacity-50 cursor-pointer"
+                  className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 transition-colors disabled:opacity-50"
                   type="button"
                   title="Use current location"
                 >
@@ -158,20 +160,19 @@ const SearchSection = ({
                 </button>
               </div>
               {locationError && (
-                <p className="text-xs text-red-500">{locationError}</p>
-              )}
+                <p className="mt-2 text-xs text-red-500">{locationError}</p>
+              )} */}
             </div>
 
-            {/* Distance Filter */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
+            <div className="min-w-0">
+              <label className="mb-3 block whitespace-nowrap text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Within
               </label>
               <Select
                 value={distanceFilter}
                 onValueChange={handleDistanceChange}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-14 rounded-2xl border border-slate-200 bg-white px-4 text-base font-semibold shadow-sm">
                   <SelectValue placeholder="Any distance" />
                 </SelectTrigger>
                 <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-lg">
@@ -215,23 +216,24 @@ const SearchSection = ({
               </Select>
             </div>
 
-            {/* Date */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
+            <div className="min-w-0">
+              <label className="mb-3 block whitespace-nowrap text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Date
               </label>
-              <div className="relative">
+              <div className="relative rounded-2xl bg-white">
+                <Calendar className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-slate-500" />
                 <ReactDatePicker
                   selected={date}
                   onChange={setDate}
                   dateFormat="MM/dd/yyyy"
                   placeholderText="mm/dd/yyyy"
-                  className="w-full p-3 border border-gray-300 rounded-lg h-11 cursor-pointer"
+                  className="search-date-input w-full cursor-pointer"
                   ref={(r) => {
                     datePickerRef.current = r;
                   }}
-                  popperPlacement="bottom"
-                  calendarClassName="z-50"
+                  popperPlacement="bottom-start"
+                  popperClassName="z-[100]"
+                  calendarClassName="z-[100]"
                   wrapperClassName="w-full"
                   showPopperArrow={false}
                   minDate={new Date()}
@@ -240,15 +242,14 @@ const SearchSection = ({
               </div>
             </div>
 
-            {/* Time */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
+            <div className="min-w-0">
+              <label className="mb-3 block whitespace-nowrap text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
                 Time
               </label>
               <Select value={time} onValueChange={setTime}>
-                <SelectTrigger>
+                <SelectTrigger className="h-14 rounded-2xl border border-slate-200 bg-white px-4 text-base font-semibold shadow-sm">
                   <div className="flex items-center">
-                    <Clock className="h-4 w-4 text-muted-foreground mr-2" />
+                    <Clock className="mr-2 h-4 w-4 text-slate-500" />
                     <SelectValue placeholder="Select time" />
                   </div>
                 </SelectTrigger>
@@ -281,22 +282,33 @@ const SearchSection = ({
               </Select>
             </div>
 
-            {/* Search Button */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-transparent">
-                Search
-              </label>
+            <div className="flex items-end">
               <Button
-                className="w-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white font-semibold text-base h-11 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer"
+                className="h-14 w-full rounded-[22px] bg-[var(--site-accent)] text-white shadow-none transition-all duration-300 hover:bg-[var(--site-accent-hover)] md:w-14 md:rounded-full"
                 type="button"
               >
-                <Search className="h-4 w-4 mr-2" />
-                Search Courts
+                <Search className="h-5 w-5 md:mr-0" />
+                <span className="ml-2 md:hidden">Search Courts</span>
               </Button>
             </div>
           </div>
         </CardContent>
       </Card>
+
+      <div className="flex flex-wrap items-center justify-center gap-3 px-4 text-center text-sm font-semibold text-slate-700">
+        <span className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 shadow-sm ring-1 ring-slate-200">
+          <MapPin className="h-4 w-4 text-[#1b2534]" />
+          Local private courts
+        </span>
+        <span className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 shadow-sm ring-1 ring-slate-200">
+          <Calendar className="h-4 w-4 text-[#1b2534]" />
+          Live availability
+        </span>
+        <span className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 shadow-sm ring-1 ring-slate-200">
+          <Trophy className="h-4 w-4 text-[#1b2534]" />
+          Premium match-day feel
+        </span>
+      </div>
 
       {/* Filters Section - COMMENTED OUT FOR FUTURE USE */}
       {/* 
