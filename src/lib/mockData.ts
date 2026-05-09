@@ -64,6 +64,10 @@ export type MockConversation = {
   courtId: string;
   courtName?: string;
   bookingId?: string;
+  bookingDate?: string;
+  bookingTime?: string;
+  bookingDurationMinutes?: number;
+  bookingCourtNumber?: number;
   status: "inquiry" | "booking_pending" | "confirmed" | "closed";
   lastMessageText: string;
   lastMessageAt: string;
@@ -160,6 +164,10 @@ const buildMockConversationForBooking = (
       courtId: booking.courtId,
       courtName: court?.name,
       bookingId: booking.id,
+      bookingDate: booking.date,
+      bookingTime: booking.time,
+      bookingDurationMinutes: Math.round(booking.duration * 60),
+      bookingCourtNumber: booking.courtNumber || 1,
       status: "booking_pending" as const,
       lastMessageText,
       lastMessageAt: existingConversation?.lastMessageAt || now,

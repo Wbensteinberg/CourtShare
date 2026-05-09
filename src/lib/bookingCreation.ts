@@ -9,6 +9,16 @@ type CreateBookingResult =
   | { status: "created"; bookingId: string; conversationId: string }
   | { status: "existing"; bookingId: string; conversationId?: string };
 
+const getDisplayName = (profile: FirebaseFirestore.DocumentData | undefined) => {
+  const displayName = String(profile?.displayName || profile?.name || "").trim();
+  if (displayName) return displayName;
+
+  const email = String(profile?.email || "").trim();
+  if (email) return email.split("@")[0];
+
+  return undefined;
+};
+
 const convertTo24Hour = (time12: string): string => {
   if (/^\d{2}:\d{2}$/.test(time12)) return time12;
   const [timePart, period] = time12.split(" ");
@@ -75,6 +85,13 @@ export async function createBookingFromPaidCheckoutSession(
   if (!courtData) {
     throw new Error("Court data not found");
   }
+
+  const [playerDoc, ownerDoc] = await Promise.all([
+    db.collection("users").doc(metadata.userId).get(),
+    db.collection("users").doc(courtData.ownerId || metadata.ownerId).get(),
+  ]);
+  const playerName = getDisplayName(playerDoc.data());
+  const ownerName = getDisplayName(ownerDoc.data());
 
   const durationMinutes = metadata.durationMinutes
     ? Number(metadata.durationMinutes)
@@ -144,7 +161,9 @@ export async function createBookingFromPaidCheckoutSession(
     courtId: metadata.courtId,
     courtName: courtData.name,
     playerId: metadata.userId,
+    playerName,
     ownerId: courtData.ownerId || metadata.ownerId,
+    ownerName,
     date: metadata.date,
     time: metadata.time,
     durationMinutes,

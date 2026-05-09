@@ -35,6 +35,10 @@ type Conversation = MockConversation & {
   createdAt?: any;
   lastMessageAt?: any;
   updatedAt?: any;
+  bookingDate?: string;
+  bookingTime?: string;
+  bookingDurationMinutes?: number;
+  bookingCourtNumber?: number;
 };
 
 type Message = MockMessage & {
@@ -58,6 +62,26 @@ const formatMessageTime = (value: any) => {
     hour: "numeric",
     minute: "2-digit",
   }).format(date);
+};
+
+const formatFallbackName = (uid: string, role: "player" | "owner") => {
+  if (!uid) return role === "player" ? "Player" : "Court owner";
+  return role === "player" ? "Player" : "Court owner";
+};
+
+const getBookingSummary = (conversation: Conversation) => {
+  const pieces = [
+    conversation.bookingDate,
+    conversation.bookingTime,
+    conversation.bookingDurationMinutes
+      ? `${conversation.bookingDurationMinutes / 60}h`
+      : null,
+    conversation.bookingCourtNumber && conversation.bookingCourtNumber > 1
+      ? `Court ${conversation.bookingCourtNumber}`
+      : null,
+  ].filter(Boolean);
+
+  return pieces.length > 0 ? pieces.join(" · ") : "Booking request";
 };
 
 function MessagesPageContent() {
@@ -176,10 +200,33 @@ function MessagesPageContent() {
   const getOtherParticipantName = (conversation: Conversation) => {
     if (!user) return "Guest";
     if (conversation.playerId === user.uid) {
-      return conversation.ownerName || getMockUserDisplayName(conversation.ownerId);
+      return (
+        conversation.ownerName ||
+        (isMockMode
+          ? getMockUserDisplayName(conversation.ownerId)
+          : formatFallbackName(conversation.ownerId, "owner"))
+      );
     }
 
-    return conversation.playerName || getMockUserDisplayName(conversation.playerId);
+    return (
+      conversation.playerName ||
+      (isMockMode
+        ? getMockUserDisplayName(conversation.playerId)
+        : formatFallbackName(conversation.playerId, "player"))
+    );
+  };
+
+  const getPlayerName = (conversation: Conversation) => {
+    if (conversation.playerId === user?.uid) {
+      return user.displayName || user.email?.split("@")[0] || "You";
+    }
+
+    return (
+      conversation.playerName ||
+      (isMockMode
+        ? getMockUserDisplayName(conversation.playerId)
+        : formatFallbackName(conversation.playerId, "player"))
+    );
   };
 
   const handleSendMessage = async () => {
@@ -379,11 +426,11 @@ function MessagesPageContent() {
                     <CardContent className="grid gap-3 p-4 sm:grid-cols-3">
                       <div className="flex items-center gap-2 text-sm text-slate-600">
                         <UserRound className="h-4 w-4 text-emerald-600" />
-                        {selectedConversation.playerName || "Player"}
+                        {getPlayerName(selectedConversation)}
                       </div>
                       <div className="flex items-center gap-2 text-sm text-slate-600">
                         <CalendarDays className="h-4 w-4 text-emerald-600" />
-                        {selectedConversation.lastMessageText}
+                        {getBookingSummary(selectedConversation)}
                       </div>
                       <Button
                         variant="outline"

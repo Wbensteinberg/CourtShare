@@ -20,6 +20,16 @@ const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
 const ALERT_WEBHOOK_URL =
   process.env.WEBHOOK_ALERT_WEBHOOK_URL || process.env.SLACK_WEBHOOK_URL;
 
+const getDisplayName = (profile: FirebaseFirestore.DocumentData | undefined) => {
+  const displayName = String(profile?.displayName || profile?.name || "").trim();
+  if (displayName) return displayName;
+
+  const email = String(profile?.email || "").trim();
+  if (email) return email.split("@")[0];
+
+  return undefined;
+};
+
 async function sendWebhookAlert(title: string, details: string) {
   if (!ALERT_WEBHOOK_URL) return;
   try {
@@ -145,13 +155,19 @@ export async function POST(req: NextRequest) {
         if (!existingBookingBySession.empty) {
           const existingBookingDoc = existingBookingBySession.docs[0];
           const existingBooking = existingBookingDoc.data();
+          const [playerDoc, ownerDoc] = await Promise.all([
+            adminDb.collection("users").doc(existingBooking.userId || metadata.userId).get(),
+            adminDb.collection("users").doc(courtData.ownerId || metadata.ownerId).get(),
+          ]);
 
           await createBookingRequestConversation(adminDb, {
             bookingId: existingBookingDoc.id,
             courtId: existingBooking.courtId || metadata.courtId,
             courtName: courtData.name,
             playerId: existingBooking.userId || metadata.userId,
+            playerName: getDisplayName(playerDoc.data()),
             ownerId: courtData.ownerId || metadata.ownerId,
+            ownerName: getDisplayName(ownerDoc.data()),
             date: existingBooking.date || metadata.date,
             time: existingBooking.time || metadata.time,
             durationMinutes:
@@ -282,12 +298,19 @@ export async function POST(req: NextRequest) {
           bookingRef.id
         );
 
+        const [conversationPlayerDoc, conversationOwnerDoc] = await Promise.all([
+          adminDb.collection("users").doc(metadata.userId).get(),
+          adminDb.collection("users").doc(courtData.ownerId || metadata.ownerId).get(),
+        ]);
+
         const conversationId = await createBookingRequestConversation(adminDb, {
           bookingId: bookingRef.id,
           courtId: metadata.courtId,
           courtName: courtData.name,
           playerId: metadata.userId,
+          playerName: getDisplayName(conversationPlayerDoc.data()),
           ownerId: courtData.ownerId || metadata.ownerId,
+          ownerName: getDisplayName(conversationOwnerDoc.data()),
           date: metadata.date,
           time: metadata.time,
           durationMinutes,
