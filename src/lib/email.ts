@@ -6,6 +6,11 @@ const resend = process.env.RESEND_API_KEY
   : null;
 const brandGreen = theme.colors.brandGreen;
 const brandGreenSoft = theme.colors.brandGreenSoft;
+const textColor = "#10231d";
+const mutedTextColor = "#64756f";
+const borderColor = "#dce7e2";
+const pageBg = "#f6faf8";
+const cardBg = "#ffffff";
 
 // Get the "from" email address - use env var or default to a test domain
 const getFromEmail = () => {
@@ -29,6 +34,27 @@ export interface BookingEmailData {
   duration: number;
   price: number;
 }
+
+type PaymentReleaseStatus = "authorization_released" | "refunded" | "no_payment";
+
+const paymentReleaseCopy = (
+  status?: PaymentReleaseStatus,
+  amount?: number
+): string => {
+  if (status === "refunded") {
+    return `A refund of $${(amount || 0).toFixed(
+      2
+    )} has been issued to the original payment method. It may take a few business days to appear.`;
+  }
+
+  if (status === "authorization_released") {
+    return `The card authorization for $${(amount || 0).toFixed(
+      2
+    )} has been released. The player was not charged.`;
+  }
+
+  return "No payment was captured for this booking.";
+};
 
 /**
  * Send email to court owner when a new booking is created
@@ -60,7 +86,7 @@ export async function sendOwnerBookingNotification(
     const result = await resend.emails.send({
       from: getFromEmail(),
       to: data.ownerEmail,
-      subject: `New Booking Request: ${data.courtName} on ${formattedDate}`,
+      subject: `New booking request: ${data.courtName} on ${formattedDate}`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -69,36 +95,37 @@ export async function sendOwnerBookingNotification(
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>New Booking Request</title>
           </head>
-          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: ${brandGreen}; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">🎾 New Booking Request</h1>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: ${textColor}; max-width: 600px; margin: 0 auto; padding: 20px; background: ${pageBg};">
+            <div style="background: ${brandGreen}; padding: 28px; text-align: left; border-radius: 14px 14px 0 0;">
+              <p style="color: rgba(255,255,255,0.78); margin: 0 0 6px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">CourtShare</p>
+              <h1 style="color: white; margin: 0; font-size: 26px; line-height: 1.25;">New booking request</h1>
             </div>
             
-            <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; border-top: none;">
+            <div style="background: ${cardBg}; padding: 30px; border-radius: 0 0 14px 14px; border: 1px solid ${borderColor}; border-top: none;">
               <p style="font-size: 16px; margin-top: 0;">Hello${
                 data.ownerName ? ` ${data.ownerName}` : ""
               },</p>
               
               <p style="font-size: 16px;">You have received a new booking request for <strong>${
                 data.courtName
-              }</strong>.</p>
+              }</strong>. The player's card has been authorized; payment will only be captured if you accept within 24 hours.</p>
               
-              <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
+              <div style="background: ${pageBg}; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
                 <h2 style="margin-top: 0; color: ${brandGreen}; font-size: 20px;">Booking Details</h2>
                 <table style="width: 100%; border-collapse: collapse;">
                   <tr>
-                    <td style="padding: 8px 0; color: #6b7280; width: 120px;"><strong>Date:</strong></td>
-                    <td style="padding: 8px 0; color: #111827;">${formattedDate}</td>
+                    <td style="padding: 8px 0; color: ${mutedTextColor}; width: 120px;"><strong>Date:</strong></td>
+                    <td style="padding: 8px 0; color: ${textColor};">${formattedDate}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 8px 0; color: #6b7280;"><strong>Time:</strong></td>
-                    <td style="padding: 8px 0; color: #111827;">${data.time} (${
+                    <td style="padding: 8px 0; color: ${mutedTextColor};"><strong>Time:</strong></td>
+                    <td style="padding: 8px 0; color: ${textColor};">${data.time} (${
         data.duration
       } hour${data.duration > 1 ? "s" : ""})</td>
                   </tr>
                   <tr>
-                    <td style="padding: 8px 0; color: #6b7280;"><strong>Player:</strong></td>
-                    <td style="padding: 8px 0; color: #111827;">${
+                    <td style="padding: 8px 0; color: ${mutedTextColor};"><strong>Player:</strong></td>
+                    <td style="padding: 8px 0; color: ${textColor};">${
                       data.playerName || data.playerEmail
                     }</td>
                   </tr>
@@ -106,15 +133,15 @@ export async function sendOwnerBookingNotification(
                     data.courtAddress
                       ? `
                   <tr>
-                    <td style="padding: 8px 0; color: #6b7280;"><strong>Location:</strong></td>
-                    <td style="padding: 8px 0; color: #111827;">${data.courtAddress}</td>
+                    <td style="padding: 8px 0; color: ${mutedTextColor};"><strong>Location:</strong></td>
+                    <td style="padding: 8px 0; color: ${textColor};">${data.courtAddress}</td>
                   </tr>
                   `
                       : ""
                   }
                   <tr>
-                    <td style="padding: 8px 0; color: #6b7280;"><strong>Total Amount:</strong></td>
-                    <td style="padding: 8px 0; color: #111827; font-weight: bold;">$${data.price.toFixed(
+                    <td style="padding: 8px 0; color: ${mutedTextColor};"><strong>Authorized:</strong></td>
+                    <td style="padding: 8px 0; color: ${textColor}; font-weight: bold;">$${data.price.toFixed(
                       2
                     )}</td>
                   </tr>
@@ -123,7 +150,7 @@ export async function sendOwnerBookingNotification(
               
               <p style="font-size: 16px;">Please log in to your <a href="${
                 process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.co"
-              }/dashboard/owner" style="color: ${brandGreen}; text-decoration: none; font-weight: 600;">owner dashboard</a> to accept or reject this booking request.</p>
+              }/dashboard/owner" style="color: ${brandGreen}; text-decoration: none; font-weight: 600;">owner dashboard</a> to accept or decline this request.</p>
               
               <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center;">
                 <a href="${
@@ -131,7 +158,7 @@ export async function sendOwnerBookingNotification(
                 }/dashboard/owner" style="display: inline-block; background: ${brandGreen}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 10px;">View Dashboard</a>
               </div>
               
-              <p style="font-size: 14px; color: #6b7280; margin-top: 30px; margin-bottom: 0;">This is an automated notification from CourtShare.</p>
+              <p style="font-size: 14px; color: ${mutedTextColor}; margin-top: 30px; margin-bottom: 0;">This request expires after 24 hours if no action is taken.</p>
             </div>
           </body>
         </html>
@@ -144,7 +171,7 @@ export async function sendOwnerBookingNotification(
 
     if (result.error) {
       const errorMessage = result.error.message || "Failed to send email";
-      console.error("[EMAIL] ❌ Resend API error:", errorMessage);
+      console.error("[EMAIL] Resend API error:", errorMessage);
 
       // Don't fail the webhook if it's Resend's test-domain restriction (can only send to your Resend account email)
       const isTestDomainRestriction =
@@ -153,7 +180,7 @@ export async function sendOwnerBookingNotification(
         );
       if (isTestDomainRestriction) {
         console.warn(
-          "[EMAIL] ⚠️ Resend test-domain restriction: from=onboarding@resend.dev can only send to your Resend account email. Add a verified domain in Resend and set RESEND_FROM_EMAIL (e.g. CourtShare <notifications@courtshare.co>) in Vercel."
+          "[EMAIL] Resend test-domain restriction: from=onboarding@resend.dev can only send to your Resend account email. Add a verified domain in Resend and set RESEND_FROM_EMAIL (e.g. CourtShare <notifications@courtshare.co>) in Vercel."
         );
         return;
       }
@@ -162,18 +189,18 @@ export async function sendOwnerBookingNotification(
     }
 
     if (!result.data) {
-      console.error("[EMAIL] ❌ Resend API returned no data:", result);
+      console.error("[EMAIL] Resend API returned no data:", result);
       throw new Error("Resend API returned no data");
     }
 
     console.log(
-      "[EMAIL] ✅ Owner notification sent successfully to:",
+      "[EMAIL] Owner notification sent successfully to:",
       data.ownerEmail,
       "Email ID:",
       result.data.id
     );
   } catch (error: any) {
-    console.error("[EMAIL] ❌ Failed to send owner notification:", error);
+    console.error("[EMAIL] Failed to send owner notification:", error);
     console.error("[EMAIL] Error details:", {
       message: error.message,
       stack: error.stack,
@@ -191,7 +218,7 @@ export async function sendPlayerBookingConfirmation(
 ): Promise<void> {
   if (!process.env.RESEND_API_KEY) {
     const error = new Error("RESEND_API_KEY not configured");
-    console.error("[EMAIL] ❌ RESEND_API_KEY not configured, skipping email");
+    console.error("[EMAIL] RESEND_API_KEY not configured, skipping email");
     throw error;
   }
 
@@ -204,7 +231,7 @@ export async function sendPlayerBookingConfirmation(
 
   if (!resend) {
     const error = new Error("Resend client not initialized");
-    console.error("[EMAIL] ❌ Resend not initialized, skipping email");
+    console.error("[EMAIL] Resend not initialized, skipping email");
     throw error;
   }
 
@@ -215,7 +242,7 @@ export async function sendPlayerBookingConfirmation(
     const result = await resend.emails.send({
       from: getFromEmail(),
       to: data.playerEmail,
-      subject: `Booking Confirmed: ${data.courtName} on ${formattedDate}`,
+      subject: `Booking confirmed: ${data.courtName} on ${formattedDate}`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -224,36 +251,37 @@ export async function sendPlayerBookingConfirmation(
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Booking Confirmed</title>
           </head>
-          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: ${brandGreen}; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">✅ Booking Confirmed!</h1>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: ${textColor}; max-width: 600px; margin: 0 auto; padding: 20px; background: ${pageBg};">
+            <div style="background: ${brandGreen}; padding: 28px; text-align: left; border-radius: 14px 14px 0 0;">
+              <p style="color: rgba(255,255,255,0.78); margin: 0 0 6px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">CourtShare</p>
+              <h1 style="color: white; margin: 0; font-size: 26px; line-height: 1.25;">Booking confirmed</h1>
             </div>
             
-            <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; border-top: none;">
+            <div style="background: ${cardBg}; padding: 30px; border-radius: 0 0 14px 14px; border: 1px solid ${borderColor}; border-top: none;">
               <p style="font-size: 16px; margin-top: 0;">Hello${
                 data.playerName ? ` ${data.playerName}` : ""
               },</p>
               
-              <p style="font-size: 16px;">Great news! Your booking request for <strong>${
+              <p style="font-size: 16px;">Your booking request for <strong>${
                 data.courtName
-              }</strong> has been confirmed by the court owner.</p>
+              }</strong> has been accepted by the court owner. Your payment has now been captured.</p>
               
-              <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
+              <div style="background: ${pageBg}; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
                 <h2 style="margin-top: 0; color: ${brandGreen}; font-size: 20px;">Booking Details</h2>
                 <table style="width: 100%; border-collapse: collapse;">
                   <tr>
-                    <td style="padding: 8px 0; color: #6b7280; width: 120px;"><strong>Court:</strong></td>
-                    <td style="padding: 8px 0; color: #111827;">${
+                    <td style="padding: 8px 0; color: ${mutedTextColor}; width: 120px;"><strong>Court:</strong></td>
+                    <td style="padding: 8px 0; color: ${textColor};">${
                       data.courtName
                     }</td>
                   </tr>
                   <tr>
-                    <td style="padding: 8px 0; color: #6b7280;"><strong>Date:</strong></td>
-                    <td style="padding: 8px 0; color: #111827;">${formattedDate}</td>
+                    <td style="padding: 8px 0; color: ${mutedTextColor};"><strong>Date:</strong></td>
+                    <td style="padding: 8px 0; color: ${textColor};">${formattedDate}</td>
                   </tr>
                   <tr>
-                    <td style="padding: 8px 0; color: #6b7280;"><strong>Time:</strong></td>
-                    <td style="padding: 8px 0; color: #111827;">${data.time} (${
+                    <td style="padding: 8px 0; color: ${mutedTextColor};"><strong>Time:</strong></td>
+                    <td style="padding: 8px 0; color: ${textColor};">${data.time} (${
         data.duration
       } hour${data.duration > 1 ? "s" : ""})</td>
                   </tr>
@@ -261,15 +289,15 @@ export async function sendPlayerBookingConfirmation(
                     data.courtAddress
                       ? `
                   <tr>
-                    <td style="padding: 8px 0; color: #6b7280;"><strong>Location:</strong></td>
-                    <td style="padding: 8px 0; color: #111827;">${data.courtAddress}</td>
+                    <td style="padding: 8px 0; color: ${mutedTextColor};"><strong>Location:</strong></td>
+                    <td style="padding: 8px 0; color: ${textColor};">${data.courtAddress}</td>
                   </tr>
                   `
                       : ""
                   }
                   <tr>
-                    <td style="padding: 8px 0; color: #6b7280;"><strong>Total Paid:</strong></td>
-                    <td style="padding: 8px 0; color: #111827; font-weight: bold;">$${data.price.toFixed(
+                    <td style="padding: 8px 0; color: ${mutedTextColor};"><strong>Payment captured:</strong></td>
+                    <td style="padding: 8px 0; color: ${textColor}; font-weight: bold;">$${data.price.toFixed(
                       2
                     )}</td>
                   </tr>
@@ -278,7 +306,7 @@ export async function sendPlayerBookingConfirmation(
               
               <div style="background: ${brandGreenSoft}; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
                 <p style="margin: 0; font-size: 14px; color: ${brandGreen};">
-                  <strong>📅 Don't forget!</strong> Your booking is confirmed. Please arrive on time and enjoy your game!
+                  <strong>You're all set.</strong> Please arrive on time and follow any access instructions from the court owner.
                 </p>
               </div>
               
@@ -290,25 +318,25 @@ export async function sendPlayerBookingConfirmation(
       }" style="display: inline-block; background: ${brandGreen}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 10px;">View Booking Details</a>
               </div>
               
-              <p style="font-size: 14px; color: #6b7280; margin-top: 30px; margin-bottom: 0;">This is an automated confirmation from CourtShare.</p>
+              <p style="font-size: 14px; color: ${mutedTextColor}; margin-top: 30px; margin-bottom: 0;">This is an automated confirmation from CourtShare.</p>
             </div>
           </body>
         </html>
       `,
     });
     console.log(
-      "[EMAIL] ✅ Resend API response:",
+      "[EMAIL] Resend API response:",
       JSON.stringify(result, null, 2)
     );
     if (result.data) {
       console.log(
-        "[EMAIL] ✅ Player confirmation sent successfully to:",
+        "[EMAIL] Player confirmation sent successfully to:",
         data.playerEmail,
         "Email ID:",
         result.data.id
       );
     } else if (result.error) {
-      console.error("[EMAIL] ❌ Resend API error:", result.error);
+      console.error("[EMAIL] Resend API error:", result.error);
       throw new Error(result.error.message || "Failed to send email");
     }
   } catch (error: any) {
@@ -326,6 +354,7 @@ export interface CancellationEmailData {
   time: string;
   duration: number;
   price: number;
+  paymentStatus?: PaymentReleaseStatus;
 }
 
 /**
@@ -350,25 +379,26 @@ export async function sendOwnerCancellationNotification(
     await resend.emails.send({
       from: getFromEmail(),
       to: data.ownerEmail,
-      subject: `Booking Cancelled: ${data.courtName} on ${formattedDate}`,
+      subject: `Booking cancelled: ${data.courtName} on ${formattedDate}`,
       html: `
         <!DOCTYPE html>
         <html>
           <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #b91c1c 0%, #dc2626 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">Booking Cancelled</h1>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: ${textColor}; max-width: 600px; margin: 0 auto; padding: 20px; background: ${pageBg};">
+            <div style="background: ${brandGreen}; padding: 28px; text-align: left; border-radius: 14px 14px 0 0;">
+              <p style="color: rgba(255,255,255,0.78); margin: 0 0 6px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">CourtShare</p>
+              <h1 style="color: white; margin: 0; font-size: 26px;">Booking cancelled</h1>
             </div>
-            <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; border-top: none;">
+            <div style="background: ${cardBg}; padding: 30px; border-radius: 0 0 14px 14px; border: 1px solid ${borderColor}; border-top: none;">
               <p style="font-size: 16px;">Hello${data.ownerName ? ` ${data.ownerName}` : ""},</p>
               <p style="font-size: 16px;">A player has cancelled their booking for <strong>${data.courtName}</strong>.</p>
-              <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #b91c1c;">
+              <div style="background: ${pageBg}; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
                 <p style="margin: 0 0 8px;"><strong>Player:</strong> ${data.playerName || "Guest"}</p>
                 <p style="margin: 0 0 8px;"><strong>Date:</strong> ${formattedDate}</p>
                 <p style="margin: 0 0 8px;"><strong>Time:</strong> ${data.time} (${data.duration}h)</p>
-                <p style="margin: 0;"><strong>Refunded:</strong> $${data.price.toFixed(2)} has been refunded to the player.</p>
+                <p style="margin: 0;"><strong>Payment:</strong> ${paymentReleaseCopy(data.paymentStatus, data.price)}</p>
               </div>
-              <p style="font-size: 14px; color: #6b7280;">This is an automated notification from CourtShare.</p>
+              <p style="font-size: 14px; color: ${mutedTextColor};">This is an automated notification from CourtShare.</p>
             </div>
           </body>
         </html>
@@ -389,6 +419,7 @@ export interface PlayerCancellationConfirmationData {
   time: string;
   duration: number;
   price: number;
+  paymentStatus?: PaymentReleaseStatus;
 }
 
 /**
@@ -413,24 +444,25 @@ export async function sendPlayerCancellationConfirmation(
     await resend.emails.send({
       from: getFromEmail(),
       to: data.playerEmail,
-      subject: `Reservation Cancelled: ${data.courtName} on ${formattedDate}`,
+      subject: `Reservation cancelled: ${data.courtName} on ${formattedDate}`,
       html: `
         <!DOCTYPE html>
         <html>
           <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: ${brandGreen}; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">Reservation Cancelled</h1>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: ${textColor}; max-width: 600px; margin: 0 auto; padding: 20px; background: ${pageBg};">
+            <div style="background: ${brandGreen}; padding: 28px; text-align: left; border-radius: 14px 14px 0 0;">
+              <p style="color: rgba(255,255,255,0.78); margin: 0 0 6px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">CourtShare</p>
+              <h1 style="color: white; margin: 0; font-size: 26px;">Reservation cancelled</h1>
             </div>
-            <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; border-top: none;">
+            <div style="background: ${cardBg}; padding: 30px; border-radius: 0 0 14px 14px; border: 1px solid ${borderColor}; border-top: none;">
               <p style="font-size: 16px;">Hello${data.playerName ? ` ${data.playerName}` : ""},</p>
               <p style="font-size: 16px;">You have successfully cancelled your reservation for <strong>${data.courtName}</strong>.</p>
-              <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
+              <div style="background: ${pageBg}; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
                 <p style="margin: 0 0 8px;"><strong>Date:</strong> ${formattedDate}</p>
                 <p style="margin: 0 0 8px;"><strong>Time:</strong> ${data.time} (${data.duration}h)</p>
-                <p style="margin: 0;"><strong>Refund:</strong> $${data.price.toFixed(2)} will be refunded to your original payment method. It may take a few business days to appear.</p>
+                <p style="margin: 0;"><strong>Payment:</strong> ${paymentReleaseCopy(data.paymentStatus, data.price)}</p>
               </div>
-              <p style="font-size: 14px; color: #6b7280;">This is an automated confirmation from CourtShare.</p>
+              <p style="font-size: 14px; color: ${mutedTextColor};">This is an automated confirmation from CourtShare.</p>
             </div>
           </body>
         </html>
@@ -451,6 +483,7 @@ export interface RejectionEmailData {
   time: string;
   duration: number;
   price: number;
+  paymentStatus?: PaymentReleaseStatus;
 }
 
 /**
@@ -475,28 +508,29 @@ export async function sendPlayerRejectionNotification(
     await resend.emails.send({
       from: getFromEmail(),
       to: data.playerEmail,
-      subject: `Booking Rejected: ${data.courtName} on ${formattedDate}`,
+      subject: `Booking declined: ${data.courtName} on ${formattedDate}`,
       html: `
         <!DOCTYPE html>
         <html>
           <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #b91c1c 0%, #dc2626 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">Booking Rejected</h1>
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: ${textColor}; max-width: 600px; margin: 0 auto; padding: 20px; background: ${pageBg};">
+            <div style="background: ${brandGreen}; padding: 28px; text-align: left; border-radius: 14px 14px 0 0;">
+              <p style="color: rgba(255,255,255,0.78); margin: 0 0 6px; font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">CourtShare</p>
+              <h1 style="color: white; margin: 0; font-size: 26px;">Booking declined</h1>
             </div>
-            <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; border-top: none;">
+            <div style="background: ${cardBg}; padding: 30px; border-radius: 0 0 14px 14px; border: 1px solid ${borderColor}; border-top: none;">
               <p style="font-size: 16px;">Hello${data.playerName ? ` ${data.playerName}` : ""},</p>
-              <p style="font-size: 16px;">Unfortunately, the court owner has rejected your booking request for <strong>${data.courtName}</strong>.</p>
-              <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #b91c1c;">
+              <p style="font-size: 16px;">The court owner declined your booking request for <strong>${data.courtName}</strong>.</p>
+              <div style="background: ${pageBg}; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
                 <p style="margin: 0 0 8px;"><strong>Date:</strong> ${formattedDate}</p>
                 <p style="margin: 0 0 8px;"><strong>Time:</strong> ${data.time} (${data.duration}h)</p>
-                <p style="margin: 0;"><strong>Refund:</strong> Your payment of $${data.price.toFixed(2)} has been refunded to your original payment method.</p>
+                <p style="margin: 0;"><strong>Payment:</strong> ${paymentReleaseCopy(data.paymentStatus, data.price)}</p>
               </div>
               <p style="font-size: 16px;">You can browse other courts and book a different time.</p>
               <div style="margin-top: 20px; text-align: center;">
                 <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.co"}/courts" style="display: inline-block; background: ${brandGreen}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Browse Courts</a>
               </div>
-              <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">This is an automated notification from CourtShare.</p>
+              <p style="font-size: 14px; color: ${mutedTextColor}; margin-top: 30px;">This is an automated notification from CourtShare.</p>
             </div>
           </body>
         </html>

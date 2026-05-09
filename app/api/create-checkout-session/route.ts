@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { adminDb, adminAuth } from "@/lib/firebase-admin";
+import { isActionablePendingBooking } from "@/lib/bookingDates";
 import { checkRateLimit } from "../rate-limit";
+
+type BookingStatusParts = Parameters<typeof isActionablePendingBooking>[0];
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
@@ -311,16 +314,22 @@ export async function POST(req: NextRequest) {
 
     // Check each existing booking for conflicts
     for (const bookingDoc of bookingsSnapshot.docs) {
-      const booking = bookingDoc.data();
+      const booking = bookingDoc.data() as BookingStatusParts & {
+        courtNumber?: number;
+        duration?: number;
+        durationMinutes?: number;
+      };
       
       // For multi-court listings, only check bookings for the same court number
       const bookingCourtNum = booking.courtNumber || 1;
       if (bookingCourtNum !== courtNumberNum) continue;
       
-      // Only check confirmed and pending bookings (rejected bookings don't block)
-      if (booking.status === "confirmed" || booking.status === "pending") {
+      // Only confirmed and still-actionable pending bookings block the slot.
+      if (booking.status === "confirmed" || isActionablePendingBooking(booking)) {
         const existingTime = booking.time;
-        const existingDuration = Math.ceil((booking.durationMinutes || booking.duration * 60) / 60);
+        const existingDurationMinutes =
+          booking.durationMinutes || (booking.duration || 1) * 60;
+        const existingDuration = Math.ceil(existingDurationMinutes / 60);
         
         if (timeRangesOverlap(time, durationHours, existingTime, existingDuration)) {
           return NextResponse.json(
@@ -392,6 +401,7 @@ export async function POST(req: NextRequest) {
       // SECURITY: Enable Stripe Radar for fraud detection
       // This automatically blocks suspicious transactions
       payment_intent_data: {
+        capture_method: "manual",
         // Radar will be enabled by default if you've enabled it in Stripe Dashboard
         // Add additional metadata for fraud detection
         metadata: {
@@ -446,7 +456,7 @@ export async function POST(req: NextRequest) {
         } else {
           // Owner account is active - split payment
           console.log(
-            `[CHECKOUT] ✅ STRIPE CONNECT ACTIVE - Payment will be TRANSFERRED to owner account ${stripeAccountId}`
+            `[CHECKOUT] STRIPE CONNECT ACTIVE - Payment will be transferred to owner account ${stripeAccountId} after capture`
           );
           console.log(
             `[CHECKOUT] Transfer details: ${totalAmountCents} cents total, ${commissionAmount} cents platform fee, ${

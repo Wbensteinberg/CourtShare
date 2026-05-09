@@ -3,6 +3,14 @@ export type BookingDateParts = {
   time: string;
 };
 
+type TimestampLike = {
+  toDate?: () => Date;
+  seconds?: number;
+  nanoseconds?: number;
+};
+
+export const PENDING_BOOKING_ACCEPTANCE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 export const parseBookingDateTime = (dateStr: string, timeStr: string): Date => {
   const [timePart = "0:0", period] = timeStr.trim().split(/\s+/);
   const [hours = 0, minutes = 0] = timePart.split(":").map(Number);
@@ -20,6 +28,75 @@ export const parseBookingDateTime = (dateStr: string, timeStr: string): Date => 
       .padStart(2, "0")}:00`
   );
 };
+
+export const getBookingCreatedAtDate = (
+  createdAt?: Date | string | number | TimestampLike | null
+): Date | null => {
+  if (!createdAt) return null;
+
+  if (createdAt instanceof Date) {
+    return Number.isNaN(createdAt.getTime()) ? null : createdAt;
+  }
+
+  if (typeof createdAt === "string" || typeof createdAt === "number") {
+    const parsed = new Date(createdAt);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  if (typeof createdAt.toDate === "function") {
+    const parsed = createdAt.toDate();
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  if (typeof createdAt.seconds === "number") {
+    const parsed = new Date(
+      createdAt.seconds * 1000 +
+        Math.floor((createdAt.nanoseconds || 0) / 1_000_000)
+    );
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  return null;
+};
+
+export const isPendingBookingExpired = (
+  booking: BookingDateParts & {
+    status: string;
+    createdAt?: Date | string | number | TimestampLike | null;
+    expiresAt?: Date | string | number | TimestampLike | null;
+  },
+  now = new Date()
+): boolean => {
+  if (booking.status !== "pending") return false;
+
+  try {
+    if (parseBookingDateTime(booking.date, booking.time) < now) {
+      return true;
+    }
+  } catch {
+    return true;
+  }
+
+  const explicitExpiration = getBookingCreatedAtDate(booking.expiresAt);
+  if (explicitExpiration) {
+    return explicitExpiration <= now;
+  }
+
+  const createdAt = getBookingCreatedAtDate(booking.createdAt);
+  if (!createdAt) return false;
+
+  return now.getTime() - createdAt.getTime() >= PENDING_BOOKING_ACCEPTANCE_WINDOW_MS;
+};
+
+export const isActionablePendingBooking = (
+  booking: BookingDateParts & {
+    status: string;
+    createdAt?: Date | string | number | TimestampLike | null;
+    expiresAt?: Date | string | number | TimestampLike | null;
+  },
+  now = new Date()
+): boolean =>
+  booking.status === "pending" && !isPendingBookingExpired(booking, now);
 
 export const formatBookingDateWithDay = (dateStr: string): string => {
   const date = new Date(`${dateStr}T12:00:00`);
@@ -66,7 +143,8 @@ export const isPastOrInactiveBooking = (
     return (
       parseBookingDateTime(booking.date, booking.time) < now ||
       booking.status === "cancelled" ||
-      booking.status === "rejected"
+      booking.status === "rejected" ||
+      booking.status === "expired"
     );
   } catch {
     return true;
@@ -81,7 +159,8 @@ export const isActiveFutureBooking = (
     return (
       parseBookingDateTime(booking.date, booking.time) >= now &&
       booking.status !== "cancelled" &&
-      booking.status !== "rejected"
+      booking.status !== "rejected" &&
+      booking.status !== "expired"
     );
   } catch {
     return false;

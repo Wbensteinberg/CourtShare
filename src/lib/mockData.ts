@@ -51,12 +51,45 @@ export type MockBooking = {
   courtNumber?: number;
   createdAt?: string;
   sessionId?: string;
+  conversationId?: string;
+};
+
+export type MockConversation = {
+  id: string;
+  participantIds: string[];
+  playerId: string;
+  playerName?: string;
+  ownerId: string;
+  ownerName?: string;
+  courtId: string;
+  courtName?: string;
+  bookingId?: string;
+  status: "inquiry" | "booking_pending" | "confirmed" | "closed";
+  lastMessageText: string;
+  lastMessageAt: string;
+  lastMessageSenderId: string;
+  unreadBy: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MockMessage = {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  body: string;
+  createdAt: string;
+  type: "text" | "booking_request" | "booking_status" | "system";
+  bookingId?: string;
+  courtId?: string;
 };
 
 type MockDb = {
   users: Record<string, MockUserProfile>;
   courts: MockCourt[];
   bookings: MockBooking[];
+  conversations: MockConversation[];
+  messages: MockMessage[];
 };
 
 type MockSession = {
@@ -75,6 +108,78 @@ const isClient = () => typeof window !== "undefined";
 const MOCK_AUTH_EVENT = "courtshare:mock-auth-changed";
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
+
+const formatBookingRequestMessage = (
+  courtName: string | undefined,
+  date: string,
+  time: string,
+  duration: number,
+  courtNumber?: number
+) => {
+  const durationLabel = Number.isInteger(duration)
+    ? String(duration)
+    : duration.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+  const courtNumberText =
+    courtNumber && courtNumber > 1 ? `, Court ${courtNumber}` : "";
+
+  return `New booking request for ${
+    courtName || "this court"
+  }${courtNumberText} on ${date} at ${time} for ${durationLabel} hour${
+    duration === 1 ? "" : "s"
+  }.`;
+};
+
+const buildMockConversationForBooking = (
+  db: MockDb,
+  booking: MockBooking,
+  now = new Date().toISOString()
+) => {
+  const court = db.courts.find((item) => item.id === booking.courtId);
+  const player = db.users[booking.userId];
+  const owner = court ? db.users[court.ownerId] : null;
+  const conversationId = `booking_${booking.id}`;
+  const lastMessageText = formatBookingRequestMessage(
+    court?.name,
+    booking.date,
+    booking.time,
+    booking.duration,
+    booking.courtNumber
+  );
+  const existingConversation = db.conversations.find(
+    (conversation) => conversation.id === conversationId
+  );
+
+  return {
+    conversation: {
+      id: conversationId,
+      participantIds: [booking.userId, court?.ownerId || ""].filter(Boolean),
+      playerId: booking.userId,
+      playerName: player?.displayName,
+      ownerId: court?.ownerId || "",
+      ownerName: owner?.displayName,
+      courtId: booking.courtId,
+      courtName: court?.name,
+      bookingId: booking.id,
+      status: "booking_pending" as const,
+      lastMessageText,
+      lastMessageAt: existingConversation?.lastMessageAt || now,
+      lastMessageSenderId: booking.userId,
+      unreadBy: court?.ownerId ? [court.ownerId] : [],
+      createdAt: existingConversation?.createdAt || booking.createdAt || now,
+      updatedAt: existingConversation?.updatedAt || now,
+    },
+    message: {
+      id: "booking_request",
+      conversationId,
+      senderId: booking.userId,
+      body: lastMessageText,
+      createdAt: booking.createdAt || now,
+      type: "booking_request" as const,
+      bookingId: booking.id,
+      courtId: booking.courtId,
+    },
+  };
+};
 
 const formatDateOffset = (daysFromToday: number) => {
   const date = new Date();
@@ -267,7 +372,7 @@ const createSeedDb = (): MockDb => {
     },
   ];
 
-  return {
+  const db: MockDb = {
     users: {
       [activeUser.uid]: activeUser,
       [guestUser.uid]: guestUser,
@@ -275,7 +380,20 @@ const createSeedDb = (): MockDb => {
     },
     courts,
     bookings,
+    conversations: [],
+    messages: [],
   };
+
+  bookings.forEach((booking) => {
+    const { conversation, message } = buildMockConversationForBooking(
+      db,
+      booking
+    );
+    db.conversations.push(conversation);
+    db.messages.push(message);
+  });
+
+  return db;
 };
 
 const createDefaultSession = (): MockSession => ({
@@ -300,6 +418,33 @@ const writeStorage = (key: string, value: unknown) => {
   window.localStorage.setItem(key, JSON.stringify(value));
 };
 
+const normalizeMockDb = (db: MockDb): MockDb => {
+  const normalized = {
+    ...db,
+    conversations: db.conversations || [],
+    messages: db.messages || [],
+  };
+
+  normalized.bookings.forEach((booking) => {
+    const conversationId = `booking_${booking.id}`;
+    if (
+      !normalized.conversations.some(
+        (conversation) => conversation.id === conversationId
+      )
+    ) {
+      const { conversation, message } = buildMockConversationForBooking(
+        normalized,
+        booking
+      );
+      normalized.conversations.push(conversation);
+      normalized.messages.push(message);
+      booking.conversationId = conversationId;
+    }
+  });
+
+  return normalized;
+};
+
 const notifyMockAuthChanged = () => {
   if (!isClient()) return;
 
@@ -309,8 +454,9 @@ const notifyMockAuthChanged = () => {
 export const getMockDb = (): MockDb => {
   const stored = readStorage<MockDb>(DB_STORAGE_KEY);
   if (stored) {
-    memoryDb = clone(stored);
-    return clone(stored);
+    memoryDb = normalizeMockDb(clone(stored));
+    writeStorage(DB_STORAGE_KEY, memoryDb);
+    return clone(memoryDb);
   }
 
   if (!memoryDb) {
@@ -501,8 +647,105 @@ export const getMockBookingsForCourtAndDate = (courtId: string, date: string) =>
 export const getMockBookingById = (bookingId: string) =>
   getMockBookings().find((booking) => booking.id === bookingId) || null;
 
+export const createMockBookingRequestConversation = (
+  booking: MockBooking
+) => {
+  const conversationId = `booking_${booking.id}`;
+
+  updateMockDb((db) => {
+    const { conversation, message } = buildMockConversationForBooking(
+      db,
+      booking
+    );
+    const existingConversation = db.conversations.find(
+      (item) => item.id === conversationId
+    );
+
+    db.conversations = existingConversation
+      ? db.conversations.map((item) =>
+          item.id === conversationId ? conversation : item
+        )
+      : [conversation, ...db.conversations];
+
+    db.messages = [
+      message,
+      ...db.messages.filter(
+        (item) =>
+          !(
+            item.conversationId === conversationId &&
+            item.id === "booking_request"
+          )
+      ),
+    ];
+
+    db.bookings = db.bookings.map((item) =>
+      item.id === booking.id ? { ...item, conversationId } : item
+    );
+  });
+
+  return conversationId;
+};
+
+export const getMockConversationsForUser = (uid: string) =>
+  getMockDb()
+    .conversations.filter((conversation) =>
+      conversation.participantIds.includes(uid)
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.lastMessageAt).getTime() -
+        new Date(a.lastMessageAt).getTime()
+    );
+
+export const getMockMessagesForConversation = (conversationId: string) =>
+  getMockDb()
+    .messages.filter((message) => message.conversationId === conversationId)
+    .sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+
+export const createMockMessage = async (
+  conversationId: string,
+  senderId: string,
+  body: string
+) => {
+  const now = new Date().toISOString();
+  const message: MockMessage = {
+    id: `mock-message-${Date.now()}`,
+    conversationId,
+    senderId,
+    body,
+    createdAt: now,
+    type: "text",
+  };
+
+  updateMockDb((db) => {
+    db.messages.push(message);
+    db.conversations = db.conversations.map((conversation) =>
+      conversation.id === conversationId
+        ? {
+            ...conversation,
+            lastMessageText: body,
+            lastMessageAt: now,
+            lastMessageSenderId: senderId,
+            unreadBy: conversation.participantIds.filter(
+              (participantId) => participantId !== senderId
+            ),
+            updatedAt: now,
+          }
+        : conversation
+    );
+  });
+
+  return message;
+};
+
 export const createMockBooking = async (
-  booking: Omit<MockBooking, "id" | "createdAt" | "sessionId">
+  booking: Omit<
+    MockBooking,
+    "id" | "createdAt" | "sessionId" | "conversationId"
+  >
 ) => {
   const newBooking: MockBooking = {
     ...booking,
@@ -515,7 +758,12 @@ export const createMockBooking = async (
     db.bookings.unshift(newBooking);
   });
 
-  return newBooking;
+  const conversationId = createMockBookingRequestConversation(newBooking);
+
+  return {
+    ...newBooking,
+    conversationId,
+  };
 };
 
 export const updateMockBooking = async (

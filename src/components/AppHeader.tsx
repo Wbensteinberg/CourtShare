@@ -3,12 +3,20 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+} from "firebase/firestore";
 import { db, isMockMode } from "@/lib/firebase";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getMockCourts } from "@/lib/mockData";
+import { getMockCourts, getMockProfile } from "@/lib/mockData";
 
 export default function AppHeader() {
   const { user } = useAuth();
@@ -16,34 +24,51 @@ export default function AppHeader() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const [hasOwnerListing, setHasOwnerListing] = useState(false);
+  const [profileImageUrl, setProfileImageUrl] = useState("");
   const isLandingPage = pathname === "/courts";
 
   useEffect(() => {
-    const fetchOwnerStatus = async () => {
+    const fetchUserHeaderData = async () => {
       if (!user) {
         setHasOwnerListing(false);
+        setProfileImageUrl("");
+        return;
+      }
+
+      if (!user.uid) {
+        setHasOwnerListing(false);
+        setProfileImageUrl(user.photoURL || "");
         return;
       }
 
       try {
         if (isMockMode) {
+          const mockProfile = getMockProfile(user.uid);
           setHasOwnerListing(
             getMockCourts().some((court) => court.ownerId === user.uid)
           );
+          setProfileImageUrl(mockProfile?.profileImageUrl || user.photoURL || "");
           return;
         }
 
-        const ownerCourts = await getDocs(
-          query(collection(db, "courts"), where("ownerId", "==", user.uid))
-        );
+        const [ownerCourts, profileSnap] = await Promise.all([
+          getDocs(
+            query(collection(db, "courts"), where("ownerId", "==", user.uid))
+          ),
+          getDoc(doc(db, "users", user.uid)),
+        ]);
+        const profileData = profileSnap.exists() ? profileSnap.data() : null;
+
         setHasOwnerListing(!ownerCourts.empty);
+        setProfileImageUrl(profileData?.profileImageUrl || user.photoURL || "");
       } catch (error) {
-        console.error("Error checking owner listings:", error);
+        console.error("Error loading header user data:", error);
         setHasOwnerListing(false);
+        setProfileImageUrl(user.photoURL || "");
       }
     };
 
-    fetchOwnerStatus();
+    fetchUserHeaderData();
   }, [user, pathname]);
 
   const navButtonClass = isLandingPage
@@ -55,8 +80,61 @@ export default function AppHeader() {
     setMenuOpen(false);
   };
 
-  const authedLinks = (
+  const profileInitial =
+    user?.displayName?.trim().charAt(0) || user?.email?.trim().charAt(0) || "P";
+
+  const profileButton = (showLabel: boolean) => (
+    <Button
+      variant="ghost"
+      size={showLabel ? "sm" : "icon"}
+      className={cn(
+        showLabel
+          ? navButtonClass
+          : "h-10 w-10 rounded-full p-0 transition-transform hover:scale-105",
+        !showLabel && isLandingPage
+          ? "bg-white/10 text-white hover:bg-white/18 hover:text-white"
+          : !showLabel &&
+              "bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+      )}
+      onClick={() => closeAndGo("/profile")}
+      aria-label="Profile"
+      title="Profile"
+    >
+      {profileImageUrl ? (
+        <Avatar className="h-9 w-9 border border-white/60">
+          <AvatarImage
+            src={profileImageUrl}
+            alt="Profile"
+            className="object-cover"
+          />
+          <AvatarFallback className="bg-emerald-100 text-sm font-semibold text-emerald-800">
+            {profileInitial.toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+      ) : (
+        showLabel ? (
+          "Profile"
+        ) : (
+          <Avatar className="h-9 w-9 border border-white/60">
+            <AvatarFallback className="bg-emerald-100 text-sm font-semibold text-emerald-800">
+              {profileInitial.toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+        )
+      )}
+    </Button>
+  );
+
+  const authedLinks = (showProfileLabel: boolean) => (
     <>
+      <Button
+        variant="ghost"
+        size="sm"
+        className={navButtonClass}
+        onClick={() => closeAndGo("/messages")}
+      >
+        Messages
+      </Button>
       <Button
         variant="ghost"
         size="sm"
@@ -75,14 +153,7 @@ export default function AppHeader() {
           Owner Dashboard
         </Button>
       )}
-      <Button
-        variant="ghost"
-        size="sm"
-        className={navButtonClass}
-        onClick={() => closeAndGo("/profile")}
-      >
-        Profile
-      </Button>
+      {profileButton(showProfileLabel)}
     </>
   );
 
@@ -133,7 +204,7 @@ export default function AppHeader() {
         </button>
 
         <nav className="hidden items-center gap-2 md:flex">
-          {user ? authedLinks : guestLinks}
+          {user ? authedLinks(false) : guestLinks}
         </nav>
 
         <Button
@@ -157,7 +228,7 @@ export default function AppHeader() {
         )}
       >
         <nav className="flex flex-col gap-2 px-4 py-4">
-          {user ? authedLinks : guestLinks}
+          {user ? authedLinks(true) : guestLinks}
         </nav>
       </div>
     </header>

@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { adminDb } from "@/lib/firebase-admin";
+import { isActionablePendingBooking } from "@/lib/bookingDates";
+import { createBookingRequestConversation } from "@/lib/conversations";
 import { sendOwnerBookingNotification } from "@/lib/email";
+import { releaseBookingPayment } from "@/lib/stripeBookingPayments";
+
+type BookingStatusParts = Parameters<typeof isActionablePendingBooking>[0];
 
 // Initialize Stripe with your secret key (set in .env.local)
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
@@ -138,8 +143,32 @@ export async function POST(req: NextRequest) {
           .get();
         
         if (!existingBookingBySession.empty) {
-          console.log("[WEBHOOK] Booking already exists for this session, skipping duplicate webhook:", session.id);
-          return NextResponse.json({ received: true, message: "Booking already processed" });
+          const existingBookingDoc = existingBookingBySession.docs[0];
+          const existingBooking = existingBookingDoc.data();
+
+          await createBookingRequestConversation(adminDb, {
+            bookingId: existingBookingDoc.id,
+            courtId: existingBooking.courtId || metadata.courtId,
+            courtName: courtData.name,
+            playerId: existingBooking.userId || metadata.userId,
+            ownerId: courtData.ownerId || metadata.ownerId,
+            date: existingBooking.date || metadata.date,
+            time: existingBooking.time || metadata.time,
+            durationMinutes:
+              existingBooking.durationMinutes ||
+              expectedDurationMinutes,
+            courtNumber:
+              existingBooking.courtNumber || Number(metadata.courtNumber) || 1,
+          });
+
+          console.log(
+            "[WEBHOOK] Booking already exists for this session, ensured conversation and skipped duplicate booking:",
+            session.id
+          );
+          return NextResponse.json({
+            received: true,
+            message: "Booking already processed",
+          });
         }
 
         // SECURITY: Final check for double bookings before creating booking (race condition protection)
@@ -177,7 +206,12 @@ export async function POST(req: NextRequest) {
           .get();
 
         for (const bookingDoc of existingBookingsSnapshot.docs) {
-          const existingBooking = bookingDoc.data();
+          const existingBooking = bookingDoc.data() as BookingStatusParts & {
+            courtNumber?: number;
+            duration?: number;
+            durationMinutes?: number;
+            sessionId?: string;
+          };
           // Skip if this is the same session (idempotency - webhook might be called multiple times)
           if (existingBooking.sessionId === session.id) {
             continue;
@@ -186,40 +220,34 @@ export async function POST(req: NextRequest) {
           const bookingCourtNum = existingBooking.courtNumber || 1;
           const newCourtNum = Number(metadata.courtNumber) || 1;
           if (bookingCourtNum !== newCourtNum) continue;
-          // Check confirmed and pending bookings (rejected don't block)
-          if (existingBooking.status === "confirmed" || existingBooking.status === "pending") {
-            const existingDuration = Math.ceil((existingBooking.durationMinutes || existingBooking.duration * 60) / 60);
+          // Confirmed and still-actionable pending bookings block the slot.
+          if (existingBooking.status === "confirmed" || isActionablePendingBooking(existingBooking)) {
+            const existingDurationMinutes =
+              existingBooking.durationMinutes || (existingBooking.duration || 1) * 60;
+            const existingDuration = Math.ceil(existingDurationMinutes / 60);
             if (timeRangesOverlap(metadata.time, durationHours, existingBooking.time, existingDuration)) {
               console.error("[WEBHOOK] Double booking detected! Payment completed but time slot already booked:", {
                 existingBooking: bookingDoc.id,
                 newBooking: { time: metadata.time, duration: durationHours },
               });
-              // Refund the payment since we can't fulfill the booking
+              // Release the authorization or refund if this payment was already captured.
               try {
-                const paymentIntent = await stripe.paymentIntents.retrieve(session.payment_intent as string);
-                if (paymentIntent.status === "succeeded") {
-                  await stripe.refunds.create({
-                    payment_intent: paymentIntent.id,
-                    reason: "requested_by_customer",
-                    metadata: {
-                      reason: "double_booking_prevention",
-                      courtId: metadata.courtId,
-                      date: metadata.date,
-                      time: metadata.time,
-                    },
-                  });
-                  console.log("[WEBHOOK] Refunded payment due to double booking");
-                }
+                await releaseBookingPayment(
+                  stripe,
+                  session.id,
+                  session.id,
+                  "double_booking_prevention"
+                );
               } catch (refundError) {
-                console.error("[WEBHOOK] Failed to refund double booking:", refundError);
+                console.error("[WEBHOOK] Failed to release double-booked payment:", refundError);
                 await sendWebhookAlert(
-                  "Webhook refund failed after double-booking detection",
-                  `Session ${session.id} could not be auto-refunded.`
+                  "Webhook payment release failed after double-booking detection",
+                  `Session ${session.id} could not be auto-released.`
                 );
               }
               // Don't create the booking - return error
               return NextResponse.json(
-                { error: "Time slot was already booked. Payment has been refunded." },
+                { error: "Time slot was already booked. The card authorization has been released." },
                 { status: 409 }
               );
             }
@@ -236,8 +264,10 @@ export async function POST(req: NextRequest) {
           durationMinutes: durationMinutes, // Also store as minutes
           status: "pending", // Requires host approval - SECURITY FIX 4: Only confirmed after webhook
           createdAt: new Date(),
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
           sessionId: session.id,
-          paymentStatus: "paid",
+          paymentIntentId: session.payment_intent || null,
+          paymentStatus: "authorized",
           totalAmountCents: actualAmountCents, // Use actual amount from Stripe
           expectedAmountCents: expectedAmountCents, // Store expected for audit
         };
@@ -250,6 +280,22 @@ export async function POST(req: NextRequest) {
           session.id,
           "with booking ID:",
           bookingRef.id
+        );
+
+        const conversationId = await createBookingRequestConversation(adminDb, {
+          bookingId: bookingRef.id,
+          courtId: metadata.courtId,
+          courtName: courtData.name,
+          playerId: metadata.userId,
+          ownerId: courtData.ownerId || metadata.ownerId,
+          date: metadata.date,
+          time: metadata.time,
+          durationMinutes,
+          courtNumber: Number(metadata.courtNumber) || 1,
+        });
+        console.log(
+          "[WEBHOOK] Booking request conversation created:",
+          conversationId
         );
 
         // Fetch user details to send email notification (court already fetched above)

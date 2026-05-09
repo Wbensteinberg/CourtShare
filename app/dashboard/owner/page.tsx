@@ -60,6 +60,8 @@ import {
 } from "@/lib/mockData";
 import {
   isPastOrInactiveBooking,
+  isActionablePendingBooking,
+  isPendingBookingExpired,
   parseBookingDateTime,
   sortBookingsAscending,
   sortBookingsDescending,
@@ -92,6 +94,8 @@ interface Booking {
   duration: number;
   status: string;
   courtNumber?: number;
+  createdAt?: Date | string | number | { toDate?: () => Date; seconds?: number; nanoseconds?: number };
+  expiresAt?: Date | string | number | { toDate?: () => Date; seconds?: number; nanoseconds?: number };
 }
 
 export default function OwnerDashboard() {
@@ -155,6 +159,42 @@ export default function OwnerDashboard() {
                 id: doc.id,
                 ...doc.data(),
               })) as Booking[]);
+        }
+
+        const expiredPendingBookings = bookingsData.filter((booking) =>
+          isPendingBookingExpired(booking)
+        );
+        if (expiredPendingBookings.length > 0) {
+          if (isMockMode) {
+            await Promise.allSettled(
+              expiredPendingBookings.map((booking) =>
+                updateMockBooking(booking.id, { status: "expired" })
+              )
+            );
+          } else {
+            const idToken = await user.getIdToken();
+            const res = await fetch("/api/expire-pending-bookings", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${idToken}`,
+              },
+              body: JSON.stringify({
+                bookingIds: expiredPendingBookings.map((booking) => booking.id),
+              }),
+            });
+            if (!res.ok) {
+              console.warn(
+                "[OWNER DASHBOARD] Failed to expire stale pending bookings",
+                await res.json().catch(() => ({}))
+              );
+            }
+          }
+          bookingsData = bookingsData.map((booking) =>
+            expiredPendingBookings.some((expired) => expired.id === booking.id)
+              ? { ...booking, status: "expired" }
+              : booking
+          );
         }
         setBookings(bookingsData);
 
@@ -417,10 +457,44 @@ export default function OwnerDashboard() {
     setAcceptBookingConfirm(null);
     setUpdatingBookingId(bookingId);
     try {
+      const bookingToAccept = bookings.find((booking) => booking.id === bookingId);
+      if (!bookingToAccept || !isActionablePendingBooking(bookingToAccept)) {
+        if (isMockMode) {
+          await updateMockBooking(bookingId, { status: "expired" });
+        } else {
+          const idToken = await user?.getIdToken();
+          await fetch("/api/expire-pending-bookings", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+            },
+            body: JSON.stringify({ bookingIds: [bookingId] }),
+          });
+        }
+        setBookings((prev) =>
+          prev.map((b) => (b.id === bookingId ? { ...b, status: "expired" } : b))
+        );
+        alert("This booking request has expired.");
+        return;
+      }
+
       if (isMockMode) {
         await updateMockBooking(bookingId, { status: "confirmed" });
       } else {
-        await updateDoc(doc(db, "bookings", bookingId), { status: "confirmed" });
+        const idToken = await user?.getIdToken();
+        const res = await fetch("/api/accept-booking", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+          },
+          body: JSON.stringify({ bookingId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to accept booking");
+        }
       }
       setBookings((prev) =>
         prev.map((b) =>
@@ -428,44 +502,6 @@ export default function OwnerDashboard() {
         )
       );
 
-      if (isMockMode) {
-        return;
-      }
-
-      // Send confirmation email to player
-      try {
-        const response = await fetch("/api/send-booking-confirmation", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ bookingId }),
-        });
-
-        if (!response.ok) {
-          const error = await response
-            .json()
-            .catch(() => ({ error: "Unknown error" }));
-          console.error(
-            "[OWNER DASHBOARD] Failed to send confirmation email:",
-            error
-          );
-          console.error(
-            "[OWNER DASHBOARD] Response status:",
-            response.status,
-            response.statusText
-          );
-          // Don't show error to user - booking is still accepted
-        } else {
-          console.log("[OWNER DASHBOARD] ✅ Confirmation email sent to player");
-        }
-      } catch (emailError: any) {
-        console.error(
-          "[OWNER DASHBOARD] Error sending confirmation email:",
-          emailError
-        );
-        // Don't fail the booking acceptance if email fails
-      }
     } catch (err: any) {
       alert(err.message || "Failed to accept booking");
     } finally {
@@ -476,7 +512,7 @@ export default function OwnerDashboard() {
   const handleRejectBooking = async (bookingId: string) => {
     if (
       !window.confirm(
-        "Are you sure you want to reject this booking? The payment will be refunded."
+        "Are you sure you want to reject this booking? The card authorization will be released."
       )
     ) {
       return;
@@ -586,11 +622,13 @@ export default function OwnerDashboard() {
   }
 
   const courtsById = Object.fromEntries(courts.map((court) => [court.id, court]));
+  const now = new Date();
   const activeBookings = bookings.filter(
-    (booking) => booking.status !== "cancelled" && booking.status !== "rejected"
+    (booking) =>
+      booking.status === "confirmed" || isActionablePendingBooking(booking, now)
   );
   const pendingBookings = activeBookings
-    .filter((booking) => booking.status === "pending")
+    .filter((booking) => isActionablePendingBooking(booking, now))
     .sort(sortBookingsAscending);
   const upcomingBookings = activeBookings
     .filter(
@@ -672,15 +710,11 @@ export default function OwnerDashboard() {
               ) : (
                 <div className="space-y-4">
                   {courts.map((court) => {
-                    const courtBookings = bookings.filter(
-                      (booking) =>
-                        booking.courtId === court.id &&
-                        booking.status !== "cancelled"
+                    const courtBookings = activeBookings.filter(
+                      (booking) => booking.courtId === court.id
                     );
-                    const courtPendingBookings = courtBookings.filter(
-                      (booking) =>
-                        booking.status === "pending" &&
-                        parseBookingDateTime(booking.date, booking.time) > new Date()
+                    const courtPendingBookings = pendingBookings.filter(
+                      (booking) => booking.courtId === court.id
                     );
 
                     return (

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { adminDb, adminAuth } from "@/lib/firebase-admin";
 import { sendPlayerRejectionNotification } from "@/lib/email";
+import { releaseBookingPayment } from "@/lib/stripeBookingPayments";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
@@ -76,38 +77,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const sessionId = bookingData.sessionId;
-    if (!sessionId) {
-      return NextResponse.json(
-        { error: "Booking has no payment session - cannot refund" },
-        { status: 400 }
-      );
-    }
-
-    // Retrieve Stripe session to get payment_intent
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-    const paymentIntentId = session.payment_intent as string;
-    if (!paymentIntentId) {
-      return NextResponse.json(
-        { error: "No payment found for this booking" },
-        { status: 400 }
-      );
-    }
-
-    // Create refund
-    await stripe.refunds.create({
-      payment_intent: paymentIntentId,
-      reason: "requested_by_customer",
-      metadata: {
-        bookingId,
-        reason: "owner_rejection",
-      },
-    });
+    const releasedPayment = await releaseBookingPayment(
+      stripe,
+      bookingData.sessionId,
+      bookingId,
+      "owner_rejection"
+    );
 
     // Update booking status
     await adminDb.collection("bookings").doc(bookingId).update({
       status: "rejected",
       rejectedAt: new Date(),
+      paymentStatus: releasedPayment.paymentStatus,
+      ...(releasedPayment.refundId ? { refundId: releasedPayment.refundId } : {}),
     });
 
     // Send email to player (non-blocking)
@@ -129,6 +111,7 @@ export async function POST(req: NextRequest) {
           time: bookingData.time,
           duration: bookingData.duration || 1,
           price,
+          paymentStatus: releasedPayment.paymentStatus,
         });
       }
     } catch (emailErr: any) {

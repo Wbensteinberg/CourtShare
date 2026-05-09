@@ -121,7 +121,7 @@ export default function PlayerDashboard() {
     if (!user) return;
     if (
       !window.confirm(
-        "Are you sure you want to cancel this booking? Your payment will be refunded."
+        "Are you sure you want to cancel this booking? If payment has not been captured yet, the card authorization will be released."
       )
     ) {
       return;
