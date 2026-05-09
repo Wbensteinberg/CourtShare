@@ -36,16 +36,7 @@ const upstashRatelimit = hasUpstashConfig
 // Local fallback for development or if Upstash env vars are missing.
 const localStore: LocalRateLimitStore = {};
 
-export async function checkRateLimit(identifier: string): Promise<RateLimitResult> {
-  if (upstashRatelimit) {
-    const result = await upstashRatelimit.limit(identifier);
-    return {
-      allowed: result.success,
-      remaining: Math.max(0, result.remaining ?? 0),
-      resetTime: result.reset ?? Date.now() + RATE_LIMIT_WINDOW_MS,
-    };
-  }
-
+function checkLocalRateLimit(identifier: string): RateLimitResult {
   const now = Date.now();
   const record = localStore[identifier];
 
@@ -77,6 +68,24 @@ export async function checkRateLimit(identifier: string): Promise<RateLimitResul
   };
 }
 
+export async function checkRateLimit(identifier: string): Promise<RateLimitResult> {
+  if (upstashRatelimit) {
+    try {
+      const result = await upstashRatelimit.limit(identifier);
+      return {
+        allowed: result.success,
+        remaining: Math.max(0, result.remaining ?? 0),
+        resetTime: result.reset ?? Date.now() + RATE_LIMIT_WINDOW_MS,
+      };
+    } catch (error) {
+      console.error("[RATE_LIMIT] Upstash rate limit check failed:", error);
+      return checkLocalRateLimit(identifier);
+    }
+  }
+
+  return checkLocalRateLimit(identifier);
+}
+
 if (!upstashRatelimit) {
   setInterval(() => {
     const now = Date.now();
@@ -87,4 +96,3 @@ if (!upstashRatelimit) {
     });
   }, RATE_LIMIT_WINDOW_MS);
 }
-
