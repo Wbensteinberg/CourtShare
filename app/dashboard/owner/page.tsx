@@ -39,6 +39,7 @@ import {
   ExternalLink,
   Plus,
   ListChecks,
+  MessageCircle,
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import InlineWeeklyCalendar from "@/components/InlineWeeklyCalendar";
@@ -96,7 +97,21 @@ interface Booking {
   courtNumber?: number;
   createdAt?: Date | string | number | { toDate?: () => Date; seconds?: number; nanoseconds?: number };
   expiresAt?: Date | string | number | { toDate?: () => Date; seconds?: number; nanoseconds?: number };
+  conversationId?: string;
 }
+
+const getProfileDisplayName = (
+  profile: Record<string, any> | undefined,
+  fallback: string
+) => {
+  const displayName =
+    typeof profile?.displayName === "string" ? profile.displayName.trim() : "";
+  const name = typeof profile?.name === "string" ? profile.name.trim() : "";
+  const emailPrefix =
+    typeof profile?.email === "string" ? profile.email.split("@")[0].trim() : "";
+
+  return displayName || name || emailPrefix || fallback;
+};
 
 export default function OwnerDashboard() {
   const { user, loading: authLoading } = useAuth();
@@ -214,11 +229,7 @@ export default function OwnerDashboard() {
                 uniqueUserIds.map(async (userId) => {
                   const userDoc = await getDoc(doc(db, "users", userId));
                   const userData = userDoc.data();
-                  const displayName =
-                    userData?.displayName ||
-                    userData?.name ||
-                    userData?.email ||
-                    userId;
+                  const displayName = getProfileDisplayName(userData, "Player");
                   return [userId, displayName] as const;
                 })
               );
@@ -593,9 +604,22 @@ export default function OwnerDashboard() {
         return <Badge variant="destructive">Rejected</Badge>;
       case "cancelled":
         return <Badge variant="destructive">Cancelled</Badge>;
+      case "expired":
+        return <Badge variant="outline">Expired</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
+  };
+
+  const getBookingPlayerName = (booking: Booking) =>
+    bookingUsers[booking.userId] || "Player";
+
+  const getBookingCourtName = (booking: Booking) =>
+    courtsById[booking.courtId]?.name || "Court unavailable";
+
+  const openBookingConversation = (booking: Booking) => {
+    const conversationId = booking.conversationId || `booking_${booking.id}`;
+    router.push(`/messages?conversationId=${encodeURIComponent(conversationId)}`);
   };
 
   if (loading) {
@@ -957,6 +981,7 @@ export default function OwnerDashboard() {
               <div className="divide-y divide-slate-200">
                 {pendingBookings.map((booking) => {
                   const court = courtsById[booking.courtId];
+                  const courtName = getBookingCourtName(booking);
                   return (
                     <div
                       key={booking.id}
@@ -965,7 +990,7 @@ export default function OwnerDashboard() {
                       <div className="min-w-0">
                         <div className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap">
                           <h3 className="font-semibold text-slate-950">
-                            {court?.name || booking.courtId}
+                            {courtName}
                           </h3>
                           <Badge variant="outline" className="rounded-md">
                             Court {booking.courtNumber || 1}
@@ -985,8 +1010,7 @@ export default function OwnerDashboard() {
                         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
                           <span className="inline-flex items-center">
                             <User className="mr-1.5 h-4 w-4 text-slate-400" />
-                            {bookingUsers[booking.userId] ||
-                              `${booking.userId.slice(0, 12)}...`}
+                            {getBookingPlayerName(booking)}
                           </span>
                           <span className="inline-flex items-center font-semibold text-emerald-700">
                             <Banknote className="mr-1.5 h-4 w-4" />
@@ -995,6 +1019,15 @@ export default function OwnerDashboard() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 lg:justify-end lg:self-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-lg border-slate-300"
+                          onClick={() => openBookingConversation(booking)}
+                        >
+                          <MessageCircle className="mr-2 h-4 w-4" />
+                          Message
+                        </Button>
                         <Button
                           size="sm"
                           className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
@@ -1045,6 +1078,7 @@ export default function OwnerDashboard() {
                   <div className="divide-y divide-slate-200">
                     {upcomingBookings.map((booking) => {
                       const court = courtsById[booking.courtId];
+                      const courtName = getBookingCourtName(booking);
                       return (
                         <div
                           key={booking.id}
@@ -1053,7 +1087,7 @@ export default function OwnerDashboard() {
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
                               <h3 className="font-semibold text-slate-950">
-                                {court?.name || booking.courtId}
+                                {courtName}
                               </h3>
                               {getStatusBadge(booking.status)}
                             </div>
@@ -1061,10 +1095,25 @@ export default function OwnerDashboard() {
                               {booking.date} at {booking.time} for{" "}
                               {booking.duration}h
                             </p>
+                            <p className="mt-1 flex items-center text-sm text-slate-500">
+                              <User className="mr-1.5 h-4 w-4 text-slate-400" />
+                              {getBookingPlayerName(booking)}
+                            </p>
                           </div>
-                          <span className="text-sm font-semibold text-emerald-700">
-                            ${((court?.price || 0) * booking.duration).toFixed(2)}
-                          </span>
+                          <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+                            <span className="text-sm font-semibold text-emerald-700">
+                              ${((court?.price || 0) * booking.duration).toFixed(2)}
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="rounded-lg border-slate-300"
+                              onClick={() => openBookingConversation(booking)}
+                            >
+                              <MessageCircle className="mr-2 h-4 w-4" />
+                              Message
+                            </Button>
+                          </div>
                         </div>
                       );
                     })}
@@ -1093,6 +1142,7 @@ export default function OwnerDashboard() {
                   <div className="divide-y divide-slate-200">
                     {pastBookings.map((booking) => {
                       const court = courtsById[booking.courtId];
+                      const courtName = getBookingCourtName(booking);
                       return (
                         <div
                           key={booking.id}
@@ -1101,17 +1151,32 @@ export default function OwnerDashboard() {
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
                               <h3 className="font-semibold text-slate-950">
-                                {court?.name || booking.courtId}
+                                {courtName}
                               </h3>
                               {getStatusBadge(booking.status)}
                             </div>
                             <p className="mt-1 text-sm text-slate-600">
                               {booking.date} at {booking.time}
                             </p>
+                            <p className="mt-1 flex items-center text-sm text-slate-500">
+                              <User className="mr-1.5 h-4 w-4 text-slate-400" />
+                              {getBookingPlayerName(booking)}
+                            </p>
                           </div>
-                          <span className="text-sm text-slate-500">
-                            {booking.duration}h
-                          </span>
+                          <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+                            <span className="text-sm text-slate-500">
+                              {booking.duration}h
+                            </span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="rounded-lg border-slate-300"
+                              onClick={() => openBookingConversation(booking)}
+                            >
+                              <MessageCircle className="mr-2 h-4 w-4" />
+                              Message
+                            </Button>
+                          </div>
                         </div>
                       );
                     })}
@@ -1157,8 +1222,7 @@ export default function OwnerDashboard() {
                 <div className="flex justify-between">
                   <span className="text-gray-500">Guest</span>
                   <span className="font-medium">
-                    {bookingUsers[acceptBookingConfirm.booking.userId] ||
-                      `${acceptBookingConfirm.booking.userId.slice(0, 12)}...`}
+                    {getBookingPlayerName(acceptBookingConfirm.booking)}
                   </span>
                 </div>
                 <div className="flex justify-between pt-2 border-t">

@@ -6,6 +6,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   getDocs,
   query,
   serverTimestamp,
@@ -22,14 +23,16 @@ import { useAuth } from "@/lib/AuthContext";
 import { db, isMockMode } from "@/lib/firebase";
 import {
   createMockMessage,
+  getMockBookingById,
   getMockConversationsForUser,
   getMockMessagesForConversation,
   getMockUserDisplayName,
+  updateMockBooking,
   type MockConversation,
   type MockMessage,
 } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
-import { CalendarDays, MessageCircle, Send, UserRound } from "lucide-react";
+import { CalendarDays, Check, MessageCircle, Send, UserRound, X } from "lucide-react";
 
 type Conversation = MockConversation & {
   createdAt?: any;
@@ -43,6 +46,16 @@ type Conversation = MockConversation & {
 
 type Message = MockMessage & {
   createdAt?: any;
+};
+
+type Booking = {
+  id: string;
+  courtId: string;
+  userId: string;
+  date: string;
+  time: string;
+  duration: number;
+  status: string;
 };
 
 const getDateValue = (value: any) => {
@@ -91,9 +104,11 @@ function MessagesPageContent() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState("");
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [updatingBooking, setUpdatingBooking] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -197,6 +212,35 @@ function MessagesPageContent() {
     [conversations, selectedConversationId]
   );
 
+  useEffect(() => {
+    const fetchSelectedBooking = async () => {
+      if (!selectedConversation?.bookingId) {
+        setSelectedBooking(null);
+        return;
+      }
+
+      try {
+        const bookingData = isMockMode
+          ? (getMockBookingById(selectedConversation.bookingId) as Booking | null)
+          : await (async () => {
+              const bookingDoc = await getDoc(
+                doc(db, "bookings", selectedConversation.bookingId!)
+              );
+              return bookingDoc.exists()
+                ? ({ id: bookingDoc.id, ...bookingDoc.data() } as Booking)
+                : null;
+            })();
+
+        setSelectedBooking(bookingData);
+      } catch (err) {
+        console.warn("[MESSAGES] Unable to load booking for conversation:", err);
+        setSelectedBooking(null);
+      }
+    };
+
+    fetchSelectedBooking();
+  }, [selectedConversation]);
+
   const getOtherParticipantName = (conversation: Conversation) => {
     if (!user) return "Guest";
     if (conversation.playerId === user.uid) {
@@ -227,6 +271,112 @@ function MessagesPageContent() {
         ? getMockUserDisplayName(conversation.playerId)
         : formatFallbackName(conversation.playerId, "player"))
     );
+  };
+
+  const isSelectedOwner =
+    !!user && !!selectedConversation && selectedConversation.ownerId === user.uid;
+  const canActOnSelectedBooking =
+    isSelectedOwner && selectedBooking?.status === "pending";
+
+  const updateConversationStatus = async (
+    conversation: Conversation,
+    status: Conversation["status"],
+    lastMessageText: string
+  ) => {
+    const now = new Date().toISOString();
+    if (!isMockMode) {
+      await updateDoc(doc(db, "conversations", conversation.id), {
+        status,
+        lastMessageText,
+        lastMessageAt: serverTimestamp(),
+        lastMessageSenderId: user?.uid || conversation.ownerId,
+        unreadBy: conversation.participantIds.filter(
+          (participantId) => participantId !== user?.uid
+        ),
+        updatedAt: serverTimestamp(),
+      });
+    }
+
+    setConversations((current) =>
+      current.map((item) =>
+        item.id === conversation.id
+          ? {
+              ...item,
+              status,
+              lastMessageText,
+              lastMessageAt: now,
+              lastMessageSenderId: user?.uid || conversation.ownerId,
+              unreadBy: item.participantIds.filter(
+                (participantId) => participantId !== user?.uid
+              ),
+              updatedAt: now,
+            }
+          : item
+      )
+    );
+  };
+
+  const handleBookingDecision = async (decision: "accepted" | "declined") => {
+    if (!user || !selectedConversation?.bookingId || !selectedBooking) return;
+
+    if (
+      decision === "declined" &&
+      !window.confirm(
+        "Are you sure you want to decline this booking? The card authorization will be released."
+      )
+    ) {
+      return;
+    }
+
+    setUpdatingBooking(true);
+    try {
+      const nextStatus = decision === "accepted" ? "confirmed" : "rejected";
+      const conversationStatus =
+        decision === "accepted" ? "confirmed" : "closed";
+      const lastMessageText =
+        decision === "accepted"
+          ? "Booking request accepted."
+          : "Booking request declined.";
+
+      if (isMockMode) {
+        await updateMockBooking(selectedBooking.id, { status: nextStatus });
+      } else {
+        const idToken = await user.getIdToken();
+        const res = await fetch(
+          decision === "accepted" ? "/api/accept-booking" : "/api/reject-booking",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({ bookingId: selectedBooking.id }),
+          }
+        );
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(
+            data.error ||
+              (decision === "accepted"
+                ? "Failed to accept booking"
+                : "Failed to decline booking")
+          );
+        }
+      }
+
+      await updateConversationStatus(
+        selectedConversation,
+        conversationStatus,
+        lastMessageText
+      );
+      setSelectedBooking((current) =>
+        current ? { ...current, status: nextStatus } : current
+      );
+    } catch (err: any) {
+      alert(err.message || "Failed to update booking");
+    } finally {
+      setUpdatingBooking(false);
+    }
   };
 
   const handleSendMessage = async () => {
@@ -416,14 +566,33 @@ function MessagesPageContent() {
                       </p>
                     </div>
                   </div>
-                  <Badge className="w-fit bg-amber-100 text-amber-800 hover:bg-amber-100">
-                    Booking request
+                  <Badge
+                    className={cn(
+                      "w-fit hover:bg-amber-100",
+                      selectedBooking?.status === "confirmed"
+                        ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
+                        : selectedBooking?.status === "rejected" ||
+                            selectedBooking?.status === "cancelled" ||
+                            selectedBooking?.status === "expired"
+                          ? "bg-slate-100 text-slate-700 hover:bg-slate-100"
+                          : "bg-amber-100 text-amber-800 hover:bg-amber-100"
+                    )}
+                  >
+                    {selectedBooking?.status === "confirmed"
+                      ? "Confirmed"
+                      : selectedBooking?.status === "rejected"
+                        ? "Declined"
+                        : selectedBooking?.status === "cancelled"
+                          ? "Cancelled"
+                          : selectedBooking?.status === "expired"
+                            ? "Expired"
+                            : "Booking request"}
                   </Badge>
                 </div>
 
                 <div className="border-b border-slate-200 bg-slate-50/70 p-5">
                   <Card className="rounded-2xl border-slate-200 shadow-none">
-                    <CardContent className="grid gap-3 p-4 sm:grid-cols-3">
+                    <CardContent className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                       <div className="flex items-center gap-2 text-sm text-slate-600">
                         <UserRound className="h-4 w-4 text-emerald-600" />
                         {getPlayerName(selectedConversation)}
@@ -432,17 +601,40 @@ function MessagesPageContent() {
                         <CalendarDays className="h-4 w-4 text-emerald-600" />
                         {getBookingSummary(selectedConversation)}
                       </div>
-                      <Button
-                        variant="outline"
-                        className="rounded-xl"
-                        onClick={() =>
-                          selectedConversation.bookingId &&
-                          router.push(`/booking/${selectedConversation.bookingId}`)
-                        }
-                        disabled={!selectedConversation.bookingId}
-                      >
-                        View booking
-                      </Button>
+                      <div className="flex flex-wrap gap-2 lg:justify-end">
+                        {canActOnSelectedBooking && (
+                          <>
+                            <Button
+                              className="rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
+                              onClick={() => handleBookingDecision("accepted")}
+                              disabled={updatingBooking}
+                            >
+                              <Check className="mr-2 h-4 w-4" />
+                              Accept
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="rounded-xl border-black text-black hover:bg-slate-100 hover:text-black"
+                              onClick={() => handleBookingDecision("declined")}
+                              disabled={updatingBooking}
+                            >
+                              <X className="mr-2 h-4 w-4" />
+                              Decline
+                            </Button>
+                          </>
+                        )}
+                        <Button
+                          variant="outline"
+                          className="rounded-xl"
+                          onClick={() =>
+                            selectedConversation.bookingId &&
+                            router.push(`/booking/${selectedConversation.bookingId}`)
+                          }
+                          disabled={!selectedConversation.bookingId}
+                        >
+                          View booking
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 </div>

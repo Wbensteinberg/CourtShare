@@ -12,7 +12,6 @@ import {
   doc,
   getDoc,
 } from "firebase/firestore";
-import { auth } from "@/lib/firebase";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,6 +20,7 @@ import {
   Calendar,
   Clock,
   MapPin,
+  MessageCircle,
   User,
   X,
 } from "lucide-react";
@@ -29,12 +29,14 @@ import GoogleMapsLink from "@/components/GoogleMapsLink";
 import {
   getMockBookingsForUser,
   getMockCourtById,
+  getMockUserDisplayName,
   updateMockBooking,
 } from "@/lib/mockData";
 import {
   formatBookingDateWithDay,
   isActiveFutureBooking,
   isBookingCancellable,
+  isPendingBookingExpired,
   isPastOrInactiveBooking,
 } from "@/lib/bookingDates";
 
@@ -46,6 +48,7 @@ interface Booking {
   time: string;
   duration: number;
   status: string;
+  conversationId?: string;
 }
 
 interface Court {
@@ -57,12 +60,27 @@ interface Court {
   price?: number;
   surface?: string;
   indoor?: boolean;
+  ownerId?: string;
 }
+
+const getProfileDisplayName = (
+  profile: Record<string, any> | undefined,
+  fallback: string
+) => {
+  const displayName =
+    typeof profile?.displayName === "string" ? profile.displayName.trim() : "";
+  const name = typeof profile?.name === "string" ? profile.name.trim() : "";
+  const emailPrefix =
+    typeof profile?.email === "string" ? profile.email.split("@")[0].trim() : "";
+
+  return displayName || name || emailPrefix || fallback;
+};
 
 export default function PlayerDashboard() {
   const { user, loading: authLoading } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [courts, setCourts] = useState<Record<string, Court>>({});
+  const [courtOwners, setCourtOwners] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState<string | null>(null);
@@ -80,7 +98,7 @@ export default function PlayerDashboard() {
     setLoading(true);
     setError("");
     try {
-      const bookingsData: Booking[] = isMockMode
+      let bookingsData: Booking[] = isMockMode
         ? (getMockBookingsForUser(user.uid) as Booking[])
         : ((await getDocs(
             query(collection(db, "bookings"), where("userId", "==", user.uid))
@@ -88,6 +106,44 @@ export default function PlayerDashboard() {
             id: doc.id,
             ...doc.data(),
           })) as Booking[]);
+
+      const expiredPendingBookings = bookingsData.filter((booking) =>
+        isPendingBookingExpired(booking)
+      );
+      if (expiredPendingBookings.length > 0) {
+        if (isMockMode) {
+          await Promise.allSettled(
+            expiredPendingBookings.map((booking) =>
+              updateMockBooking(booking.id, { status: "expired" })
+            )
+          );
+        } else {
+          const idToken = await user.getIdToken();
+          const res = await fetch("/api/expire-pending-bookings", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({
+              bookingIds: expiredPendingBookings.map((booking) => booking.id),
+            }),
+          });
+          if (!res.ok) {
+            console.warn(
+              "[PLAYER DASHBOARD] Failed to expire stale pending bookings",
+              await res.json().catch(() => ({}))
+            );
+          }
+        }
+
+        bookingsData = bookingsData.map((booking) =>
+          expiredPendingBookings.some((expired) => expired.id === booking.id)
+            ? { ...booking, status: "expired" }
+            : booking
+        );
+      }
+
       setBookings(bookingsData);
       const courtIds = Array.from(new Set(bookingsData.map((b) => b.courtId)));
       const courtsMap: Record<string, Court> = {};
@@ -106,6 +162,29 @@ export default function PlayerDashboard() {
         })
       );
       setCourts(courtsMap);
+
+      const ownerIds = Array.from(
+        new Set(
+          Object.values(courtsMap)
+            .map((court) => court.ownerId)
+            .filter((ownerId): ownerId is string => !!ownerId)
+        )
+      );
+      const ownersMap: Record<string, string> = {};
+      await Promise.all(
+        ownerIds.map(async (ownerId) => {
+          if (isMockMode) {
+            ownersMap[ownerId] = getMockUserDisplayName(ownerId) || "Court owner";
+            return;
+          }
+
+          const ownerDoc = await getDoc(doc(db, "users", ownerId));
+          ownersMap[ownerId] = ownerDoc.exists()
+            ? getProfileDisplayName(ownerDoc.data(), "Court owner")
+            : "Court owner";
+        })
+      );
+      setCourtOwners(ownersMap);
     } catch (err: any) {
       setError(err.message || "Failed to fetch bookings");
     } finally {
@@ -162,6 +241,19 @@ export default function PlayerDashboard() {
     return isBookingCancellable(booking);
   };
 
+  const getCourtName = (booking: Booking) =>
+    courts[booking.courtId]?.name || "Court unavailable";
+
+  const getCourtOwnerName = (booking: Booking) => {
+    const ownerId = courts[booking.courtId]?.ownerId;
+    return ownerId ? courtOwners[ownerId] || "Court owner" : "Court owner";
+  };
+
+  const openBookingConversation = (booking: Booking) => {
+    const conversationId = booking.conversationId || `booking_${booking.id}`;
+    router.push(`/messages?conversationId=${encodeURIComponent(conversationId)}`);
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "pending":
@@ -183,6 +275,8 @@ export default function PlayerDashboard() {
         return <Badge variant="destructive">Rejected</Badge>;
       case "cancelled":
         return <Badge variant="destructive">Cancelled</Badge>;
+      case "expired":
+        return <Badge variant="outline">Expired</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -285,6 +379,7 @@ export default function PlayerDashboard() {
                   <div className="divide-y divide-slate-200">
                     {upcoming.map((booking) => {
                       const court = courts[booking.courtId];
+                      const courtName = getCourtName(booking);
                       return (
                         <div
                           key={booking.id}
@@ -295,7 +390,7 @@ export default function PlayerDashboard() {
                               {court?.imageUrl ? (
                                 <Image
                                   src={court.imageUrl}
-                                  alt={court.name}
+                                  alt={courtName}
                                   fill
                                   className="object-cover"
                                 />
@@ -308,7 +403,7 @@ export default function PlayerDashboard() {
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
                                 <h3 className="truncate text-base font-semibold text-slate-950">
-                                  {court ? court.name : booking.courtId}
+                                  {courtName}
                                 </h3>
                                 {getStatusBadge(booking.status)}
                               </div>
@@ -325,6 +420,10 @@ export default function PlayerDashboard() {
                                   <MapPin className="mr-1.5 h-4 w-4 text-slate-400" />
                                   {court ? court.location : "Unknown location"}
                                 </span>
+                                <span className="inline-flex items-center">
+                                  <User className="mr-1.5 h-4 w-4 text-slate-400" />
+                                  Hosted by {getCourtOwnerName(booking)}
+                                </span>
                               </div>
                               {court?.address && booking.status === "confirmed" && (
                                 <div className="mt-2 text-sm">
@@ -340,6 +439,15 @@ export default function PlayerDashboard() {
                             </div>
                           </div>
                           <div className="flex items-center gap-2 lg:justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-lg border-slate-300"
+                              onClick={() => openBookingConversation(booking)}
+                            >
+                              <MessageCircle className="mr-2 h-4 w-4" />
+                              Message
+                            </Button>
                             <Button
                               variant="outline"
                               size="sm"
@@ -397,6 +505,7 @@ export default function PlayerDashboard() {
                     <div className="divide-y divide-slate-200 border-t border-slate-200">
                       {past.map((booking) => {
                         const court = courts[booking.courtId];
+                        const courtName = getCourtName(booking);
                         return (
                           <div
                             key={booking.id}
@@ -405,23 +514,37 @@ export default function PlayerDashboard() {
                             <div>
                               <div className="flex flex-wrap items-center gap-2">
                                 <h3 className="font-semibold text-slate-950">
-                                  {court ? court.name : booking.courtId}
+                                  {courtName}
                                 </h3>
                                 {getStatusBadge(booking.status)}
                               </div>
                               <p className="mt-1 text-sm text-slate-600">
                                 {formatBookingDateWithDay(booking.date)} at {booking.time}
                               </p>
+                              <p className="mt-1 text-sm text-slate-500">
+                                Hosted by {getCourtOwnerName(booking)}
+                              </p>
                             </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-fit rounded-lg border-slate-300"
-                              onClick={() => router.push(`/booking/${booking.id}`)}
-                            >
-                              <User className="mr-2 h-4 w-4" />
-                              Details
-                            </Button>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-fit rounded-lg border-slate-300"
+                                onClick={() => openBookingConversation(booking)}
+                              >
+                                <MessageCircle className="mr-2 h-4 w-4" />
+                                Message
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-fit rounded-lg border-slate-300"
+                                onClick={() => router.push(`/booking/${booking.id}`)}
+                              >
+                                <User className="mr-2 h-4 w-4" />
+                                Details
+                              </Button>
+                            </div>
                           </div>
                         );
                       })}
