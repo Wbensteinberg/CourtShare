@@ -2,7 +2,7 @@
 
 ## Project Purpose
 
-CourtShare is an Airbnb-style marketplace for tennis courts, starting with Los Angeles. Players search for nearby courts, pick a date and time, authorize a card through Stripe, and manage booking requests from a player dashboard. Court owners list private or semi-private courts, define availability and blocked times, approve or reject booking requests, manage Stripe Connect onboarding, and track revenue from an owner dashboard. Payment capture is tied to owner acceptance, not checkout completion.
+CourtShare is an Airbnb-style marketplace for tennis courts, starting with Los Angeles. Players search for nearby courts, pick a date and time, authorize a card through Stripe, and manage booking requests from a player dashboard. Court owners list private or semi-private courts, define availability and blocked times, approve or reject booking requests, manage Stripe Connect onboarding, and track revenue from an owner dashboard. Payment capture is tied to owner acceptance, not checkout completion. Authentication is Google-only; do not add or restore email/password signup, login, or password reset flows.
 
 ## Product Shape
 
@@ -24,7 +24,7 @@ Fonts come from `app/layout.tsx` using `Geist` and `Geist_Mono`, with global fal
 
 ## Database Schemas
 
-Firestore `users/{uid}` stores profile and account state: `uid`, `email`, `displayName`, `bio`, `profileImageUrl`, `isOwner`, optional Stripe fields such as `stripeAccountId`, `stripeAccountStatus`, `stripeChargesEnabled`, `stripePayoutsEnabled`, `stripeDetailsSubmitted`, and waiver fields such as `ownerListingWaiverVersionAccepted`, `ownerListingWaiverAcceptedAt`, `playerBookingWaiverVersionAccepted`, and `playerBookingWaiverAcceptedAt`. `profileImageUrl` is the preferred app-level avatar source for the header and profile UI.
+Firestore `users/{uid}` stores profile and account state: `uid`, `email`, `displayName`, `bio`, `profileImageUrl`, `isOwner`, optional Stripe fields such as `stripeAccountId`, `stripeAccountStatus`, `stripeChargesEnabled`, `stripePayoutsEnabled`, `stripeDetailsSubmitted`, and waiver fields such as `ownerListingWaiverVersionAccepted`, `ownerListingWaiverAcceptedAt`, `playerBookingWaiverVersionAccepted`, and `playerBookingWaiverAcceptedAt`. `displayName` is required for trustworthy marketplace identity: Google sign-in should populate it when available, and users with a blank name should be sent to `/profile` to complete it. Profile saves must reject blank names and propagate name changes into existing conversation participant fields. `profileImageUrl` is the preferred app-level avatar source for the header and profile UI.
 
 Firestore `courts/{courtId}` stores court listings: `name`, `location`, `address`, `accessInstructions`, `price` as dollars per hour, `description`, `imageUrl`, `imageUrls`, `ownerId`, optional `latitude` and `longitude`, `numberOfCourts`, `maxAdvanceBookingDays`, `blockedDates`, date-specific `blockedTimes`, global `alwaysBlockedTimes`, `alwaysBlockedTimesByDay`, multi-court `courtSpecificAlwaysBlockedTimes`, `courtSpecificAlwaysBlockedTimesByDay`, `surface`, `indoor`, `amenities`, `rating`, `reviewCount`, and `createdAt`. Images are uploaded to Firebase Storage under `courts/...` when not in mock mode.
 
@@ -35,6 +35,8 @@ Firestore `conversations/{conversationId}` stores lightweight booking-related me
 ## Security Protections And Considerations
 
 Server API routes verify Firebase ID tokens with Admin Auth before sensitive operations. Checkout intentionally accepts only booking inputs such as `courtId`, `date`, `time`, `durationMinutes`, and `courtNumber`; it fetches court price and owner data server-side, validates duration/date/amount, checks max advance booking rules, blocks past dates, checks blocked slots and existing confirmed or still-actionable pending bookings, rate-limits checkout creation, and creates Stripe Checkout sessions with metadata rather than trusting client-calculated price. The rate limiter should fail open to the local fallback if Upstash is unavailable so transient Upstash failures do not take checkout down.
+
+Auth UI should use Google sign-in as the only account entry point. Login and signup pages can share the same Google popup behavior, should preserve `redirect` query handling, should create missing `users/{uid}` docs, and should avoid overwriting a user's existing `displayName` with Google profile data after they have edited it in CourtShare.
 
 Stripe Checkout uses PaymentIntents with `capture_method: "manual"`. The player authorizes the card during Checkout, but CourtShare does not capture funds until the owner accepts the pending request through `/api/accept-booking`. The accept route verifies owner identity, confirms the request is still actionable, captures the PaymentIntent, marks the booking `confirmed`, and sends the player confirmation email. Rejection, cancellation, expiration, and double-booking race handling should release uncaptured authorizations; if a payment has already been captured, use the shared Stripe helper to refund it. Avoid direct client-side Firestore status flips for acceptance because payment capture must happen server-side.
 

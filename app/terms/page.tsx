@@ -39,7 +39,7 @@ export default function TermsPage() {
               3. Accounts and Eligibility
             </h2>
             <p className="text-slate-600 leading-relaxed">
-              You must be at least 18 years old (or the age of majority in your jurisdiction) to use the Service. You are responsible for maintaining the security of your account and for all activity under it. You may sign in via email/password or Google; in each case you must provide accurate information.
+              You must be at least 18 years old (or the age of majority in your jurisdiction) to use the Service. You are responsible for maintaining the security of your account and for all activity under it. CourtShare uses Google sign-in for account creation and authentication, and you must provide accurate profile information.
             </p>
           </section>
 

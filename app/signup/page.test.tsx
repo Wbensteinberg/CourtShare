@@ -1,9 +1,6 @@
 import {
   render,
   screen,
-  fireEvent,
-  waitFor,
-  act,
 } from "@testing-library/react";
 import SignupPage from "./page";
 
@@ -20,16 +17,27 @@ jest.mock("@/lib/firebase", () => ({
 const mockPush = jest.fn();
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
+  useSearchParams: () => ({ get: jest.fn(() => null) }),
+  usePathname: () => "/signup",
 }));
 
 jest.mock("firebase/auth", () => ({
   getAuth: jest.fn(() => ({})),
-  createUserWithEmailAndPassword: jest.fn(() => Promise.resolve()),
+  GoogleAuthProvider: jest.fn(),
+  signInWithPopup: jest.fn(() =>
+    Promise.resolve({
+      user: {
+        uid: "testuid",
+        email: "test@example.com",
+        displayName: "Test User",
+      },
+    })
+  ),
 }));
 
-jest.mock("@/src/lib/AuthContext", () => ({
+jest.mock("@/lib/AuthContext", () => ({
   useAuth: () => ({
-    user: { email: "test@example.com", uid: "testuid" },
+    user: null,
     loading: false,
     isOwner: false,
     setIsOwner: jest.fn(),
@@ -39,32 +47,11 @@ jest.mock("@/src/lib/AuthContext", () => ({
 describe("SignupPage", () => {
   it("renders signup form", () => {
     render(<SignupPage />);
-    expect(screen.getByText(/CourtShare/i)).toBeInTheDocument();
-    expect(screen.getByText(/Create your account/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/Email/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/^Password$/i)).toBeInTheDocument();
     expect(
-      screen.getByPlaceholderText(/Confirm Password/i)
+      screen.getByText(/Create your account securely with Google/i)
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Sign Up/i })
-    ).toBeInTheDocument();
-  });
-
-  it("shows error if passwords do not match", async () => {
-    render(<SignupPage />);
-    fireEvent.change(screen.getByPlaceholderText(/Email/i), {
-      target: { value: "test@example.com" },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/^Password$/i), {
-      target: { value: "password123" },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/Confirm Password/i), {
-      target: { value: "differentpass" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /Sign Up/i }));
-    expect(
-      await screen.findByText(/Passwords do not match/i)
+      screen.getByRole("button", { name: /Continue with Google/i })
     ).toBeInTheDocument();
   });
 });

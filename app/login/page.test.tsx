@@ -1,20 +1,28 @@
 import {
   render,
   screen,
-  fireEvent,
-  waitFor,
-  act,
 } from "@testing-library/react";
 import LoginPage from "./page";
 
 const mockPush = jest.fn();
 jest.mock("next/navigation", () => ({
   useRouter: () => ({ push: mockPush }),
+  useSearchParams: () => ({ get: jest.fn(() => null) }),
+  usePathname: () => "/login",
 }));
 
 jest.mock("firebase/auth", () => ({
   getAuth: jest.fn(() => ({})),
-  signInWithEmailAndPassword: jest.fn(() => Promise.resolve()),
+  GoogleAuthProvider: jest.fn(),
+  signInWithPopup: jest.fn(() =>
+    Promise.resolve({
+      user: {
+        uid: "testuid",
+        email: "test@example.com",
+        displayName: "Test User",
+      },
+    })
+  ),
 }));
 
 jest.mock("firebase/storage", () => ({
@@ -27,9 +35,9 @@ jest.mock("@/lib/firebase", () => ({
   getStorageInstance: jest.fn(() => ({})),
 }));
 
-jest.mock("@/src/lib/AuthContext", () => ({
+jest.mock("@/lib/AuthContext", () => ({
   useAuth: () => ({
-    user: { email: "test@example.com", uid: "testuid" },
+    user: null,
     loading: false,
     isOwner: false,
     setIsOwner: jest.fn(),
@@ -39,24 +47,9 @@ jest.mock("@/src/lib/AuthContext", () => ({
 describe("LoginPage", () => {
   it("renders login form", () => {
     render(<LoginPage />);
-    expect(screen.getByText(/CourtShare/i)).toBeInTheDocument();
-    expect(screen.getByText(/Sign in to your account/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/Email/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/Password/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Log In/i })).toBeInTheDocument();
-  });
-
-  it("allows user to type email and password and submit", async () => {
-    render(<LoginPage />);
-    fireEvent.change(screen.getByPlaceholderText(/Email/i), {
-      target: { value: "test@example.com" },
-    });
-    fireEvent.change(screen.getByPlaceholderText(/Password/i), {
-      target: { value: "password123" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /Log In/i }));
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: /Log In/i })).toBeEnabled();
-    });
+    expect(screen.getByText(/Sign in securely with Google/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Continue with Google/i })
+    ).toBeInTheDocument();
   });
 });

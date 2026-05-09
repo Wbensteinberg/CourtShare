@@ -273,9 +273,15 @@ export default function ProfilePage() {
     e.preventDefault();
     setError("");
     setSuccess(false);
+    const trimmedDisplayName = displayName.trim();
 
     if (!user) {
       setError("You must be logged in to update your profile.");
+      return;
+    }
+
+    if (!trimmedDisplayName) {
+      setError("Please enter your full name.");
       return;
     }
 
@@ -290,7 +296,7 @@ export default function ProfilePage() {
         }
 
         await updateMockProfile(user.uid, {
-          displayName,
+          displayName: trimmedDisplayName,
           bio,
           profileImageUrl,
         });
@@ -306,10 +312,32 @@ export default function ProfilePage() {
         }
 
         await updateDoc(doc(db, "users", user.uid), {
-          displayName,
+          displayName: trimmedDisplayName,
           bio,
           profileImageUrl,
         });
+
+        const conversationSnapshot = await getDocs(
+          query(
+            collection(db, "conversations"),
+            where("participantIds", "array-contains", user.uid)
+          )
+        );
+        await Promise.all(
+          conversationSnapshot.docs.map((conversationDoc) => {
+            const conversation = conversationDoc.data();
+            const updates: Record<string, string> = {};
+            if (conversation.playerId === user.uid) {
+              updates.playerName = trimmedDisplayName;
+            }
+            if (conversation.ownerId === user.uid) {
+              updates.ownerName = trimmedDisplayName;
+            }
+            return Object.keys(updates).length > 0
+              ? updateDoc(conversationDoc.ref, updates)
+              : Promise.resolve();
+          })
+        );
       }
 
       setSuccess(true);
@@ -318,7 +346,7 @@ export default function ProfilePage() {
         prev
           ? {
               ...prev,
-              displayName,
+              displayName: trimmedDisplayName,
               bio,
               profileImageUrl,
             }

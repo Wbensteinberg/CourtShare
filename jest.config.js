@@ -23,6 +23,7 @@ const customJestConfig = {
   
   // Add path mapping for the @ alias and mock next/image
   moduleNameMapper: {
+    '^@/(components|lib)/(.*)$': '<rootDir>/src/$1/$2',
     '^@/(.*)$': '<rootDir>/$1',
     '^next/image$': '<rootDir>/__mocks__/next/image.js',
   },
