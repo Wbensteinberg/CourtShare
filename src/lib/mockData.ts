@@ -10,6 +10,10 @@ export type MockUserProfile = {
   bio?: string;
   profileImageUrl?: string;
   isOwner: boolean;
+  playerRating?: number;
+  playerReviewCount?: number;
+  ownerRating?: number;
+  ownerReviewCount?: number;
 };
 
 export type MockCourt = {
@@ -88,12 +92,29 @@ export type MockMessage = {
   courtId?: string;
 };
 
+export type MockReview = {
+  id: string;
+  bookingId: string;
+  courtId: string;
+  playerId: string;
+  ownerId: string;
+  reviewerId: string;
+  reviewerRole: "player" | "owner";
+  revieweeId: string;
+  targetType: "court_owner" | "player";
+  rating: number;
+  comment: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type MockDb = {
   users: Record<string, MockUserProfile>;
   courts: MockCourt[];
   bookings: MockBooking[];
   conversations: MockConversation[];
   messages: MockMessage[];
+  reviews: MockReview[];
 };
 
 type MockSession = {
@@ -390,6 +411,7 @@ const createSeedDb = (): MockDb => {
     bookings,
     conversations: [],
     messages: [],
+    reviews: [],
   };
 
   bookings.forEach((booking) => {
@@ -785,6 +807,129 @@ export const updateMockBooking = async (
   });
 
   return getMockBookingById(bookingId);
+};
+
+const getUpdatedAverage = (
+  currentRating: number | undefined,
+  currentCount: number | undefined,
+  newRating: number
+) => {
+  const rating = currentRating || 0;
+  const count = currentCount || 0;
+  const nextCount = count + 1;
+  const nextRating = (rating * count + newRating) / nextCount;
+
+  return {
+    rating: Math.round(nextRating * 10) / 10,
+    count: nextCount,
+  };
+};
+
+export const getMockReviewsForUser = (reviewerId: string) =>
+  getMockDb().reviews.filter((review) => review.reviewerId === reviewerId);
+
+export const createMockReview = async ({
+  bookingId,
+  reviewerId,
+  rating,
+  comment,
+}: {
+  bookingId: string;
+  reviewerId: string;
+  rating: number;
+  comment: string;
+}) => {
+  let createdReview: MockReview | null = null;
+
+  updateMockDb((db) => {
+    const booking = db.bookings.find((item) => item.id === bookingId);
+    if (!booking) throw new Error("Booking not found");
+
+    const court = db.courts.find((item) => item.id === booking.courtId);
+    if (!court) throw new Error("Court for this booking was not found");
+
+    const reviewerRole =
+      reviewerId === booking.userId
+        ? "player"
+        : reviewerId === court.ownerId
+          ? "owner"
+          : null;
+
+    if (!reviewerRole) {
+      throw new Error("Only booking participants can review this booking");
+    }
+
+    const reviewId = `${bookingId}_${reviewerRole}`;
+    if (db.reviews.some((review) => review.id === reviewId)) {
+      throw new Error("You already reviewed this booking");
+    }
+
+    const now = new Date().toISOString();
+    createdReview = {
+      id: reviewId,
+      bookingId,
+      courtId: booking.courtId,
+      playerId: booking.userId,
+      ownerId: court.ownerId,
+      reviewerId,
+      reviewerRole,
+      revieweeId: reviewerRole === "player" ? court.ownerId : booking.userId,
+      targetType: reviewerRole === "player" ? "court_owner" : "player",
+      rating,
+      comment: comment.trim().slice(0, 1000),
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    db.reviews.push(createdReview);
+
+    if (reviewerRole === "player") {
+      const courtAverage = getUpdatedAverage(
+        court.rating,
+        court.reviewCount,
+        rating
+      );
+      db.courts = db.courts.map((item) =>
+        item.id === court.id
+          ? {
+              ...item,
+              rating: courtAverage.rating,
+              reviewCount: courtAverage.count,
+            }
+          : item
+      );
+
+      const owner = db.users[court.ownerId];
+      if (owner) {
+        const ownerAverage = getUpdatedAverage(
+          owner.ownerRating,
+          owner.ownerReviewCount,
+          rating
+        );
+        db.users[court.ownerId] = {
+          ...owner,
+          ownerRating: ownerAverage.rating,
+          ownerReviewCount: ownerAverage.count,
+        };
+      }
+    } else {
+      const player = db.users[booking.userId];
+      if (player) {
+        const playerAverage = getUpdatedAverage(
+          player.playerRating,
+          player.playerReviewCount,
+          rating
+        );
+        db.users[booking.userId] = {
+          ...player,
+          playerRating: playerAverage.rating,
+          playerReviewCount: playerAverage.count,
+        };
+      }
+    }
+  });
+
+  return createdReview;
 };
 
 export const getMockUserDisplayName = (uid: string) => {

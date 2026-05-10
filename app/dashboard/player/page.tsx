@@ -21,14 +21,18 @@ import {
   Clock,
   MapPin,
   MessageCircle,
+  Star,
   User,
   X,
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import GoogleMapsLink from "@/components/GoogleMapsLink";
+import ReviewDialog from "@/components/ReviewDialog";
 import {
+  createMockReview,
   getMockBookingsForUser,
   getMockCourtById,
+  getMockReviewsForUser,
   getMockUserDisplayName,
   updateMockBooking,
 } from "@/lib/mockData";
@@ -36,6 +40,7 @@ import {
   formatBookingDateWithDay,
   isActiveFutureBooking,
   isBookingCancellable,
+  isBookingReviewable,
   isPendingBookingExpired,
   isPastOrInactiveBooking,
 } from "@/lib/bookingDates";
@@ -49,6 +54,7 @@ interface Booking {
   duration: number;
   status: string;
   conversationId?: string;
+  durationMinutes?: number;
 }
 
 interface Court {
@@ -85,6 +91,11 @@ export default function PlayerDashboard() {
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [showPastBookings, setShowPastBookings] = useState(false);
+  const [reviewedBookingIds, setReviewedBookingIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [reviewingBooking, setReviewingBooking] = useState<Booking | null>(null);
+  const [submittingReview, setSubmittingReview] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -92,6 +103,45 @@ export default function PlayerDashboard() {
       router.push("/login");
     }
   }, [user, authLoading, router]);
+
+  const loadReviewedBookings = async (bookingsData: Booking[]) => {
+    if (!user || bookingsData.length === 0) {
+      setReviewedBookingIds(new Set());
+      return;
+    }
+
+    try {
+      if (isMockMode) {
+        setReviewedBookingIds(
+          new Set(getMockReviewsForUser(user.uid).map((review) => review.bookingId))
+        );
+        return;
+      }
+
+      const idToken = await user.getIdToken();
+      const bookingIds = bookingsData.map((booking) => booking.id).join(",");
+      const res = await fetch(
+        `/api/reviews?bookingIds=${encodeURIComponent(bookingIds)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to load reviews");
+      }
+
+      setReviewedBookingIds(
+        new Set(
+          (data.reviews || []).map((review: { bookingId: string }) => review.bookingId)
+        )
+      );
+    } catch (err) {
+      console.warn("[PLAYER DASHBOARD] Unable to load review state:", err);
+    }
+  };
 
   const fetchBookings = async () => {
     if (!user) return;
@@ -145,6 +195,7 @@ export default function PlayerDashboard() {
       }
 
       setBookings(bookingsData);
+      await loadReviewedBookings(bookingsData);
       const courtIds = Array.from(new Set(bookingsData.map((b) => b.courtId)));
       const courtsMap: Record<string, Court> = {};
       await Promise.all(
@@ -252,6 +303,56 @@ export default function PlayerDashboard() {
   const openBookingConversation = (booking: Booking) => {
     const conversationId = booking.conversationId || `booking_${booking.id}`;
     router.push(`/messages?conversationId=${encodeURIComponent(conversationId)}`);
+  };
+
+  const canReviewBooking = (booking: Booking) =>
+    isBookingReviewable(booking) && !reviewedBookingIds.has(booking.id);
+
+  const handleSubmitReview = async ({
+    rating,
+    comment,
+  }: {
+    rating: number;
+    comment: string;
+  }) => {
+    if (!user || !reviewingBooking) return;
+
+    setSubmittingReview(true);
+    try {
+      if (isMockMode) {
+        await createMockReview({
+          bookingId: reviewingBooking.id,
+          reviewerId: user.uid,
+          rating,
+          comment,
+        });
+      } else {
+        const idToken = await user.getIdToken();
+        const res = await fetch("/api/reviews", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            bookingId: reviewingBooking.id,
+            rating,
+            comment,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to submit review");
+        }
+      }
+
+      setReviewedBookingIds((current) => new Set(current).add(reviewingBooking.id));
+      setReviewingBooking(null);
+    } catch (err: any) {
+      alert(err.message || "Failed to submit review");
+    } finally {
+      setSubmittingReview(false);
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -526,6 +627,25 @@ export default function PlayerDashboard() {
                               </p>
                             </div>
                             <div className="flex flex-wrap gap-2">
+                              {canReviewBooking(booking) && court && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-fit rounded-lg border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                                  onClick={() => setReviewingBooking(booking)}
+                                >
+                                  <Star className="mr-2 h-4 w-4 fill-amber-400 text-amber-400" />
+                                  Review
+                                </Button>
+                              )}
+                              {reviewedBookingIds.has(booking.id) && (
+                                <Badge
+                                  variant="outline"
+                                  className="w-fit rounded-lg border-slate-200 bg-slate-50 px-3 py-2 text-slate-600"
+                                >
+                                  Reviewed
+                                </Badge>
+                              )}
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -554,6 +674,18 @@ export default function PlayerDashboard() {
             </section>
         </div>
       </main>
+      <ReviewDialog
+        open={!!reviewingBooking}
+        onOpenChange={(open) => !open && setReviewingBooking(null)}
+        title="Review your booking"
+        description={
+          reviewingBooking
+            ? `Rate ${getCourtName(reviewingBooking)} and your host.`
+            : "Rate your court and host."
+        }
+        submitting={submittingReview}
+        onSubmit={handleSubmitReview}
+      />
     </div>
   );
 }

@@ -40,9 +40,11 @@ import {
   Plus,
   ListChecks,
   MessageCircle,
+  Star,
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import InlineWeeklyCalendar from "@/components/InlineWeeklyCalendar";
+import ReviewDialog from "@/components/ReviewDialog";
 import {
   Dialog,
   DialogContent,
@@ -52,9 +54,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  createMockReview,
   deleteMockCourt,
   getMockBookingsForOwner,
   getMockCourts,
+  getMockReviewsForUser,
   getMockUserDisplayName,
   updateMockBooking,
   updateMockCourt,
@@ -62,6 +66,7 @@ import {
 import {
   isPastOrInactiveBooking,
   isActionablePendingBooking,
+  isBookingReviewable,
   isPendingBookingExpired,
   parseBookingDateTime,
   sortBookingsAscending,
@@ -98,6 +103,9 @@ interface Booking {
   createdAt?: Date | string | number | { toDate?: () => Date; seconds?: number; nanoseconds?: number };
   expiresAt?: Date | string | number | { toDate?: () => Date; seconds?: number; nanoseconds?: number };
   conversationId?: string;
+  totalAmountCents?: number;
+  ownerAmountCents?: number;
+  durationMinutes?: number;
 }
 
 const getProfileDisplayName = (
@@ -118,6 +126,11 @@ export default function OwnerDashboard() {
   const [courts, setCourts] = useState<Court[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [bookingUsers, setBookingUsers] = useState<Record<string, string>>({});
+  const [reviewedBookingIds, setReviewedBookingIds] = useState<Set<string>>(
+    new Set()
+  );
+  const [reviewingBooking, setReviewingBooking] = useState<Booking | null>(null);
+  const [submittingReview, setSubmittingReview] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -137,6 +150,10 @@ export default function OwnerDashboard() {
     chargesEnabled?: boolean;
     payoutsEnabled?: boolean;
     detailsSubmitted?: boolean;
+    requirementsCurrentlyDue?: string[];
+    requirementsPastDue?: string[];
+    requirementsEventuallyDue?: string[];
+    disabledReason?: string | null;
   } | null>(null);
   const [checkingStripe, setCheckingStripe] = useState(false);
   const [connectingStripe, setConnectingStripe] = useState(false);
@@ -147,6 +164,45 @@ export default function OwnerDashboard() {
       router.push("/login");
     }
   }, [user, authLoading, router]);
+
+  const loadReviewedBookings = async (bookingsData: Booking[]) => {
+    if (!user || bookingsData.length === 0) {
+      setReviewedBookingIds(new Set());
+      return;
+    }
+
+    try {
+      if (isMockMode) {
+        setReviewedBookingIds(
+          new Set(getMockReviewsForUser(user.uid).map((review) => review.bookingId))
+        );
+        return;
+      }
+
+      const idToken = await user.getIdToken();
+      const bookingIds = bookingsData.map((booking) => booking.id).join(",");
+      const res = await fetch(
+        `/api/reviews?bookingIds=${encodeURIComponent(bookingIds)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${idToken}`,
+          },
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to load reviews");
+      }
+
+      setReviewedBookingIds(
+        new Set(
+          (data.reviews || []).map((review: { bookingId: string }) => review.bookingId)
+        )
+      );
+    } catch (err) {
+      console.warn("[OWNER DASHBOARD] Unable to load review state:", err);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -212,6 +268,7 @@ export default function OwnerDashboard() {
           );
         }
         setBookings(bookingsData);
+        await loadReviewedBookings(bookingsData);
 
         const uniqueUserIds = Array.from(
           new Set(bookingsData.map((booking) => booking.userId).filter(Boolean))
@@ -269,6 +326,10 @@ export default function OwnerDashboard() {
         chargesEnabled: true,
         payoutsEnabled: true,
         detailsSubmitted: true,
+        requirementsCurrentlyDue: [],
+        requirementsPastDue: [],
+        requirementsEventuallyDue: [],
+        disabledReason: null,
       });
       return;
     }
@@ -347,6 +408,10 @@ export default function OwnerDashboard() {
         chargesEnabled: true,
         payoutsEnabled: true,
         detailsSubmitted: true,
+        requirementsCurrentlyDue: [],
+        requirementsPastDue: [],
+        requirementsEventuallyDue: [],
+        disabledReason: null,
       });
       return;
     }
@@ -622,6 +687,56 @@ export default function OwnerDashboard() {
     router.push(`/messages?conversationId=${encodeURIComponent(conversationId)}`);
   };
 
+  const canReviewBooking = (booking: Booking) =>
+    isBookingReviewable(booking) && !reviewedBookingIds.has(booking.id);
+
+  const handleSubmitReview = async ({
+    rating,
+    comment,
+  }: {
+    rating: number;
+    comment: string;
+  }) => {
+    if (!user || !reviewingBooking) return;
+
+    setSubmittingReview(true);
+    try {
+      if (isMockMode) {
+        await createMockReview({
+          bookingId: reviewingBooking.id,
+          reviewerId: user.uid,
+          rating,
+          comment,
+        });
+      } else {
+        const idToken = await user.getIdToken();
+        const res = await fetch("/api/reviews", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            bookingId: reviewingBooking.id,
+            rating,
+            comment,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to submit review");
+        }
+      }
+
+      setReviewedBookingIds((current) => new Set(current).add(reviewingBooking.id));
+      setReviewingBooking(null);
+    } catch (err: any) {
+      alert(err.message || "Failed to submit review");
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 flex items-center justify-center">
@@ -668,12 +783,63 @@ export default function OwnerDashboard() {
     .filter((booking) => booking.status === "confirmed")
     .reduce((sum, booking) => {
       const court = courtsById[booking.courtId];
-      return sum + (court?.price || 0) * booking.duration;
+      return (
+        sum +
+        (typeof booking.ownerAmountCents === "number"
+          ? booking.ownerAmountCents / 100
+          : (court?.price || 0) * booking.duration)
+      );
     }, 0);
   const pendingPayments = pendingBookings.reduce((sum, booking) => {
     const court = courtsById[booking.courtId];
-    return sum + (court?.price || 0) * booking.duration;
+    return (
+      sum +
+      (typeof booking.totalAmountCents === "number"
+        ? booking.totalAmountCents / 100
+        : (court?.price || 0) * booking.duration)
+    );
   }, 0);
+  const payoutStatusLabel = checkingStripe
+    ? "Checking"
+    : !stripeAccountStatus?.hasAccount
+      ? "Not connected"
+      : stripeAccountStatus.status === "active" ||
+          stripeAccountStatus.status === "mock_active"
+        ? "Active"
+        : stripeAccountStatus.status === "pending"
+          ? "Setup incomplete"
+          : "Restricted";
+  const payoutStatusTone =
+    payoutStatusLabel === "Active"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : "border-amber-200 bg-amber-50 text-amber-700";
+  const payoutActionLabel = !stripeAccountStatus?.hasAccount
+    ? "Set up payouts"
+    : stripeAccountStatus.status === "active" ||
+        stripeAccountStatus.status === "mock_active"
+      ? "Manage payout account"
+      : "Finish setup";
+  const payoutAction = !stripeAccountStatus?.hasAccount
+    ? handleConnectStripe
+    : stripeAccountStatus.status === "active" ||
+        stripeAccountStatus.status === "mock_active"
+      ? handleUpdateStripeAccount
+      : handleConnectStripe;
+  const payoutRequirements = [
+    ...(stripeAccountStatus?.requirementsPastDue || []),
+    ...(stripeAccountStatus?.requirementsCurrentlyDue || []),
+  ];
+  const payoutRequirementCount = new Set(payoutRequirements).size;
+  const payoutStatusDescription =
+    payoutStatusLabel === "Active"
+      ? "Your Stripe Express account is ready to receive payouts."
+      : !stripeAccountStatus?.hasAccount
+        ? "Connect Stripe Express before accepting paid booking requests."
+        : payoutRequirementCount > 0
+          ? `Stripe still needs ${payoutRequirementCount} ${
+              payoutRequirementCount === 1 ? "item" : "items"
+            } before payouts are active.`
+          : "You started setup, but Stripe has not marked payouts active yet.";
 
   return (
     <div className="min-h-screen bg-slate-50 w-full">
@@ -690,8 +856,8 @@ export default function OwnerDashboard() {
                 { label: "Upcoming bookings", value: upcomingBookings.length },
                 { label: "Pending requests", value: pendingBookings.length },
                 { label: "Past bookings", value: pastBookings.length },
-                { label: "Total Revenue", value: `$${estimatedRevenue.toFixed(0)}` },
-                { label: "Pending Payments", value: `$${pendingPayments.toFixed(0)}` },
+                { label: "Owner revenue", value: `$${estimatedRevenue.toFixed(0)}` },
+                { label: "Authorized requests", value: `$${pendingPayments.toFixed(0)}` },
               ].map(({ label, value }) => (
                 <Card
                   key={label}
@@ -707,6 +873,61 @@ export default function OwnerDashboard() {
               ))}
             </section>
           </div>
+
+          <Card className="mt-6 rounded-[32px] border-slate-200 bg-white shadow-sm">
+            <CardContent className="grid gap-4 p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+              <div className="flex gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                  <CreditCard className="h-6 w-6" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-semibold text-slate-950">
+                      Payout settings
+                    </h2>
+                    <Badge variant="outline" className={`rounded-md ${payoutStatusTone}`}>
+                      {payoutStatusLabel}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-sm text-slate-600">
+                    Manage your Stripe Express account, payout bank account,
+                    tax details, balances, and payout timing.
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {payoutStatusDescription}
+                  </p>
+                  {stripeAccountStatus?.hasAccount && (
+                    <p className="mt-2 text-xs text-slate-500">
+                      Account {stripeAccountStatus.accountId}
+                      {stripeAccountStatus.payoutsEnabled
+                        ? " can receive payouts."
+                        : " still needs payout setup."}
+                    </p>
+                  )}
+                  {stripeAccountStatus?.disabledReason && (
+                    <p className="mt-1 text-xs text-amber-700">
+                      Stripe status: {stripeAccountStatus.disabledReason}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row md:justify-end">
+                <Button
+                  size="sm"
+                  className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                  onClick={payoutAction}
+                  disabled={checkingStripe || connectingStripe}
+                >
+                  {payoutStatusLabel === "Active" ? (
+                    <ExternalLink className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Settings className="mr-2 h-4 w-4" />
+                  )}
+                  {connectingStripe ? "Opening..." : payoutActionLabel}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
             <aside>
@@ -1164,6 +1385,25 @@ export default function OwnerDashboard() {
                             </p>
                           </div>
                           <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+                            {canReviewBooking(booking) && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="rounded-lg border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                                onClick={() => setReviewingBooking(booking)}
+                              >
+                                <Star className="mr-2 h-4 w-4 fill-amber-400 text-amber-400" />
+                                Review player
+                              </Button>
+                            )}
+                            {reviewedBookingIds.has(booking.id) && (
+                              <Badge
+                                variant="outline"
+                                className="rounded-lg border-slate-200 bg-slate-50 px-3 py-2 text-slate-600"
+                              >
+                                Reviewed
+                              </Badge>
+                            )}
                             <span className="text-sm text-slate-500">
                               {booking.duration}h
                             </span>
@@ -1261,6 +1501,18 @@ export default function OwnerDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ReviewDialog
+        open={!!reviewingBooking}
+        onOpenChange={(open) => !open && setReviewingBooking(null)}
+        title="Review this player"
+        description={
+          reviewingBooking
+            ? `Rate your experience with ${getBookingPlayerName(reviewingBooking)}.`
+            : "Rate your experience with this player."
+        }
+        submitting={submittingReview}
+        onSubmit={handleSubmitReview}
+      />
     </div>
   );
 }

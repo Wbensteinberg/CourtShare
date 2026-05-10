@@ -2,6 +2,7 @@ import type Stripe from "stripe";
 import type { Firestore } from "firebase-admin/firestore";
 import { isActionablePendingBooking } from "@/lib/bookingDates";
 import { createBookingRequestConversation } from "@/lib/conversations";
+import { calculateBookingPriceBreakdown } from "@/lib/pricing";
 
 type BookingStatusParts = Parameters<typeof isActionablePendingBooking>[0];
 
@@ -97,8 +98,11 @@ export async function createBookingFromPaidCheckoutSession(
     ? Number(metadata.durationMinutes)
     : (Number(metadata.duration) || 60) * 60;
   const durationHours = Math.ceil(durationMinutes / 60);
-  const expectedAmountCents =
-    Math.round((Number(courtData.price) * 100) / 60) * durationMinutes;
+  const priceBreakdown = calculateBookingPriceBreakdown(
+    Number(courtData.price),
+    durationMinutes
+  );
+  const expectedAmountCents = priceBreakdown.totalAmountCents;
   const actualAmountCents = session.amount_total || 0;
   const newCourtNumber = Number(metadata.courtNumber) || 1;
 
@@ -153,6 +157,10 @@ export async function createBookingFromPaidCheckoutSession(
     paymentStatus: "authorized",
     totalAmountCents: actualAmountCents,
     expectedAmountCents,
+    ownerAmountCents: priceBreakdown.ownerAmountCents,
+    courtShareFeeCents: priceBreakdown.courtShareFeeCents,
+    processingFeeCents: priceBreakdown.processingFeeCents,
+    applicationFeeCents: priceBreakdown.applicationFeeCents,
   };
 
   const bookingRef = await db.collection("bookings").add(bookingData);

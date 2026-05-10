@@ -4,6 +4,7 @@ import { adminDb } from "@/lib/firebase-admin";
 import { isActionablePendingBooking } from "@/lib/bookingDates";
 import { createBookingRequestConversation } from "@/lib/conversations";
 import { sendOwnerBookingNotification } from "@/lib/email";
+import { calculateBookingPriceBreakdown } from "@/lib/pricing";
 import { releaseBookingPayment } from "@/lib/stripeBookingPayments";
 
 type BookingStatusParts = Parameters<typeof isActionablePendingBooking>[0];
@@ -128,10 +129,11 @@ export async function POST(req: NextRequest) {
         const expectedDurationMinutes = metadata.durationMinutes
           ? Number(metadata.durationMinutes)
           : (Number(metadata.duration) || 60) * 60;
-        const pricePerHour = Number(courtData.price);
-        const pricePerMinuteCents = Math.round((pricePerHour * 100) / 60);
-        const expectedAmountCents =
-          pricePerMinuteCents * expectedDurationMinutes;
+        const priceBreakdown = calculateBookingPriceBreakdown(
+          Number(courtData.price),
+          expectedDurationMinutes
+        );
+        const expectedAmountCents = priceBreakdown.totalAmountCents;
         const actualAmountCents = session.amount_total || 0;
 
         // Allow small rounding differences (within 1 cent)
@@ -286,6 +288,10 @@ export async function POST(req: NextRequest) {
           paymentStatus: "authorized",
           totalAmountCents: actualAmountCents, // Use actual amount from Stripe
           expectedAmountCents: expectedAmountCents, // Store expected for audit
+          ownerAmountCents: priceBreakdown.ownerAmountCents,
+          courtShareFeeCents: priceBreakdown.courtShareFeeCents,
+          processingFeeCents: priceBreakdown.processingFeeCents,
+          applicationFeeCents: priceBreakdown.applicationFeeCents,
         };
         console.log("[WEBHOOK] Booking data to write:", bookingData);
         const bookingRef = await adminDb

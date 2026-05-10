@@ -28,6 +28,11 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import {
+  COURTSHARE_COMMISSION_RATE,
+  calculateBookingPriceBreakdown,
+  formatCents,
+} from "@/lib/pricing";
 import { WaiverAcknowledgmentDialog } from "@/components/WaiverAcknowledgmentDialog";
 import {
   PLAYER_BOOKING_WAIVER_INTRO,
@@ -529,7 +534,10 @@ export default function CourtDetailPage() {
     }
   };
 
-  const totalPrice = (court?.price || 0) * parseFloat(duration || "1");
+  const durationMinutesForPrice = Math.round(parseFloat(duration || "1") * 60);
+  const priceBreakdown = court
+    ? calculateBookingPriceBreakdown(court.price || 0, durationMinutesForPrice)
+    : null;
 
   if (loading) {
     return (
@@ -837,12 +845,33 @@ export default function CourtDetailPage() {
                         Court rental ({duration}{" "}
                         {parseFloat(duration) === 1 ? "hour" : "hours"})
                       </span>
-                      <span>${totalPrice}</span>
+                      <span>${formatCents(priceBreakdown?.ownerAmountCents || 0)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>
+                        CourtShare service fee (
+                        {(COURTSHARE_COMMISSION_RATE * 100).toFixed(0)}%)
+                      </span>
+                      <span>
+                        ${formatCents(priceBreakdown?.courtShareFeeCents || 0)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>Payment processing</span>
+                      <span>
+                        ${formatCents(priceBreakdown?.processingFeeCents || 0)}
+                      </span>
                     </div>
                     <div className="flex justify-between font-semibold text-lg border-t border-gray-200 pt-2">
-                      <span>Total</span>
-                      <span className="text-green-600">${totalPrice}</span>
+                      <span>Authorized today</span>
+                      <span className="text-green-600">
+                        ${formatCents(priceBreakdown?.totalAmountCents || 0)}
+                      </span>
                     </div>
+                    <p className="text-xs text-gray-500">
+                      Your card is authorized now and only charged if the owner
+                      accepts within 24 hours.
+                    </p>
                   </div>
 
                   {/* Book Button */}
@@ -860,7 +889,7 @@ export default function CourtDetailPage() {
                   >
                     {bookingStatus === "loading"
                       ? "Processing..."
-                      : "Book & Pay"}
+                      : "Request Booking"}
                   </Button>
 
                   {bookingStatus === "conflict" && (
@@ -875,8 +904,7 @@ export default function CourtDetailPage() {
                   )}
 
                   <p className="text-xs text-muted-foreground text-center">
-                    Secure payment processing. Cancel up to 24 hours before your
-                    booking.
+                    Secure payment processing. Owners have 24 hours to accept.
                   </p>
                 </CardContent>
               </Card>

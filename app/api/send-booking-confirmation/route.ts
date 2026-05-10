@@ -80,7 +80,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Calculate total price
-    const price = (courtData.price || 0) * (bookingData.duration || 1);
+    const price =
+      typeof bookingData.totalAmountCents === "number"
+        ? bookingData.totalAmountCents / 100
+        : (courtData.price || 0) * (bookingData.duration || 1);
 
     // Send confirmation email to player (non-blocking - don't fail if email fails)
     try {

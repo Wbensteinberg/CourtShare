@@ -108,7 +108,10 @@ export async function POST(req: NextRequest) {
       const ownerDoc = await db.collection("users").doc(ownerId).get();
       const playerData = playerDoc.exists ? playerDoc.data() : null;
       const ownerData = ownerDoc.exists ? ownerDoc.data() : null;
-      const price = (courtData.price || 0) * (bookingData.duration || 1);
+      const price =
+        typeof bookingData.totalAmountCents === "number"
+          ? bookingData.totalAmountCents / 100
+          : (courtData.price || 0) * (bookingData.duration || 1);
 
       if (playerData?.email) {
         await sendPlayerBookingConfirmation({

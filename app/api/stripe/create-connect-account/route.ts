@@ -152,6 +152,10 @@ export async function POST(req: NextRequest) {
           accountId: account.id,
           onboardingUrl: accountLink.url,
           status: "pending",
+          requirementsCurrentlyDue: account.requirements?.currently_due || [],
+          requirementsPastDue: account.requirements?.past_due || [],
+          requirementsEventuallyDue: account.requirements?.eventually_due || [],
+          disabledReason: account.requirements?.disabled_reason || null,
         });
       }
 
@@ -169,6 +173,10 @@ export async function POST(req: NextRequest) {
             account.charges_enabled && account.payouts_enabled
               ? "active"
               : "restricted",
+          requirementsCurrentlyDue: account.requirements?.currently_due || [],
+          requirementsPastDue: account.requirements?.past_due || [],
+          requirementsEventuallyDue: account.requirements?.eventually_due || [],
+          disabledReason: account.requirements?.disabled_reason || null,
         });
       }
 
@@ -179,6 +187,10 @@ export async function POST(req: NextRequest) {
           account.charges_enabled && account.payouts_enabled
             ? "active"
             : "restricted",
+        requirementsCurrentlyDue: account.requirements?.currently_due || [],
+        requirementsPastDue: account.requirements?.past_due || [],
+        requirementsEventuallyDue: account.requirements?.eventually_due || [],
+        disabledReason: account.requirements?.disabled_reason || null,
       });
     }
 
@@ -227,6 +239,10 @@ export async function POST(req: NextRequest) {
       accountId: account.id,
       onboardingUrl: accountLink.url,
       status: "pending",
+      requirementsCurrentlyDue: account.requirements?.currently_due || [],
+      requirementsPastDue: account.requirements?.past_due || [],
+      requirementsEventuallyDue: account.requirements?.eventually_due || [],
+      disabledReason: account.requirements?.disabled_reason || null,
     });
   } catch (err: any) {
     console.error("Error creating Stripe Connect account:", err);

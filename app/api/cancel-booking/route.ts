@@ -103,7 +103,9 @@ export async function POST(req: NextRequest) {
         .get();
       const playerData = playerDoc.exists ? playerDoc.data() : null;
       const price =
-        (courtData?.price || 0) * (bookingData.duration || 1);
+        typeof bookingData.totalAmountCents === "number"
+          ? bookingData.totalAmountCents / 100
+          : (courtData?.price || 0) * (bookingData.duration || 1);
 
       if (ownerData?.email) {
         await sendOwnerCancellationNotification({

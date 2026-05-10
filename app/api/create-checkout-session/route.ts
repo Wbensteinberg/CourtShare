@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { adminDb, adminAuth } from "@/lib/firebase-admin";
 import { isActionablePendingBooking } from "@/lib/bookingDates";
+import { calculateBookingPriceBreakdown } from "@/lib/pricing";
 import { checkRateLimit } from "../rate-limit";
 
 type BookingStatusParts = Parameters<typeof isActionablePendingBooking>[0];
@@ -9,23 +10,6 @@ type BookingStatusParts = Parameters<typeof isActionablePendingBooking>[0];
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
 });
-
-/**
- * Estimated Stripe processing for a successful US card charge (standard online pricing).
- * Platform pays this on destination charges; we withhold it from the owner's transfer via
- * application_fee_amount. If your Stripe pricing differs, adjust these constants.
- * @see https://stripe.com/pricing
- */
-const STRIPE_US_CARD_PERCENT = 0.029;
-const STRIPE_US_CARD_FIXED_CENTS = 30;
-/** Extra cents on top of the estimate to avoid a negative platform balance from rounding / IC+ variance. */
-const PLATFORM_FEE_BUFFER_CENTS = 2;
-
-function estimatedUsCardProcessingFeeCents(chargeAmountCents: number): number {
-  return Math.ceil(
-    chargeAmountCents * STRIPE_US_CARD_PERCENT + STRIPE_US_CARD_FIXED_CENTS
-  );
-}
 
 export async function POST(req: NextRequest) {
   console.log("[CHECKOUT] Request received");
@@ -363,10 +347,17 @@ export async function POST(req: NextRequest) {
     const ownerData = ownerDoc.data();
     const stripeAccountId = ownerData?.stripeAccountId;
 
-    // SECURITY FIX 3: Compute totalAmountCents as integer on server
-    // Convert price per hour to price per minute, then multiply by duration
-    const pricePerMinuteCents = Math.round((pricePerHour * 100) / 60); // Convert $/hr to cents/min
-    const totalAmountCents = pricePerMinuteCents * durationMinutesNum; // Total in integer cents
+    const priceBreakdown = calculateBookingPriceBreakdown(
+      pricePerHour,
+      durationMinutesNum
+    );
+    const {
+      ownerAmountCents,
+      courtShareFeeCents,
+      processingFeeCents,
+      applicationFeeCents,
+      totalAmountCents,
+    } = priceBreakdown;
 
     // Validate total amount is reasonable
     if (totalAmountCents < 100 || totalAmountCents > 100000) {
@@ -377,14 +368,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Application fee (owner's share): enough to cover estimated Stripe fees on this charge.
-    // Booker still pays only totalAmountCents; owner receives (total − fee).
-    const estimatedStripeFeeCents = estimatedUsCardProcessingFeeCents(
-      totalAmountCents
-    );
-    const commissionAmount = estimatedStripeFeeCents + PLATFORM_FEE_BUFFER_CENTS;
-
-    if (commissionAmount >= totalAmountCents) {
+    if (applicationFeeCents >= totalAmountCents) {
       return NextResponse.json(
         {
           error:
@@ -432,67 +416,57 @@ export async function POST(req: NextRequest) {
         courtNumber: String(courtNumberNum),
         pricePerHour: pricePerHour.toString(),
         totalAmountCents: totalAmountCents.toString(),
+        ownerAmountCents: ownerAmountCents.toString(),
+        courtShareFeeCents: courtShareFeeCents.toString(),
+        processingFeeCents: processingFeeCents.toString(),
+        applicationFeeCents: applicationFeeCents.toString(),
       },
       success_url: `${req.nextUrl.origin}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${req.nextUrl.origin}/courts/${courtId}`,
     };
 
-    // If owner has Stripe Connect account, use it to split payments
-    if (stripeAccountId) {
-      console.log(
-        `[CHECKOUT] Owner has Stripe Connect account: ${stripeAccountId}`
+    if (!stripeAccountId) {
+      return NextResponse.json(
+        { error: "This owner has not finished payout setup yet." },
+        { status: 409 }
       );
-      // SECURITY: Verify owner's account is active before allowing transfers
-      try {
-        const account = await stripe.accounts.retrieve(stripeAccountId);
-        if (!account.charges_enabled || !account.details_submitted) {
-          // Owner's account not ready - payment goes to platform
-          console.warn(
-            `[CHECKOUT] Owner ${ownerId} Stripe account not fully activated (charges_enabled: ${account.charges_enabled}, details_submitted: ${account.details_submitted})`
-          );
-          console.log(
-            `[CHECKOUT] Payment will go to PLATFORM account (not transferred to owner)`
-          );
-        } else {
-          // Owner account is active - split payment
-          console.log(
-            `[CHECKOUT] STRIPE CONNECT ACTIVE - Payment will be transferred to owner account ${stripeAccountId} after capture`
-          );
-          console.log(
-            `[CHECKOUT] Transfer details: ${totalAmountCents} cents total, ${commissionAmount} cents platform fee, ${
-              totalAmountCents - commissionAmount
-            } cents to owner`
-          );
-          sessionParams.payment_intent_data = {
-            ...sessionParams.payment_intent_data,
-            application_fee_amount: commissionAmount, // Covers est. Stripe fees + buffer; owner nets the rest
-            transfer_data: {
-              destination: stripeAccountId, // Send remaining amount to owner's account
-              // Stripe automatically calculates: owner receives = totalAmount - commissionAmount
-            },
-            metadata: {
-              ...sessionParams.payment_intent_data?.metadata,
-              ownerId,
-              transferToOwner: "true",
-              stripeConnectAccountId: stripeAccountId,
-            },
-          };
-        }
-      } catch (err) {
-        console.error("[CHECKOUT] Error verifying Stripe account:", err);
-        // If we can't verify, don't transfer - safer to keep payment on platform
-        console.log(
-          `[CHECKOUT] Payment will go to PLATFORM account (error verifying owner account)`
+    }
+
+    console.log(`[CHECKOUT] Owner has Stripe Connect account: ${stripeAccountId}`);
+    try {
+      const account = await stripe.accounts.retrieve(stripeAccountId);
+      if (
+        !account.charges_enabled ||
+        !account.payouts_enabled ||
+        !account.details_submitted
+      ) {
+        console.warn(
+          `[CHECKOUT] Owner ${ownerId} Stripe account not fully activated (charges_enabled: ${account.charges_enabled}, payouts_enabled: ${account.payouts_enabled}, details_submitted: ${account.details_submitted})`
+        );
+        return NextResponse.json(
+          { error: "This owner's payout account is not ready yet." },
+          { status: 409 }
         );
       }
-    } else {
-      // Owner hasn't set up Stripe Connect yet
-      // For now, payment goes to platform account
-      console.warn(
-        `[CHECKOUT] Owner ${ownerId} doesn't have Stripe Connect account set up`
-      );
-      console.log(
-        `[CHECKOUT] Payment will go to PLATFORM account (owner has no Connect account)`
+
+      sessionParams.payment_intent_data = {
+        ...sessionParams.payment_intent_data,
+        application_fee_amount: applicationFeeCents,
+        transfer_data: {
+          destination: stripeAccountId,
+        },
+        metadata: {
+          ...sessionParams.payment_intent_data?.metadata,
+          ownerId,
+          transferToOwner: "true",
+          stripeConnectAccountId: stripeAccountId,
+        },
+      };
+    } catch (err) {
+      console.error("[CHECKOUT] Error verifying Stripe account:", err);
+      return NextResponse.json(
+        { error: "Unable to verify this owner's payout account." },
+        { status: 500 }
       );
     }
 

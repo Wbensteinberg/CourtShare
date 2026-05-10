@@ -124,6 +124,10 @@ export async function POST(req: NextRequest) {
       chargesEnabled: account.charges_enabled,
       payoutsEnabled: account.payouts_enabled,
       detailsSubmitted: account.details_submitted,
+      requirementsCurrentlyDue: account.requirements?.currently_due || [],
+      requirementsPastDue: account.requirements?.past_due || [],
+      requirementsEventuallyDue: account.requirements?.eventually_due || [],
+      disabledReason: account.requirements?.disabled_reason || null,
     });
   } catch (err: any) {
     console.error("Error checking Stripe account status:", err);

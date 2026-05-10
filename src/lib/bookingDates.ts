@@ -10,6 +10,7 @@ type TimestampLike = {
 };
 
 export const PENDING_BOOKING_ACCEPTANCE_WINDOW_MS = 24 * 60 * 60 * 1000;
+export const BOOKING_REVIEW_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const parseBookingDateTime = (dateStr: string, timeStr: string): Date => {
   const [timePart = "0:0", period] = timeStr.trim().split(/\s+/);
@@ -130,6 +131,40 @@ export const isBookingCancellable = (
     const bookingDateTime = parseBookingDateTime(booking.date, booking.time);
     const cutoff = new Date(Date.now() + minimumLeadMinutes * 60 * 1000);
     return bookingDateTime >= cutoff;
+  } catch {
+    return false;
+  }
+};
+
+export const getBookingEndDateTime = (
+  booking: BookingDateParts & {
+    duration?: number;
+    durationMinutes?: number;
+  }
+): Date => {
+  const start = parseBookingDateTime(booking.date, booking.time);
+  const durationMinutes =
+    typeof booking.durationMinutes === "number"
+      ? booking.durationMinutes
+      : Math.round((booking.duration || 1) * 60);
+
+  return new Date(start.getTime() + durationMinutes * 60 * 1000);
+};
+
+export const isBookingReviewable = (
+  booking: BookingDateParts & {
+    status: string;
+    duration?: number;
+    durationMinutes?: number;
+  },
+  now = new Date()
+): boolean => {
+  if (booking.status !== "confirmed") return false;
+
+  try {
+    const end = getBookingEndDateTime(booking);
+    const elapsed = now.getTime() - end.getTime();
+    return elapsed >= 0 && elapsed <= BOOKING_REVIEW_WINDOW_MS;
   } catch {
     return false;
   }

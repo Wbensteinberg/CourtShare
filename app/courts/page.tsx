@@ -269,7 +269,7 @@ export default function CourtsPage() {
               <button
                 type="button"
                 onClick={() => router.push(user ? "/create-listing" : "/login")}
-                className="mt-10 w-fit rounded-full border border-white bg-white px-7 py-3 text-sm font-extrabold text-[var(--site-accent)] transition-colors hover:bg-slate-100"
+                className="mt-10 w-fit cursor-pointer rounded-full border border-white bg-white px-7 py-3 text-sm font-extrabold text-[var(--site-accent)] transition-colors hover:bg-slate-100"
               >
                 Create a Listing
               </button>
