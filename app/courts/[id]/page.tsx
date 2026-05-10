@@ -14,9 +14,10 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { useAuth } from "@/lib/AuthContext";
-import { ArrowLeft, MapPin, Star, Clock, Calendar, Users } from "lucide-react";
+import { ArrowLeft, MapPin, Star, Clock, Calendar, Users, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -47,6 +48,8 @@ import {
   getMockAuthUser,
   getMockBookingsForCourtAndDate,
   getMockCourtById,
+  getMockProfile,
+  getMockReviewsForCourt,
 } from "@/lib/mockData";
 
 interface Court {
@@ -71,11 +74,30 @@ interface Court {
   amenities?: string[];
   rating?: number;
   reviewCount?: number;
+  ownerId?: string;
 }
+
+type PublicProfile = {
+  uid: string;
+  displayName: string;
+  bio?: string;
+  profileImageUrl?: string;
+  ownerRating?: number | null;
+  ownerReviewCount?: number;
+};
+
+type PublicReview = {
+  id: string;
+  rating: number;
+  comment?: string;
+  createdAt?: string | null;
+};
 
 export default function CourtDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [court, setCourt] = useState<Court | null>(null);
+  const [hostProfile, setHostProfile] = useState<PublicProfile | null>(null);
+  const [courtReviews, setCourtReviews] = useState<PublicReview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -320,6 +342,59 @@ export default function CourtDetailPage() {
     fetchCourt();
   }, [id]);
 
+  useEffect(() => {
+    const fetchHostAndReviews = async () => {
+      if (!id || !court) {
+        setHostProfile(null);
+        setCourtReviews([]);
+        return;
+      }
+
+      try {
+        if (isMockMode) {
+          setHostProfile(
+            court.ownerId ? (getMockProfile(court.ownerId) as PublicProfile | null) : null
+          );
+          setCourtReviews(getMockReviewsForCourt(id));
+          return;
+        }
+
+        const reviewsPromise = fetch(
+          `/api/reviews?courtId=${encodeURIComponent(id)}`
+        ).then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Failed to load reviews");
+          return data.reviews || [];
+        });
+
+        const hostPromise = court.ownerId
+          ? fetch(`/api/public-profiles/${encodeURIComponent(court.ownerId)}`).then(
+              async (res) => {
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                  throw new Error(data.error || "Failed to load host");
+                }
+                return data.profile as PublicProfile;
+              }
+            )
+          : Promise.resolve(null);
+
+        const [profileData, reviewData] = await Promise.all([
+          hostPromise,
+          reviewsPromise,
+        ]);
+        setHostProfile(profileData);
+        setCourtReviews(reviewData);
+      } catch (err) {
+        console.warn("[COURT] Unable to load host profile or reviews:", err);
+        setHostProfile(null);
+        setCourtReviews([]);
+      }
+    };
+
+    fetchHostAndReviews();
+  }, [court, id]);
+
   // Fetch bookings for selected date
   useEffect(() => {
     if (!id || !selectedDate) {
@@ -379,6 +454,12 @@ export default function CourtDetailPage() {
 
     if (!selectedDate || !selectedTime || !duration) {
       alert("Please fill out all fields.");
+      return;
+    }
+
+    if (court?.ownerId === activeUser.uid) {
+      setBookingStatus("error");
+      alert("You cannot book your own court.");
       return;
     }
 
@@ -459,6 +540,10 @@ export default function CourtDetailPage() {
 
     setBookingStatus("loading");
     try {
+      if (court?.ownerId === activeUser.uid) {
+        throw new Error("You cannot book your own court.");
+      }
+
       if (isMockMode) {
         const mockBooking = await createMockBooking({
           courtId: id,
@@ -538,6 +623,10 @@ export default function CourtDetailPage() {
   const priceBreakdown = court
     ? calculateBookingPriceBreakdown(court.price || 0, durationMinutesForPrice)
     : null;
+  const isOwnCourt = !!user && court?.ownerId === user.uid;
+  const hostInitial =
+    hostProfile?.displayName?.trim().charAt(0).toUpperCase() || "H";
+  const latestCourtReview = courtReviews[0];
 
   if (loading) {
     return (
@@ -671,7 +760,7 @@ export default function CourtDetailPage() {
                       <div className="flex items-center gap-1">
                         <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                         <span className="font-medium">
-                          {court.rating || 4.5}
+                          {court.reviewCount ? court.rating?.toFixed(1) || "New" : "New"}
                         </span>
                         <span className="text-gray-500">
                           ({court.reviewCount || 0} reviews)
@@ -719,7 +808,87 @@ export default function CourtDetailPage() {
           </div>
 
           {/* Booking Form */}
-          <div className="lg:sticky lg:top-8">
+          <div className="space-y-4 lg:sticky lg:top-8">
+              <Card className="border-0 shadow-elegant rounded-3xl">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-14 w-14">
+                        <AvatarImage
+                          src={hostProfile?.profileImageUrl || undefined}
+                          alt={hostProfile?.displayName || "Court host"}
+                        />
+                        <AvatarFallback className="bg-emerald-100 font-semibold text-emerald-800">
+                          {hostInitial}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Hosted by
+                        </p>
+                        <h2 className="text-lg font-bold text-slate-950">
+                          {hostProfile?.displayName || "Court owner"}
+                        </h2>
+                      </div>
+                    </div>
+                    {court.ownerId && (
+                      <Button
+                        variant="outline"
+                        className="rounded-xl"
+                        onClick={() => router.push(`/profile/${court.ownerId}`)}
+                      >
+                        <UserRound className="mr-2 h-4 w-4" />
+                        Profile
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-slate-200 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Court reviews
+                      </p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        <span className="font-semibold">
+                          {court.rating ? court.rating.toFixed(1) : "New"}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {court.reviewCount || 0} reviews
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Host reviews
+                      </p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        <span className="font-semibold">
+                          {hostProfile?.ownerRating
+                            ? hostProfile.ownerRating.toFixed(1)
+                            : "New"}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {hostProfile?.ownerReviewCount || 0} reviews
+                      </p>
+                    </div>
+                  </div>
+
+                  {latestCourtReview?.comment && (
+                    <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+                      <div className="flex items-center gap-1 text-sm font-semibold text-slate-950">
+                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        {latestCourtReview.rating}/5
+                      </div>
+                      <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">
+                        {latestCourtReview.comment}
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
               <Card className="shadow-elegant border-0 rounded-3xl">
                 <CardHeader className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 text-white border-0 rounded-t-3xl">
                   <CardTitle className="text-2xl font-black tracking-tight">
@@ -883,14 +1052,22 @@ export default function CourtDetailPage() {
                       !selectedTime ||
                       bookingStatus === "loading" ||
                       fetchingBookings ||
-                      authLoading
+                      authLoading ||
+                      isOwnCourt
                     }
                     onClick={handleCheckout}
                   >
-                    {bookingStatus === "loading"
-                      ? "Processing..."
-                      : "Request Booking"}
+                    {isOwnCourt
+                      ? "You host this court"
+                      : bookingStatus === "loading"
+                        ? "Processing..."
+                        : "Request Booking"}
                   </Button>
+                  {isOwnCourt && (
+                    <p className="text-sm text-center text-slate-500">
+                      Owners cannot book their own courts.
+                    </p>
+                  )}
 
                   {bookingStatus === "conflict" && (
                     <p className="text-red-500 text-sm text-center">

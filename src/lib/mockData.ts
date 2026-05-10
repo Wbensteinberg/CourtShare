@@ -146,10 +146,16 @@ const formatBookingRequestMessage = (
     : duration.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
   const courtNumberText =
     courtNumber && courtNumber > 1 ? `, Court ${courtNumber}` : "";
+  const formattedDate = new Intl.DateTimeFormat("en", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(`${date}T12:00:00`));
 
   return `New booking request for ${
     courtName || "this court"
-  }${courtNumberText} on ${date} at ${time} for ${durationLabel} hour${
+  }${courtNumberText} on ${formattedDate} at ${time} for ${durationLabel} hour${
     duration === 1 ? "" : "s"
   }.`;
 };
@@ -735,6 +741,24 @@ export const getMockMessagesForConversation = (conversationId: string) =>
         new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
 
+export const markMockConversationRead = (
+  conversationId: string,
+  userId: string
+) => {
+  updateMockDb((db) => {
+    db.conversations = db.conversations.map((conversation) =>
+      conversation.id === conversationId
+        ? {
+            ...conversation,
+            unreadBy: conversation.unreadBy.filter(
+              (participantId) => participantId !== userId
+            ),
+          }
+        : conversation
+    );
+  });
+};
+
 export const createMockMessage = async (
   conversationId: string,
   senderId: string,
@@ -827,6 +851,14 @@ const getUpdatedAverage = (
 
 export const getMockReviewsForUser = (reviewerId: string) =>
   getMockDb().reviews.filter((review) => review.reviewerId === reviewerId);
+
+export const getMockReviewsForTarget = (revieweeId: string) =>
+  getMockDb().reviews.filter((review) => review.revieweeId === revieweeId);
+
+export const getMockReviewsForCourt = (courtId: string) =>
+  getMockDb().reviews.filter(
+    (review) => review.courtId === courtId && review.targetType === "court_owner"
+  );
 
 export const createMockReview = async ({
   bookingId,

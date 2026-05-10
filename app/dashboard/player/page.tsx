@@ -302,7 +302,11 @@ export default function PlayerDashboard() {
 
   const openBookingConversation = (booking: Booking) => {
     const conversationId = booking.conversationId || `booking_${booking.id}`;
-    router.push(`/messages?conversationId=${encodeURIComponent(conversationId)}`);
+    router.push(
+      `/messages?conversationId=${encodeURIComponent(
+        conversationId
+      )}&bookingId=${encodeURIComponent(booking.id)}`
+    );
   };
 
   const canReviewBooking = (booking: Booking) =>

@@ -22,6 +22,12 @@ const buildBookingRequestMessage = ({
   durationMinutes,
   courtNumber,
 }: BookingConversationInput) => {
+  const formattedDate = new Intl.DateTimeFormat("en", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(`${date}T12:00:00`));
   const durationHours = durationMinutes / 60;
   const durationLabel = Number.isInteger(durationHours)
     ? String(durationHours)
@@ -30,7 +36,7 @@ const buildBookingRequestMessage = ({
   const courtNumberText =
     courtNumber && courtNumber > 1 ? `, Court ${courtNumber}` : "";
 
-  return `New booking request for ${courtLabel}${courtNumberText} on ${date} at ${time} for ${durationLabel} hour${
+  return `New booking request for ${courtLabel}${courtNumberText} on ${formattedDate} at ${time} for ${durationLabel} hour${
     durationHours === 1 ? "" : "s"
   }.`;
 };

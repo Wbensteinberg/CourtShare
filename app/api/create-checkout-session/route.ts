@@ -342,6 +342,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (ownerId === userId) {
+      return NextResponse.json(
+        { error: "Owners cannot book their own courts" },
+        { status: 403 }
+      );
+    }
+
     // Get owner's Stripe account ID
     const ownerDoc = await adminDb.collection("users").doc(ownerId).get();
     const ownerData = ownerDoc.data();

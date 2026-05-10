@@ -14,7 +14,7 @@ import {
   where,
 } from "firebase/firestore";
 import AppHeader from "@/components/AppHeader";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,7 +26,9 @@ import {
   getMockBookingById,
   getMockConversationsForUser,
   getMockMessagesForConversation,
+  getMockProfile,
   getMockUserDisplayName,
+  markMockConversationRead,
   updateMockBooking,
   type MockConversation,
   type MockMessage,
@@ -58,6 +60,11 @@ type Booking = {
   status: string;
 };
 
+type ParticipantProfile = {
+  displayName: string;
+  profileImageUrl: string;
+};
+
 const getDateValue = (value: any) => {
   if (!value) return new Date(0);
   if (typeof value === "string") return new Date(value);
@@ -77,6 +84,37 @@ const formatMessageTime = (value: any) => {
   }).format(date);
 };
 
+const formatFullDate = (dateStr?: string) => {
+  if (!dateStr) return "";
+  const date = new Date(`${dateStr}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return dateStr;
+
+  return new Intl.DateTimeFormat("en", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+};
+
+const formatTextDates = (text?: string) =>
+  (text || "").replace(/\b\d{4}-\d{2}-\d{2}\b/g, (date) =>
+    formatFullDate(date)
+  );
+
+const getProfileDisplayName = (
+  profile: Record<string, any> | undefined,
+  fallback: string
+) => {
+  const displayName =
+    typeof profile?.displayName === "string" ? profile.displayName.trim() : "";
+  const name = typeof profile?.name === "string" ? profile.name.trim() : "";
+  const emailPrefix =
+    typeof profile?.email === "string" ? profile.email.split("@")[0].trim() : "";
+
+  return displayName || name || emailPrefix || fallback;
+};
+
 const formatFallbackName = (uid: string, role: "player" | "owner") => {
   if (!uid) return role === "player" ? "Player" : "Court owner";
   return role === "player" ? "Player" : "Court owner";
@@ -84,7 +122,7 @@ const formatFallbackName = (uid: string, role: "player" | "owner") => {
 
 const getBookingSummary = (conversation: Conversation) => {
   const pieces = [
-    conversation.bookingDate,
+    formatFullDate(conversation.bookingDate),
     conversation.bookingTime,
     conversation.bookingDurationMinutes
       ? `${conversation.bookingDurationMinutes / 60}h`
@@ -105,6 +143,9 @@ function MessagesPageContent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState("");
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [participantProfiles, setParticipantProfiles] = useState<
+    Record<string, ParticipantProfile>
+  >({});
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -144,12 +185,29 @@ function MessagesPageContent() {
 
         setConversations(conversationData);
         const requestedConversationId = searchParams.get("conversationId");
+        const requestedBookingId =
+          searchParams.get("bookingId") ||
+          (requestedConversationId?.startsWith("booking_")
+            ? requestedConversationId.slice("booking_".length)
+            : "");
         setSelectedConversationId((current) => {
           if (
             requestedConversationId &&
             conversationData.some((item) => item.id === requestedConversationId)
           ) {
             return requestedConversationId;
+          }
+
+          if (requestedBookingId) {
+            return (
+              conversationData.find(
+                (item) => item.bookingId === requestedBookingId
+              )?.id || ""
+            );
+          }
+
+          if (requestedConversationId) {
+            return "";
           }
 
           if (current && conversationData.some((item) => item.id === current)) {
@@ -167,6 +225,73 @@ function MessagesPageContent() {
 
     fetchConversations();
   }, [searchParams, user]);
+
+  useEffect(() => {
+    const loadParticipantNames = async () => {
+      const participantIds = Array.from(
+        new Set(conversations.flatMap((conversation) => conversation.participantIds))
+      ).filter(Boolean);
+
+      if (participantIds.length === 0) {
+        setParticipantProfiles({});
+        return;
+      }
+
+      if (isMockMode) {
+        setParticipantProfiles(
+          Object.fromEntries(
+            participantIds.map((participantId) => {
+              const profile = getMockProfile(participantId);
+              return [
+                participantId,
+                {
+                  displayName:
+                    profile?.displayName || getMockUserDisplayName(participantId),
+                  profileImageUrl: profile?.profileImageUrl || "",
+                },
+              ];
+            })
+          )
+        );
+        return;
+      }
+
+      const entries = await Promise.allSettled(
+        participantIds.map(async (participantId) => {
+          const res = await fetch(
+            `/api/public-profiles/${encodeURIComponent(participantId)}`
+          );
+          const data = await res.json().catch(() => ({}));
+          return [
+            participantId,
+            res.ok && data.profile
+              ? {
+                  displayName: getProfileDisplayName(
+                    data.profile,
+                    "CourtShare user"
+                  ),
+                  profileImageUrl:
+                    typeof data.profile.profileImageUrl === "string"
+                      ? data.profile.profileImageUrl
+                      : "",
+                }
+              : { displayName: "CourtShare user", profileImageUrl: "" },
+          ] as const;
+        })
+      );
+
+      setParticipantProfiles(
+        Object.fromEntries(
+          entries
+            .flatMap((entry) =>
+              entry.status === "fulfilled" ? [entry.value] : []
+            )
+        )
+      );
+    };
+
+    loadParticipantNames();
+  }, [conversations]);
 
   useEffect(() => {
     const fetchMessages = async () => {
@@ -241,10 +366,55 @@ function MessagesPageContent() {
     fetchSelectedBooking();
   }, [selectedConversation]);
 
+  useEffect(() => {
+    const markSelectedConversationRead = async () => {
+      if (!user || !selectedConversation) return;
+      if (!selectedConversation.unreadBy?.includes(user.uid)) return;
+
+      const unreadBy = selectedConversation.unreadBy.filter(
+        (participantId) => participantId !== user.uid
+      );
+
+      setConversations((current) =>
+        current.map((conversation) =>
+          conversation.id === selectedConversation.id
+            ? { ...conversation, unreadBy }
+            : conversation
+        )
+      );
+
+      try {
+        if (isMockMode) {
+          markMockConversationRead(selectedConversation.id, user.uid);
+        } else {
+          await updateDoc(doc(db, "conversations", selectedConversation.id), {
+            unreadBy,
+            updatedAt: serverTimestamp(),
+          });
+        }
+      } catch (err) {
+        console.warn("[MESSAGES] Unable to mark conversation read:", err);
+      }
+    };
+
+    markSelectedConversationRead();
+  }, [selectedConversation, user]);
+
+  const getOtherParticipantId = (conversation: Conversation) => {
+    if (!user) return conversation.playerId || conversation.ownerId;
+    return conversation.playerId === user.uid
+      ? conversation.ownerId
+      : conversation.playerId;
+  };
+
+  const getOtherParticipantProfile = (conversation: Conversation) =>
+    participantProfiles[getOtherParticipantId(conversation)];
+
   const getOtherParticipantName = (conversation: Conversation) => {
     if (!user) return "Guest";
     if (conversation.playerId === user.uid) {
       return (
+        participantProfiles[conversation.ownerId]?.displayName ||
         conversation.ownerName ||
         (isMockMode
           ? getMockUserDisplayName(conversation.ownerId)
@@ -253,6 +423,7 @@ function MessagesPageContent() {
     }
 
     return (
+      participantProfiles[conversation.playerId]?.displayName ||
       conversation.playerName ||
       (isMockMode
         ? getMockUserDisplayName(conversation.playerId)
@@ -262,21 +433,32 @@ function MessagesPageContent() {
 
   const getPlayerName = (conversation: Conversation) => {
     if (conversation.playerId === user?.uid) {
-      return user.displayName || user.email?.split("@")[0] || "You";
+      return participantProfiles[conversation.playerId]?.displayName || "You";
     }
 
     return (
+      participantProfiles[conversation.playerId]?.displayName ||
       conversation.playerName ||
       (isMockMode
         ? getMockUserDisplayName(conversation.playerId)
-        : formatFallbackName(conversation.playerId, "player"))
+      : formatFallbackName(conversation.playerId, "player"))
     );
   };
+
+  const shouldShowBookingParticipant =
+    !!selectedConversation &&
+    getPlayerName(selectedConversation) !==
+      getOtherParticipantName(selectedConversation);
 
   const isSelectedOwner =
     !!user && !!selectedConversation && selectedConversation.ownerId === user.uid;
   const canActOnSelectedBooking =
     isSelectedOwner && selectedBooking?.status === "pending";
+
+  const openParticipantProfile = (conversation: Conversation) => {
+    const participantId = getOtherParticipantId(conversation);
+    if (participantId) router.push(`/profile/${participantId}`);
+  };
 
   const updateConversationStatus = async (
     conversation: Conversation,
@@ -514,6 +696,13 @@ function MessagesPageContent() {
                       onClick={() => setSelectedConversationId(conversation.id)}
                     >
                       <Avatar className="h-11 w-11">
+                        <AvatarImage
+                          src={
+                            getOtherParticipantProfile(conversation)
+                              ?.profileImageUrl || undefined
+                          }
+                          alt={getOtherParticipantName(conversation)}
+                        />
                         <AvatarFallback className="bg-slate-100 text-sm font-semibold text-slate-700">
                           {getOtherParticipantName(conversation)
                             .trim()
@@ -534,7 +723,7 @@ function MessagesPageContent() {
                           {conversation.courtName || "Court booking"}
                         </p>
                         <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
-                          {conversation.lastMessageText}
+                          {formatTextDates(conversation.lastMessageText)}
                         </p>
                       </div>
                     </button>
@@ -548,8 +737,19 @@ function MessagesPageContent() {
             {selectedConversation ? (
               <>
                 <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    className="flex items-center gap-3 rounded-2xl text-left transition hover:bg-slate-50"
+                    onClick={() => openParticipantProfile(selectedConversation)}
+                  >
                     <Avatar className="h-12 w-12">
+                      <AvatarImage
+                        src={
+                          getOtherParticipantProfile(selectedConversation)
+                            ?.profileImageUrl || undefined
+                        }
+                        alt={getOtherParticipantName(selectedConversation)}
+                      />
                       <AvatarFallback className="bg-emerald-100 font-semibold text-emerald-800">
                         {getOtherParticipantName(selectedConversation)
                           .trim()
@@ -565,41 +765,54 @@ function MessagesPageContent() {
                         {selectedConversation.courtName || "Court booking"}
                       </p>
                     </div>
+                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="outline"
+                      className="rounded-xl"
+                      onClick={() => openParticipantProfile(selectedConversation)}
+                    >
+                      View profile
+                    </Button>
+                    <Badge
+                      className={cn(
+                        "w-fit hover:bg-amber-100",
+                        selectedBooking?.status === "confirmed"
+                          ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
+                          : selectedBooking?.status === "rejected" ||
+                              selectedBooking?.status === "cancelled" ||
+                              selectedBooking?.status === "expired"
+                            ? "bg-slate-100 text-slate-700 hover:bg-slate-100"
+                            : "bg-amber-100 text-amber-800 hover:bg-amber-100"
+                      )}
+                    >
+                      {selectedBooking?.status === "confirmed"
+                        ? "Confirmed"
+                        : selectedBooking?.status === "rejected"
+                          ? "Declined"
+                          : selectedBooking?.status === "cancelled"
+                            ? "Cancelled"
+                            : selectedBooking?.status === "expired"
+                              ? "Expired"
+                              : "Booking request"}
+                    </Badge>
                   </div>
-                  <Badge
-                    className={cn(
-                      "w-fit hover:bg-amber-100",
-                      selectedBooking?.status === "confirmed"
-                        ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
-                        : selectedBooking?.status === "rejected" ||
-                            selectedBooking?.status === "cancelled" ||
-                            selectedBooking?.status === "expired"
-                          ? "bg-slate-100 text-slate-700 hover:bg-slate-100"
-                          : "bg-amber-100 text-amber-800 hover:bg-amber-100"
-                    )}
-                  >
-                    {selectedBooking?.status === "confirmed"
-                      ? "Confirmed"
-                      : selectedBooking?.status === "rejected"
-                        ? "Declined"
-                        : selectedBooking?.status === "cancelled"
-                          ? "Cancelled"
-                          : selectedBooking?.status === "expired"
-                            ? "Expired"
-                            : "Booking request"}
-                  </Badge>
                 </div>
 
                 <div className="border-b border-slate-200 bg-slate-50/70 p-5">
                   <Card className="rounded-2xl border-slate-200 shadow-none">
-                    <CardContent className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
-                        <UserRound className="h-4 w-4 text-emerald-600" />
-                        {getPlayerName(selectedConversation)}
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                    <CardContent className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_auto]">
+                      <div className="flex flex-wrap gap-x-5 gap-y-2">
+                        {shouldShowBookingParticipant && (
+                          <div className="flex items-center gap-2 text-sm text-slate-600">
+                            <UserRound className="h-4 w-4 text-emerald-600" />
+                            {getPlayerName(selectedConversation)}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 text-sm text-slate-600">
                         <CalendarDays className="h-4 w-4 text-emerald-600" />
                         {getBookingSummary(selectedConversation)}
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-2 lg:justify-end">
                         {canActOnSelectedBooking && (
@@ -658,7 +871,7 @@ function MessagesPageContent() {
                               : "border border-slate-200 bg-white text-slate-800"
                           )}
                         >
-                          <p className="leading-6">{message.body}</p>
+                          <p className="leading-6">{formatTextDates(message.body)}</p>
                           <p
                             className={cn(
                               "mt-2 text-xs",

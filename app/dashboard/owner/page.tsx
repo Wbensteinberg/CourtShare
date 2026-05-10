@@ -64,6 +64,7 @@ import {
   updateMockCourt,
 } from "@/lib/mockData";
 import {
+  formatBookingDateWithDay,
   isPastOrInactiveBooking,
   isActionablePendingBooking,
   isBookingReviewable,
@@ -284,9 +285,14 @@ export default function OwnerDashboard() {
             } else {
               const userEntries = await Promise.allSettled(
                 uniqueUserIds.map(async (userId) => {
-                  const userDoc = await getDoc(doc(db, "users", userId));
-                  const userData = userDoc.data();
-                  const displayName = getProfileDisplayName(userData, "Player");
+                  const res = await fetch(
+                    `/api/public-profiles/${encodeURIComponent(userId)}`
+                  );
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) {
+                    throw new Error(data.error || "Failed to load player");
+                  }
+                  const displayName = getProfileDisplayName(data.profile, "Player");
                   return [userId, displayName] as const;
                 })
               );
@@ -684,7 +690,11 @@ export default function OwnerDashboard() {
 
   const openBookingConversation = (booking: Booking) => {
     const conversationId = booking.conversationId || `booking_${booking.id}`;
-    router.push(`/messages?conversationId=${encodeURIComponent(conversationId)}`);
+    router.push(
+      `/messages?conversationId=${encodeURIComponent(
+        conversationId
+      )}&bookingId=${encodeURIComponent(booking.id)}`
+    );
   };
 
   const canReviewBooking = (booking: Booking) =>
@@ -1221,7 +1231,7 @@ export default function OwnerDashboard() {
                         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
                           <span className="inline-flex items-center">
                             <Calendar className="mr-1.5 h-4 w-4 text-slate-400" />
-                            {booking.date}
+                            {formatBookingDateWithDay(booking.date)}
                           </span>
                           <span className="inline-flex items-center">
                             <Clock className="mr-1.5 h-4 w-4 text-slate-400" />
@@ -1313,7 +1323,7 @@ export default function OwnerDashboard() {
                               {getStatusBadge(booking.status)}
                             </div>
                             <p className="mt-1 text-sm text-slate-600">
-                              {booking.date} at {booking.time} for{" "}
+                              {formatBookingDateWithDay(booking.date)} at {booking.time} for{" "}
                               {booking.duration}h
                             </p>
                             <p className="mt-1 flex items-center text-sm text-slate-500">
@@ -1377,7 +1387,7 @@ export default function OwnerDashboard() {
                               {getStatusBadge(booking.status)}
                             </div>
                             <p className="mt-1 text-sm text-slate-600">
-                              {booking.date} at {booking.time}
+                              {formatBookingDateWithDay(booking.date)} at {booking.time}
                             </p>
                             <p className="mt-1 flex items-center text-sm text-slate-500">
                               <User className="mr-1.5 h-4 w-4 text-slate-400" />
@@ -1451,7 +1461,9 @@ export default function OwnerDashboard() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Date</span>
-                  <span className="font-medium">{acceptBookingConfirm.booking.date}</span>
+                  <span className="font-medium">
+                    {formatBookingDateWithDay(acceptBookingConfirm.booking.date)}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-500">Time</span>

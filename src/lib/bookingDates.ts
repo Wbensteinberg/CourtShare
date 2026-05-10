@@ -10,7 +10,7 @@ type TimestampLike = {
 };
 
 export const PENDING_BOOKING_ACCEPTANCE_WINDOW_MS = 24 * 60 * 60 * 1000;
-export const BOOKING_REVIEW_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+export const BOOKING_REVIEW_WINDOW_MS = 60 * 24 * 60 * 60 * 1000;
 
 export const parseBookingDateTime = (dateStr: string, timeStr: string): Date => {
   const [timePart = "0:0", period] = timeStr.trim().split(/\s+/);

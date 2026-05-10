@@ -193,7 +193,7 @@ export default function AppHeader() {
         <button
           type="button"
           className={cn(
-            "rounded-xl px-4 py-2 text-2xl font-black tracking-tight transition-colors",
+            "cursor-pointer rounded-xl px-4 py-2 text-2xl font-black tracking-tight transition-colors",
             isLandingPage
               ? "text-white"
               : "text-brand-logo"

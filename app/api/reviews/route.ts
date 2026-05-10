@@ -34,6 +34,28 @@ const getUpdatedAverage = (
   };
 };
 
+const serializeDate = (value: any) => {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  if (typeof value.toDate === "function") return value.toDate().toISOString();
+  if (value instanceof Date) return value.toISOString();
+  return null;
+};
+
+const toPublicReview = (reviewDoc: any) => {
+  const review = reviewDoc.data();
+  return {
+    id: reviewDoc.id,
+    bookingId: review.bookingId,
+    courtId: review.courtId,
+    reviewerRole: review.reviewerRole,
+    targetType: review.targetType,
+    rating: review.rating,
+    comment: review.comment || "",
+    createdAt: serializeDate(review.createdAt),
+  };
+};
+
 export async function GET(req: NextRequest) {
   try {
     if (!adminDb) {
@@ -43,6 +65,31 @@ export async function GET(req: NextRequest) {
       );
     }
     const db = adminDb;
+
+    const targetUserId = req.nextUrl.searchParams.get("targetUserId")?.trim();
+    const courtId = req.nextUrl.searchParams.get("courtId")?.trim();
+
+    if (targetUserId || courtId) {
+      const reviewsSnap = targetUserId
+        ? await db
+            .collection("reviews")
+            .where("revieweeId", "==", targetUserId)
+            .get()
+        : await db.collection("reviews").where("courtId", "==", courtId).get();
+
+      const reviews = reviewsSnap.docs
+        .map(toPublicReview)
+        .filter((review) =>
+          courtId ? review.targetType === "court_owner" : true
+        )
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt || 0).getTime() -
+            new Date(a.createdAt || 0).getTime()
+        );
+
+      return NextResponse.json({ reviews });
+    }
 
     const reviewerId = await getAuthUserId(req);
     const bookingIds = new Set(
@@ -146,7 +193,7 @@ export async function POST(req: NextRequest) {
 
     if (!isBookingReviewable(booking as Parameters<typeof isBookingReviewable>[0])) {
       return NextResponse.json(
-        { error: "Reviews are available for one week after a confirmed booking" },
+        { error: "Reviews are available for two months after a confirmed booking" },
         { status: 400 }
       );
     }
