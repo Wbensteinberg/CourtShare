@@ -31,6 +31,7 @@ import {
 interface Booking {
   id: string;
   courtId: string;
+  ownerId?: string;
   userId: string;
   date: string;
   time: string;
@@ -52,6 +53,7 @@ interface Court {
   imageUrls?: string[];
   surface?: string;
   indoor?: boolean;
+  ownerId?: string;
 }
 
 export default function BookingDetailsPage() {
@@ -105,28 +107,35 @@ export default function BookingDetailsPage() {
           return;
         }
 
-        // Check if this booking belongs to the current user
-        if (resolvedBooking.userId !== user.uid) {
-          setError("You don't have permission to view this booking");
-          setLoading(false);
-          return;
-        }
-
-        setBooking(resolvedBooking);
-
         // Fetch court details
+        let resolvedCourt: Court | null = null;
         if (isMockMode) {
           const mockCourt = getMockCourtById(resolvedBooking.courtId);
           if (mockCourt) {
-            setCourt(mockCourt as Court);
+            resolvedCourt = mockCourt as Court;
           }
         } else {
           const courtRef = doc(db, "courts", resolvedBooking.courtId);
           const courtSnap = await getDoc(courtRef);
 
           if (courtSnap.exists()) {
-            setCourt(courtSnap.data() as Court);
+            resolvedCourt = courtSnap.data() as Court;
           }
+        }
+
+        const isPlayer = resolvedBooking.userId === user.uid;
+        const isHost =
+          resolvedBooking.ownerId === user.uid || resolvedCourt?.ownerId === user.uid;
+
+        if (!isPlayer && !isHost) {
+          setError("You don't have permission to view this booking");
+          setLoading(false);
+          return;
+        }
+
+        setBooking(resolvedBooking);
+        if (resolvedCourt) {
+          setCourt(resolvedCourt);
         }
       } catch (err: any) {
         setError(err.message || "Failed to fetch booking details");

@@ -8,7 +8,7 @@ interface CourtCardProps {
     name: string;
     location: string;
     price: number;
-    rating: number;
+    rating?: number;
     reviewCount: number;
     image: string;
     surface: string;
@@ -22,6 +22,7 @@ interface CourtCardProps {
 const CourtCard = ({ court }: CourtCardProps) => {
   const router = useRouter();
   const goToDetails = () => router.push(`/courts/${court.id}`);
+  const hasReviews = court.reviewCount > 0 && typeof court.rating === "number";
 
   return (
     <Card
@@ -61,7 +62,9 @@ const CourtCard = ({ court }: CourtCardProps) => {
           </div>
           <div className="flex items-center">
             <Star className="mr-1 h-4 w-4 fill-yellow-400 text-yellow-400" />
-            <span className="font-semibold text-gray-900">{court.rating}</span>
+            <span className="font-semibold text-gray-900">
+              {hasReviews ? court.rating?.toFixed(1) : "New"}
+            </span>
             <span className="ml-1 text-gray-500">({court.reviewCount})</span>
           </div>
           {court.distance && (

@@ -274,6 +274,7 @@ export async function POST(req: NextRequest) {
 
         const bookingData = {
           courtId: metadata.courtId,
+          ownerId: courtData.ownerId || metadata.ownerId,
           userId: metadata.userId,
           date: metadata.date,
           time: metadata.time,
@@ -292,6 +293,13 @@ export async function POST(req: NextRequest) {
           courtShareFeeCents: priceBreakdown.courtShareFeeCents,
           processingFeeCents: priceBreakdown.processingFeeCents,
           applicationFeeCents: priceBreakdown.applicationFeeCents,
+          transferToOwner: metadata.transferToOwner === "true",
+          hostPayoutMode: metadata.hostPayoutMode || "platform_hold",
+          hostPayoutStatus:
+            metadata.transferToOwner === "true"
+              ? "destination_charge_pending_capture"
+              : "pending_connect_account",
+          stripeConnectAccountId: metadata.stripeConnectAccountId || null,
         };
         console.log("[WEBHOOK] Booking data to write:", bookingData);
         const bookingRef = await adminDb

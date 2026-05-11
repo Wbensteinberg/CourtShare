@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { isActionablePendingBooking } from "@/lib/bookingDates";
 import { sendPlayerBookingConfirmation } from "@/lib/email";
+import { transferPlatformHeldBookingToHost } from "@/lib/stripeHostPayouts";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
@@ -85,9 +86,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    let paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
     if (paymentIntent.status === "requires_capture") {
-      await stripe.paymentIntents.capture(paymentIntentId);
+      paymentIntent = await stripe.paymentIntents.capture(paymentIntentId);
     } else if (paymentIntent.status !== "succeeded") {
       return NextResponse.json(
         { error: `Payment cannot be captured while ${paymentIntent.status}` },
@@ -95,13 +96,46 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await bookingRef.update({
+    const bookingUpdate: Record<string, any> = {
       status: "confirmed",
       paymentStatus: "captured",
       paymentIntentId,
       capturedAt: new Date(),
       confirmedAt: new Date(),
-    });
+    };
+
+    if (bookingData.transferToOwner === true) {
+      bookingUpdate.hostPayoutStatus = "destination_charge_captured";
+    }
+
+    await bookingRef.update(bookingUpdate);
+
+    if (bookingData.transferToOwner !== true) {
+      const ownerDoc = await db.collection("users").doc(ownerId).get();
+      try {
+        const transferResult = await transferPlatformHeldBookingToHost({
+          stripe,
+          bookingRef,
+          bookingData: {
+            ...bookingData,
+            ownerId,
+            paymentStatus: "captured",
+          },
+          ownerData: ownerDoc.exists ? ownerDoc.data() : null,
+          paymentIntentId,
+        });
+        console.log("[ACCEPT-BOOKING] Host payout transfer result:", transferResult);
+      } catch (transferError) {
+        console.error("[ACCEPT-BOOKING] Host payout transfer failed:", transferError);
+        await bookingRef.update({
+          hostPayoutStatus: "transfer_failed",
+          hostPayoutError:
+            transferError instanceof Error
+              ? transferError.message
+              : "Unknown transfer error",
+        });
+      }
+    }
 
     try {
       const playerDoc = await db.collection("users").doc(bookingData.userId).get();

@@ -38,11 +38,14 @@ import {
 } from "@/lib/mockData";
 import {
   formatBookingDateWithDay,
+  formatPendingBookingTimeRemaining,
   isActiveFutureBooking,
   isBookingCancellable,
   isBookingReviewable,
   isPendingBookingExpired,
   isPastOrInactiveBooking,
+  sortBookingsAscending,
+  sortBookingsDescending,
 } from "@/lib/bookingDates";
 
 interface Booking {
@@ -56,6 +59,8 @@ interface Booking {
   cancelReason?: string;
   conversationId?: string;
   durationMinutes?: number;
+  createdAt?: Date | string | number | { toDate?: () => Date; seconds?: number; nanoseconds?: number };
+  expiresAt?: Date | string | number | { toDate?: () => Date; seconds?: number; nanoseconds?: number };
 }
 
 interface Court {
@@ -97,6 +102,7 @@ export default function PlayerDashboard() {
   );
   const [reviewingBooking, setReviewingBooking] = useState<Booking | null>(null);
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [clockNow, setClockNow] = useState(() => new Date());
   const router = useRouter();
 
   useEffect(() => {
@@ -104,6 +110,11 @@ export default function PlayerDashboard() {
       router.push("/");
     }
   }, [user, authLoading, router]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setClockNow(new Date()), 30000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const loadReviewedBookings = async (bookingsData: Booking[]) => {
     if (!user || bookingsData.length === 0) {
@@ -237,10 +248,14 @@ export default function PlayerDashboard() {
             return;
           }
 
-          const ownerDoc = await getDoc(doc(db, "users", ownerId));
-          ownersMap[ownerId] = ownerDoc.exists()
-            ? getProfileDisplayName(ownerDoc.data(), "Court host")
-            : "Court host";
+          const res = await fetch(
+            `/api/public-profiles/${encodeURIComponent(ownerId)}`
+          );
+          const data = await res.json().catch(() => ({}));
+          ownersMap[ownerId] =
+            res.ok && data.profile
+              ? getProfileDisplayName(data.profile, "Court host")
+              : "Court host";
         })
       );
       setCourtOwners(ownersMap);
@@ -402,12 +417,12 @@ export default function PlayerDashboard() {
 
   // Split bookings into upcoming and past
   const now = new Date();
-  const upcoming = bookings.filter((booking) =>
-    isActiveFutureBooking(booking, now)
-  );
-  const past = bookings.filter((booking) =>
-    isPastOrInactiveBooking(booking, now)
-  );
+  const upcoming = bookings
+    .filter((booking) => isActiveFutureBooking(booking, now))
+    .sort(sortBookingsAscending);
+  const past = bookings
+    .filter((booking) => isPastOrInactiveBooking(booking, now))
+    .sort(sortBookingsDescending);
   const upcomingConfirmedCount = upcoming.filter(
     (b) => b.status === "confirmed"
   ).length;
@@ -498,10 +513,14 @@ export default function PlayerDashboard() {
                     {upcoming.map((booking) => {
                       const court = courts[booking.courtId];
                       const courtName = getCourtName(booking);
+                      const timeRemaining =
+                        booking.status === "pending"
+                          ? formatPendingBookingTimeRemaining(booking, clockNow)
+                          : null;
                       return (
                         <div
                           key={booking.id}
-                          className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_auto]"
+                          className="grid gap-4 bg-gradient-to-r from-white via-white to-emerald-50/40 p-5 lg:grid-cols-[minmax(0,1fr)_auto]"
                         >
                           <div className="flex min-w-0 gap-4">
                             <div className="relative h-20 w-24 flex-shrink-0 overflow-hidden rounded-[24px] bg-slate-100">
@@ -542,6 +561,11 @@ export default function PlayerDashboard() {
                                   <User className="mr-1.5 h-4 w-4 text-slate-400" />
                                   Hosted by {getCourtOwnerName(booking)}
                                 </span>
+                                {timeRemaining && (
+                                  <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                                    Host has {timeRemaining}
+                                  </span>
+                                )}
                               </div>
                               {court?.address && booking.status === "confirmed" && (
                                 <div className="mt-2 text-sm">

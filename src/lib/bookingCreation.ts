@@ -91,6 +91,7 @@ export async function createBookingFromPaidCheckoutSession(
     db.collection("users").doc(metadata.userId).get(),
     db.collection("users").doc(courtData.ownerId || metadata.ownerId).get(),
   ]);
+  const ownerId = courtData.ownerId || metadata.ownerId;
   const playerName = getDisplayName(playerDoc.data());
   const ownerName = getDisplayName(ownerDoc.data());
 
@@ -143,6 +144,7 @@ export async function createBookingFromPaidCheckoutSession(
 
   const bookingData = {
     courtId: metadata.courtId,
+    ownerId,
     userId: metadata.userId,
     date: metadata.date,
     time: metadata.time,
@@ -161,6 +163,13 @@ export async function createBookingFromPaidCheckoutSession(
     courtShareFeeCents: priceBreakdown.courtShareFeeCents,
     processingFeeCents: priceBreakdown.processingFeeCents,
     applicationFeeCents: priceBreakdown.applicationFeeCents,
+    transferToOwner: metadata.transferToOwner === "true",
+    hostPayoutMode: metadata.hostPayoutMode || "platform_hold",
+    hostPayoutStatus:
+      metadata.transferToOwner === "true"
+        ? "destination_charge_pending_capture"
+        : "pending_connect_account",
+    stripeConnectAccountId: metadata.stripeConnectAccountId || null,
   };
 
   const bookingRef = await db.collection("bookings").add(bookingData);
@@ -170,7 +179,7 @@ export async function createBookingFromPaidCheckoutSession(
     courtName: courtData.name,
     playerId: metadata.userId,
     playerName,
-    ownerId: courtData.ownerId || metadata.ownerId,
+    ownerId,
     ownerName,
     date: metadata.date,
     time: metadata.time,

@@ -88,19 +88,19 @@ export default function HomePage() {
           )}
           {error && <p className="text-center text-red-500 mt-8">{error}</p>}
           <section className="mt-8 mb-8">
-            <div className="flex items-center justify-center gap-4">
+            <h2 className="text-center text-4xl font-black tracking-tight text-gray-900">
+              Featured Courts
+            </h2>
+            <div className="relative mt-8">
               <button
                 type="button"
                 onClick={() => scrollGalleryTo(activeCourtIndex - 1)}
                 disabled={activeCourtIndex === 0 || filteredCourts.length === 0}
-                className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-[var(--site-accent)] hover:text-[var(--site-accent)] disabled:cursor-not-allowed disabled:opacity-40"
+                className="absolute left-2 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-700 shadow-lg backdrop-blur transition hover:border-[var(--site-accent)] hover:text-[var(--site-accent)] disabled:cursor-not-allowed disabled:opacity-40 md:-left-4"
                 aria-label="Previous featured court"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
-              <h2 className="text-center text-4xl font-black tracking-tight text-gray-900">
-                Featured Courts
-              </h2>
               <button
                 type="button"
                 onClick={() => scrollGalleryTo(activeCourtIndex + 1)}
@@ -108,26 +108,26 @@ export default function HomePage() {
                   filteredCourts.length === 0 ||
                   activeCourtIndex >= filteredCourts.length - 1
                 }
-                className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-[var(--site-accent)] hover:text-[var(--site-accent)] disabled:cursor-not-allowed disabled:opacity-40"
+                className="absolute right-2 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-700 shadow-lg backdrop-blur transition hover:border-[var(--site-accent)] hover:text-[var(--site-accent)] disabled:cursor-not-allowed disabled:opacity-40 md:-right-4"
                 aria-label="Next featured court"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
-            </div>
-            <div
-              ref={galleryRef}
-              onScroll={updateActiveGalleryDot}
-              className="mt-8 flex snap-x snap-mandatory gap-8 overflow-x-auto scroll-smooth pb-4"
-            >
-              {filteredCourts.map((court, index) => (
-                <div
-                  key={court.id}
-                  className="w-[min(86vw,360px)] shrink-0 snap-start md:w-[380px]"
-                  aria-label={`Featured court ${index + 1} of ${filteredCourts.length}`}
-                >
-                  <CourtCard court={toCourtCardModel(court)} />
-                </div>
-              ))}
+              <div
+                ref={galleryRef}
+                onScroll={updateActiveGalleryDot}
+                className="flex snap-x snap-mandatory gap-8 overflow-x-auto scroll-smooth pb-4"
+              >
+                {filteredCourts.map((court, index) => (
+                  <div
+                    key={court.id}
+                    className="w-[min(86vw,360px)] shrink-0 snap-start md:w-[380px]"
+                    aria-label={`Featured court ${index + 1} of ${filteredCourts.length}`}
+                  >
+                    <CourtCard court={toCourtCardModel(court)} />
+                  </div>
+                ))}
+              </div>
             </div>
             {filteredCourts.length > 0 && (
               <div className="mt-4 flex justify-center gap-2">

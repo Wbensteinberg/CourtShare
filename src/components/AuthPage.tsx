@@ -21,8 +21,6 @@ const authCopy = {
   "sign-in": {
     title: "Welcome Back",
     subtitle: "Sign-in to access your bookings, messages, and listings.",
-    helper:
-      "CourtShare uses Google sign-in so every player and host starts with a trusted account identity. If Google does not provide a name, we will ask you to complete your profile.",
     footerLead: "Don't have an account?",
     footerAction: "Sign up here.",
     footerHref: "/sign-up",
@@ -31,8 +29,6 @@ const authCopy = {
   "sign-up": {
     title: "Join CourtShare",
     subtitle: "Sign-up to start booking courts or hosting your own.",
-    helper:
-      "CourtShare uses Google sign-up so every player and host starts with a trusted account identity. If Google does not provide a name, we will ask you to complete your profile.",
     footerLead: "Already have an account?",
     footerAction: "Sign in here.",
     footerHref: "/sign-in",
@@ -169,10 +165,6 @@ function AuthForm({ mode }: { mode: AuthMode }) {
                   </Link>
                   .
                 </p>
-              </div>
-
-              <div className="rounded-2xl bg-slate-50 p-4 text-center text-xs leading-5 text-slate-500">
-                {copy.helper}
               </div>
 
               <div className="border-t border-gray-100 pt-3 text-center">

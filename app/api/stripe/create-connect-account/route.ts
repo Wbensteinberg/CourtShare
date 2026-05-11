@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb, adminAuth } from "@/lib/firebase-admin";
+import {
+  getStripeAccountIdForMode,
+  getStripeAccountWriteFields,
+  getStripeMode,
+} from "@/lib/stripeConnectAccounts";
 import { checkRateLimit } from "../../rate-limit";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -101,30 +106,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if user already has a Stripe account
+    const stripeMode = getStripeMode();
+
+    // Check if user already has a Stripe account for the current Stripe mode.
     const userDoc = await adminDb.collection("users").doc(userId).get();
     let userData = userDoc.data();
+    let selectedAccount = getStripeAccountIdForMode(userData, stripeMode);
 
     let existingAccount: Stripe.Account | null = null;
-    if (userData?.stripeAccountId) {
+    if (selectedAccount.accountId) {
       try {
-        existingAccount = await stripe.accounts.retrieve(
-          userData.stripeAccountId
-        );
+        existingAccount = await stripe.accounts.retrieve(selectedAccount.accountId);
       } catch (retrieveErr: unknown) {
         if (isStripeConnectAccountMissing(retrieveErr)) {
           console.warn(
-            "[CONNECT] Clearing stale stripeAccountId (wrong mode or deleted):",
-            userData.stripeAccountId
+            `[CONNECT] Stripe account ${selectedAccount.accountId} is not accessible with ${stripeMode} keys`
           );
-          await adminDb
-            .collection("users")
-            .doc(userId)
-            .update({
-              stripeAccountId: FieldValue.delete(),
-              stripeAccountStatus: FieldValue.delete(),
-              payoutEnabled: FieldValue.delete(),
-            });
+          if (!selectedAccount.isLegacy && selectedAccount.source) {
+            await adminDb
+              .collection("users")
+              .doc(userId)
+              .update({
+                [selectedAccount.source]: FieldValue.delete(),
+                stripeAccountStatus: FieldValue.delete(),
+                payoutEnabled: FieldValue.delete(),
+              });
+          }
         } else {
           throw retrieveErr;
         }
@@ -135,11 +142,15 @@ export async function POST(req: NextRequest) {
       const account = existingAccount;
       // Check if this is an update request (from request body)
       const isUpdate = requestBody.update === true;
+      const accountReady =
+        account.details_submitted &&
+        account.charges_enabled &&
+        account.payouts_enabled;
 
-      // If account needs onboarding, create account link
-      if (!account.details_submitted) {
+      // If account needs onboarding or has outstanding requirements, send the host back to Stripe onboarding.
+      if (!accountReady) {
         console.log(
-          "[CONNECT] Account needs onboarding, creating account link"
+          "[CONNECT] Account needs onboarding or requirements, creating account link"
         );
         const accountLink = await stripe.accountLinks.create({
           account: account.id,
@@ -151,7 +162,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           accountId: account.id,
           onboardingUrl: accountLink.url,
-          status: "pending",
+          status: account.details_submitted ? "restricted" : "pending",
           requirementsCurrentlyDue: account.requirements?.currently_due || [],
           requirementsPastDue: account.requirements?.past_due || [],
           requirementsEventuallyDue: account.requirements?.eventually_due || [],
@@ -213,6 +224,13 @@ export async function POST(req: NextRequest) {
       type: "express",
       country: "US", // Change based on your needs
       email: userData?.email,
+      business_type: "individual",
+      business_profile: {
+        mcc: "7999",
+        url: "https://courtshare.co",
+        product_description:
+          "Court hosts rent tennis court time to players through CourtShare.",
+      },
       capabilities: {
         card_payments: { requested: true },
         transfers: { requested: true },
@@ -221,10 +239,11 @@ export async function POST(req: NextRequest) {
 
     console.log("[CONNECT] Successfully created account:", account.id);
 
-    // Save account ID to Firestore
+    // Save mode-specific account ID to Firestore so local test mode and production live mode do not overwrite each other.
     await adminDb.collection("users").doc(userId).update({
-      stripeAccountId: account.id,
+      ...getStripeAccountWriteFields(account.id, stripeMode),
       stripeAccountStatus: "pending",
+      stripeAccountMode: stripeMode,
     });
 
     // Create account link for onboarding

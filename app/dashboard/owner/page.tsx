@@ -19,6 +19,7 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Building2,
   ChevronDown,
@@ -58,6 +59,7 @@ import {
   deleteMockCourt,
   getMockBookingsForOwner,
   getMockCourts,
+  getMockProfile,
   getMockReviewsForUser,
   getMockUserDisplayName,
   updateMockBooking,
@@ -65,6 +67,7 @@ import {
 } from "@/lib/mockData";
 import {
   formatBookingDateWithDay,
+  formatPendingBookingTimeRemaining,
   isPastOrInactiveBooking,
   isActionablePendingBooking,
   isBookingReviewable,
@@ -123,11 +126,17 @@ const getProfileDisplayName = (
   return displayName || name || emailPrefix || fallback;
 };
 
+type BookingUserSummary = {
+  displayName: string;
+  profileImageUrl?: string;
+};
+
 export default function OwnerDashboard() {
   const { user, loading: authLoading } = useAuth();
   const [courts, setCourts] = useState<Court[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [bookingUsers, setBookingUsers] = useState<Record<string, string>>({});
+  const [bookingUsers, setBookingUsers] = useState<Record<string, BookingUserSummary>>({});
+  const [clockNow, setClockNow] = useState(() => new Date());
   const [reviewedBookingIds, setReviewedBookingIds] = useState<Set<string>>(
     new Set()
   );
@@ -152,6 +161,7 @@ export default function OwnerDashboard() {
     chargesEnabled?: boolean;
     payoutsEnabled?: boolean;
     detailsSubmitted?: boolean;
+    mode?: "test" | "live";
     requirementsCurrentlyDue?: string[];
     requirementsPastDue?: string[];
     requirementsEventuallyDue?: string[];
@@ -166,6 +176,11 @@ export default function OwnerDashboard() {
       router.push("/");
     }
   }, [user, authLoading, router]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setClockNow(new Date()), 30000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const loadReviewedBookings = async (bookingsData: Booking[]) => {
     if (!user || bookingsData.length === 0) {
@@ -287,11 +302,23 @@ export default function OwnerDashboard() {
             if (isMockMode) {
               setBookingUsers(
                 Object.fromEntries(
-                  uniqueUserIds.map((userId) => [userId, getMockUserDisplayName(userId)])
+                  uniqueUserIds.map((userId) => {
+                    const profile = getMockProfile(userId);
+                    return [
+                      userId,
+                      {
+                        displayName:
+                          getProfileDisplayName(profile || undefined, "Player") ||
+                          getMockUserDisplayName(userId) ||
+                          "Player",
+                        profileImageUrl: profile?.profileImageUrl,
+                      },
+                    ];
+                  })
                 )
               );
             } else {
-              const userEntries = await Promise.allSettled(
+              const userEntries = await Promise.allSettled<readonly [string, BookingUserSummary]>(
                 uniqueUserIds.map(async (userId) => {
                   const res = await fetch(
                     `/api/public-profiles/${encodeURIComponent(userId)}`
@@ -301,14 +328,17 @@ export default function OwnerDashboard() {
                     throw new Error(data.error || "Failed to load player");
                   }
                   const displayName = getProfileDisplayName(data.profile, "Player");
-                  return [userId, displayName] as const;
+                  return [
+                    userId,
+                    {
+                      displayName,
+                      profileImageUrl: data.profile?.profileImageUrl,
+                    },
+                  ] as const;
                 })
               );
               const resolvedEntries = userEntries
-                .filter(
-                  (entry): entry is PromiseFulfilledResult<readonly [string, string]> =>
-                    entry.status === "fulfilled"
-                )
+                .filter((entry) => entry.status === "fulfilled")
                 .map((entry) => entry.value);
               setBookingUsers(Object.fromEntries(resolvedEntries));
             }
@@ -709,7 +739,13 @@ export default function OwnerDashboard() {
   };
 
   const getBookingPlayerName = (booking: Booking) =>
-    bookingUsers[booking.userId] || "Player";
+    bookingUsers[booking.userId]?.displayName || "Player";
+
+  const getBookingPlayerImage = (booking: Booking) =>
+    bookingUsers[booking.userId]?.profileImageUrl || "";
+
+  const getBookingPlayerInitial = (booking: Booking) =>
+    getBookingPlayerName(booking).trim().charAt(0).toUpperCase() || "P";
 
   const getBookingCourtName = (booking: Booking) =>
     courtsById[booking.courtId]?.name || "Court unavailable";
@@ -830,11 +866,17 @@ export default function OwnerDashboard() {
     const court = courtsById[booking.courtId];
     return (
       sum +
-      (typeof booking.totalAmountCents === "number"
-        ? booking.totalAmountCents / 100
+      (typeof booking.ownerAmountCents === "number"
+        ? booking.ownerAmountCents / 100
         : (court?.price || 0) * booking.duration)
     );
   }, 0);
+  const bookingUserNames = Object.fromEntries(
+    Object.entries(bookingUsers).map(([userId, profile]) => [
+      userId,
+      profile.displayName,
+    ])
+  );
   const payoutStatusLabel = checkingStripe
     ? "Checking"
     : !stripeAccountStatus?.hasAccount
@@ -926,18 +968,27 @@ export default function OwnerDashboard() {
                     </Badge>
                   </div>
                   <p className="mt-1 text-sm text-slate-600">
-                    Manage your Stripe Express account, payout bank account,
-                    tax details, balances, and payout timing.
-                  </p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    {payoutStatusDescription}
+                    Manage payout details, balances, and timing in Stripe Express.
                   </p>
                   {stripeAccountStatus?.hasAccount && (
-                    <p className="mt-2 text-xs text-slate-500">
-                      Account {stripeAccountStatus.accountId}
+                    <p className="mt-1 text-sm text-slate-600">
                       {stripeAccountStatus.payoutsEnabled
-                        ? " can receive payouts."
-                        : " still needs payout setup."}
+                        ? `Stripe Express is connected${
+                            stripeAccountStatus.mode === "test"
+                              ? " in test mode"
+                              : ""
+                          } and can receive payouts.`
+                        : `Stripe Express is connected${
+                            stripeAccountStatus.mode === "test"
+                              ? " in test mode"
+                              : ""
+                          }, but still needs payout setup.`}
+                    </p>
+                  )}
+                  {(!stripeAccountStatus?.hasAccount ||
+                    !stripeAccountStatus.payoutsEnabled) && (
+                    <p className="mt-1 text-sm text-slate-600">
+                      {payoutStatusDescription}
                     </p>
                   )}
                   {stripeAccountStatus?.disabledReason && (
@@ -1120,7 +1171,7 @@ export default function OwnerDashboard() {
                                           court.maxAdvanceBookingDays
                                         }
                                         bookings={courtBookings}
-                                        bookingUsers={bookingUsers}
+                                        bookingUsers={bookingUserNames}
                                         onBlockedTimesUpdate={(blockedTimes) =>
                                           handleBlockedTimesUpdate(
                                             court.id,
@@ -1165,7 +1216,7 @@ export default function OwnerDashboard() {
                                     court.maxAdvanceBookingDays
                                   }
                                   bookings={courtBookings}
-                                  bookingUsers={bookingUsers}
+                                  bookingUsers={bookingUserNames}
                                   onBlockedTimesUpdate={(blockedTimes) =>
                                     handleBlockedTimesUpdate(court.id, blockedTimes)
                                   }
@@ -1223,7 +1274,7 @@ export default function OwnerDashboard() {
                   variant="outline"
                   className="rounded-md border-amber-200 bg-amber-50 text-amber-700"
                 >
-                  {pendingBookings.length} pending
+                  {pendingBookings.length}
                 </Badge>
               </div>
               <ChevronDown className="h-5 w-5 text-slate-500 group-open:hidden" />
@@ -1239,20 +1290,35 @@ export default function OwnerDashboard() {
                 {pendingBookings.map((booking) => {
                   const court = courtsById[booking.courtId];
                   const courtName = getBookingCourtName(booking);
+                  const timeRemaining = formatPendingBookingTimeRemaining(
+                    booking,
+                    clockNow
+                  );
+                  const netAmount =
+                    typeof booking.ownerAmountCents === "number"
+                      ? booking.ownerAmountCents / 100
+                      : (court?.price || 0) * booking.duration;
                   return (
                     <div
                       key={booking.id}
-                      className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end"
+                      className="grid gap-4 bg-gradient-to-r from-amber-50/70 via-white to-emerald-50/50 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end"
                     >
-                      <div className="min-w-0">
-                        <div className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap">
-                          <h3 className="font-semibold text-slate-950">
-                            {courtName}
-                          </h3>
-                          <Badge variant="outline" className="rounded-md">
+                      <div className="flex min-w-0 gap-4">
+                        <Avatar className="h-12 w-12 border border-white shadow-sm">
+                          <AvatarImage
+                            src={getBookingPlayerImage(booking)}
+                            alt={getBookingPlayerName(booking)}
+                          />
+                          <AvatarFallback className="bg-emerald-100 font-semibold text-emerald-800">
+                            {getBookingPlayerInitial(booking)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-semibold text-slate-950">{courtName}</h3>
+                          <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700">
                             Court {booking.courtNumber || 1}
-                          </Badge>
-                          {getStatusBadge(booking.status)}
+                          </span>
                         </div>
                         <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
                           <span className="inline-flex items-center">
@@ -1265,14 +1331,19 @@ export default function OwnerDashboard() {
                           </span>
                         </div>
                         <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
-                          <span className="inline-flex items-center">
-                            <User className="mr-1.5 h-4 w-4 text-slate-400" />
+                          <span className="font-medium text-slate-700">
                             {getBookingPlayerName(booking)}
                           </span>
+                          {timeRemaining && (
+                            <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                              {timeRemaining}
+                            </span>
+                          )}
                           <span className="inline-flex items-center font-semibold text-emerald-700">
                             <Banknote className="mr-1.5 h-4 w-4" />
-                            ${((court?.price || 0) * booking.duration).toFixed(2)}
+                            ${netAmount.toFixed(2)} net
                           </span>
+                        </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 lg:justify-end lg:self-end">

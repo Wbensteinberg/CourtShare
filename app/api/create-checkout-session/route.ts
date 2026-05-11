@@ -3,6 +3,10 @@ import Stripe from "stripe";
 import { adminDb, adminAuth } from "@/lib/firebase-admin";
 import { isActionablePendingBooking } from "@/lib/bookingDates";
 import { calculateBookingPriceBreakdown } from "@/lib/pricing";
+import {
+  getStripeAccountIdForMode,
+  getStripeMode,
+} from "@/lib/stripeConnectAccounts";
 import { checkRateLimit } from "../rate-limit";
 
 type BookingStatusParts = Parameters<typeof isActionablePendingBooking>[0];
@@ -352,7 +356,11 @@ export async function POST(req: NextRequest) {
     // Get owner's Stripe account ID
     const ownerDoc = await adminDb.collection("users").doc(ownerId).get();
     const ownerData = ownerDoc.data();
-    const stripeAccountId = ownerData?.stripeAccountId;
+    const stripeMode = getStripeMode();
+    const { accountId: stripeAccountId } = getStripeAccountIdForMode(
+      ownerData,
+      stripeMode
+    );
 
     const priceBreakdown = calculateBookingPriceBreakdown(
       pricePerHour,
@@ -432,30 +440,57 @@ export async function POST(req: NextRequest) {
       cancel_url: `${req.nextUrl.origin}/courts/${courtId}`,
     };
 
-    if (!stripeAccountId) {
-      return NextResponse.json(
-        { error: "This host has not finished payout setup yet." },
-        { status: 409 }
+    let transferToOwner = false;
+    let hostPayoutMode = "platform_hold";
+    if (stripeAccountId) {
+      console.log(
+        `[CHECKOUT] Owner has ${stripeMode} Stripe Connect account: ${stripeAccountId}`
+      );
+      try {
+        const account = await stripe.accounts.retrieve(stripeAccountId);
+        if (
+          account.charges_enabled &&
+          account.payouts_enabled &&
+          account.details_submitted
+        ) {
+          transferToOwner = true;
+          hostPayoutMode = "destination_charge";
+        } else {
+          console.warn(
+            `[CHECKOUT] Owner ${ownerId} Stripe account not fully activated (charges_enabled: ${account.charges_enabled}, payouts_enabled: ${account.payouts_enabled}, details_submitted: ${account.details_submitted}); checkout will use platform-held funds`
+          );
+        }
+      } catch (err) {
+        console.error(
+          "[CHECKOUT] Unable to verify Stripe account; checkout will use platform-held funds:",
+          err
+        );
+      }
+    } else {
+      console.warn(
+        `[CHECKOUT] Owner ${ownerId} has no ${stripeMode} Stripe Connect account; checkout will use platform-held funds`
       );
     }
 
-    console.log(`[CHECKOUT] Owner has Stripe Connect account: ${stripeAccountId}`);
-    try {
-      const account = await stripe.accounts.retrieve(stripeAccountId);
-      if (
-        !account.charges_enabled ||
-        !account.payouts_enabled ||
-        !account.details_submitted
-      ) {
-        console.warn(
-          `[CHECKOUT] Owner ${ownerId} Stripe account not fully activated (charges_enabled: ${account.charges_enabled}, payouts_enabled: ${account.payouts_enabled}, details_submitted: ${account.details_submitted})`
-        );
-        return NextResponse.json(
-        { error: "This host's payout account is not ready yet." },
-          { status: 409 }
-        );
-      }
+    sessionParams.metadata = {
+      ...sessionParams.metadata,
+      transferToOwner: transferToOwner ? "true" : "false",
+      hostPayoutMode,
+      stripeConnectAccountId: transferToOwner ? stripeAccountId || "" : "",
+    };
 
+    sessionParams.payment_intent_data = {
+      ...sessionParams.payment_intent_data,
+      metadata: {
+        ...sessionParams.payment_intent_data?.metadata,
+        ownerId,
+        transferToOwner: transferToOwner ? "true" : "false",
+        hostPayoutMode,
+        stripeConnectAccountId: transferToOwner ? stripeAccountId || "" : "",
+      },
+    };
+
+    if (transferToOwner && stripeAccountId) {
       sessionParams.payment_intent_data = {
         ...sessionParams.payment_intent_data,
         application_fee_amount: applicationFeeCents,
@@ -464,17 +499,10 @@ export async function POST(req: NextRequest) {
         },
         metadata: {
           ...sessionParams.payment_intent_data?.metadata,
-          ownerId,
           transferToOwner: "true",
           stripeConnectAccountId: stripeAccountId,
         },
       };
-    } catch (err) {
-      console.error("[CHECKOUT] Error verifying Stripe account:", err);
-      return NextResponse.json(
-        { error: "Unable to verify this host's payout account." },
-        { status: 500 }
-      );
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams);

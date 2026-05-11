@@ -15,22 +15,20 @@ export function calculateBookingPriceBreakdown(
   pricePerHour: number,
   durationMinutes: number
 ): BookingPriceBreakdown {
-  const ownerAmountCents = Math.round(
+  const totalAmountCents = Math.round(
     (pricePerHour * 100 * durationMinutes) / 60
   );
   const courtShareFeeCents = Math.ceil(
-    ownerAmountCents * COURTSHARE_COMMISSION_RATE
+    totalAmountCents * COURTSHARE_COMMISSION_RATE
   );
-  const totalAmountCents = Math.ceil(
-    (ownerAmountCents +
-      courtShareFeeCents +
+  const processingFeeCents = Math.ceil(
+    totalAmountCents * STRIPE_US_CARD_PERCENT +
       STRIPE_US_CARD_FIXED_CENTS +
-      PLATFORM_FEE_BUFFER_CENTS) /
-      (1 - STRIPE_US_CARD_PERCENT)
+      PLATFORM_FEE_BUFFER_CENTS
   );
-  const processingFeeCents = Math.max(
+  const ownerAmountCents = Math.max(
     0,
-    totalAmountCents - ownerAmountCents - courtShareFeeCents
+    totalAmountCents - courtShareFeeCents - processingFeeCents
   );
 
   return {

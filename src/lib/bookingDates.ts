@@ -60,6 +60,45 @@ export const getBookingCreatedAtDate = (
   return null;
 };
 
+export const getPendingBookingExpiresAtDate = (
+  booking: {
+    createdAt?: Date | string | number | TimestampLike | null;
+    expiresAt?: Date | string | number | TimestampLike | null;
+  }
+): Date | null => {
+  const explicitExpiration = getBookingCreatedAtDate(booking.expiresAt);
+  if (explicitExpiration) return explicitExpiration;
+
+  const createdAt = getBookingCreatedAtDate(booking.createdAt);
+  if (!createdAt) return null;
+
+  return new Date(createdAt.getTime() + PENDING_BOOKING_ACCEPTANCE_WINDOW_MS);
+};
+
+export const formatPendingBookingTimeRemaining = (
+  booking: {
+    createdAt?: Date | string | number | TimestampLike | null;
+    expiresAt?: Date | string | number | TimestampLike | null;
+  },
+  now = new Date()
+): string | null => {
+  const expiresAt = getPendingBookingExpiresAtDate(booking);
+  if (!expiresAt) return null;
+
+  const remainingMs = expiresAt.getTime() - now.getTime();
+  if (remainingMs <= 0) return "Expired";
+
+  const totalMinutes = Math.ceil(remainingMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours >= 1) {
+    return `${hours}h ${minutes.toString().padStart(2, "0")}m left`;
+  }
+
+  return `${minutes}m left`;
+};
+
 export const isPendingBookingExpired = (
   booking: BookingDateParts & {
     status: string;

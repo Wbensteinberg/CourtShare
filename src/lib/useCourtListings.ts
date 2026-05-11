@@ -16,6 +16,8 @@ export interface CourtListing {
   latitude?: number;
   longitude?: number;
   distance?: number;
+  rating?: number;
+  reviewCount?: number;
 }
 
 export function useCourtListings(authLoading = false) {
@@ -95,8 +97,8 @@ export function toCourtCardModel(court: CourtListing) {
     name: court.name,
     location: court.location,
     price: court.price,
-    rating: 4.8,
-    reviewCount: 42,
+    rating: court.rating,
+    reviewCount: court.reviewCount || 0,
     image: court.imageUrl || "https://placehold.co/400x300?text=Tennis+Court",
     surface: "Hard Court",
     indoor: false,

@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminDb, adminAuth } from "@/lib/firebase-admin";
+import {
+  getStripeAccountIdForMode,
+  getStripeAccountWriteFields,
+  getStripeMode,
+} from "@/lib/stripeConnectAccounts";
+import { transferPlatformHeldBookingToHost } from "@/lib/stripeHostPayouts";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
@@ -70,33 +76,40 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get user's Stripe account ID from Firestore
+    const stripeMode = getStripeMode();
+
+    // Get user's Stripe account ID for the current Stripe mode from Firestore.
     const userDoc = await adminDb.collection("users").doc(userId).get();
     const userData = userDoc.data();
+    const selectedAccount = getStripeAccountIdForMode(userData, stripeMode);
 
-    if (!userData?.stripeAccountId) {
+    if (!selectedAccount.accountId) {
       return NextResponse.json({
         hasAccount: false,
         status: "none",
+        mode: stripeMode,
       });
     }
 
     let account: Stripe.Account;
     try {
-      account = await stripe.accounts.retrieve(userData.stripeAccountId);
+      account = await stripe.accounts.retrieve(selectedAccount.accountId);
     } catch (retrieveErr: unknown) {
       if (isStripeConnectAccountMissing(retrieveErr)) {
-        await adminDb
-          .collection("users")
-          .doc(userId)
-          .update({
-            stripeAccountId: FieldValue.delete(),
-            stripeAccountStatus: FieldValue.delete(),
-            payoutEnabled: FieldValue.delete(),
-          });
+        if (!selectedAccount.isLegacy && selectedAccount.source) {
+          await adminDb
+            .collection("users")
+            .doc(userId)
+            .update({
+              [selectedAccount.source]: FieldValue.delete(),
+              stripeAccountStatus: FieldValue.delete(),
+              payoutEnabled: FieldValue.delete(),
+            });
+        }
         return NextResponse.json({
           hasAccount: false,
           status: "none",
+          mode: stripeMode,
         });
       }
       throw retrieveErr;
@@ -113,13 +126,52 @@ export async function POST(req: NextRequest) {
       .collection("users")
       .doc(userId)
       .update({
+        ...getStripeAccountWriteFields(account.id, stripeMode),
         stripeAccountStatus: accountStatus,
+        stripeAccountMode: stripeMode,
         payoutEnabled: account.payouts_enabled || false,
       });
+
+    let processedPendingTransfers = 0;
+    if (accountStatus === "active") {
+      try {
+        const pendingTransfers = await adminDb
+          .collection("bookings")
+          .where("ownerId", "==", userId)
+          .where("paymentStatus", "==", "captured")
+          .where("hostPayoutStatus", "in", [
+            "pending_connect_account",
+            "transfer_failed",
+          ])
+          .limit(25)
+          .get();
+
+        for (const bookingDoc of pendingTransfers.docs) {
+          const paymentIntentId = String(bookingDoc.data().paymentIntentId || "");
+          if (!paymentIntentId) continue;
+          const result = await transferPlatformHeldBookingToHost({
+            stripe,
+            bookingRef: bookingDoc.ref,
+            bookingData: bookingDoc.data(),
+            ownerData: userData,
+            paymentIntentId,
+          });
+          if (result.status === "transferred") {
+            processedPendingTransfers += 1;
+          }
+        }
+      } catch (transferErr) {
+        console.warn(
+          "[CHECK ACCOUNT STATUS] Unable to process pending host transfers:",
+          transferErr
+        );
+      }
+    }
 
     return NextResponse.json({
       hasAccount: true,
       accountId: account.id,
+      mode: stripeMode,
       status: accountStatus,
       chargesEnabled: account.charges_enabled,
       payoutsEnabled: account.payouts_enabled,
@@ -128,6 +180,7 @@ export async function POST(req: NextRequest) {
       requirementsPastDue: account.requirements?.past_due || [],
       requirementsEventuallyDue: account.requirements?.eventually_due || [],
       disabledReason: account.requirements?.disabled_reason || null,
+      processedPendingTransfers,
     });
   } catch (err: any) {
     console.error("Error checking Stripe account status:", err);

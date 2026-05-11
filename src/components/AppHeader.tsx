@@ -202,7 +202,7 @@ export default function AppHeader() {
               variant="ghost"
               size="icon"
               className={cn(
-                "h-11 w-11 overflow-hidden rounded-full border p-0 transition-transform hover:scale-105 hover:bg-transparent",
+                "h-11 w-11 cursor-pointer overflow-hidden rounded-full border p-0 transition-transform hover:scale-105 hover:bg-transparent",
                 isLandingPage
                   ? "border-white/25 bg-white/10"
                   : "border-slate-200 bg-white"
@@ -228,7 +228,7 @@ export default function AppHeader() {
             variant="ghost"
             size="icon"
             className={cn(
-              "h-11 w-11 rounded-full border transition-colors",
+              "h-11 w-11 cursor-pointer rounded-full border transition-colors",
               user ? "md:flex" : "md:hidden",
               isLandingPage
                 ? "border-white/25 bg-white/10 text-white hover:bg-white/18 hover:text-white"
@@ -256,7 +256,7 @@ export default function AppHeader() {
                   key={link.path}
                   type="button"
                   onClick={() => closeAndGo(link.path)}
-                  className="flex items-center gap-4 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition-colors hover:bg-slate-100 hover:text-slate-950"
+                  className="flex cursor-pointer items-center gap-4 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition-colors hover:bg-slate-100 hover:text-slate-950"
                 >
                   <Icon className="h-5 w-5 text-slate-800" />
                   {link.label}
@@ -268,7 +268,7 @@ export default function AppHeader() {
                   <button
                     type="button"
                     onClick={() => closeAndGo("/create-listing")}
-                    className="flex items-center justify-between rounded-2xl px-4 py-4 text-left transition-colors hover:bg-slate-100"
+                    className="flex cursor-pointer items-center justify-between rounded-2xl px-4 py-4 text-left transition-colors hover:bg-slate-100"
                   >
                     <span>
                       <span className="block text-base font-bold text-slate-950">
@@ -289,7 +289,7 @@ export default function AppHeader() {
                 type="button"
                 onClick={handleLogout}
                 disabled={loggingOut}
-                className="flex items-center gap-4 rounded-2xl px-4 py-3 text-left text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 disabled:opacity-60"
+                className="flex cursor-pointer items-center gap-4 rounded-2xl px-4 py-3 text-left text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <LogOut className="h-5 w-5" />
                 {loggingOut ? "Logging out..." : "Log out"}
