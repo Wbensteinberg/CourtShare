@@ -29,6 +29,12 @@ interface AddressAutocompleteProps {
   className?: string;
   label?: string;
   labelClassName?: string;
+  /** When false, omit the map pin and left padding for inline / pill search bars */
+  showMapPin?: boolean;
+  /** Externally control whether the suggestions dropdown can be visible */
+  active?: boolean;
+  /** Notify parent that this field wants to be the active (open) dropdown */
+  onActiveChange?: (active: boolean) => void;
 }
 
 const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
@@ -38,6 +44,9 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   className = "",
   label = "Address",
   labelClassName = "",
+  showMapPin = true,
+  active,
+  onActiveChange,
 }) => {
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -189,6 +198,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   };
 
   const handleInputFocus = () => {
+    onActiveChange?.(true);
     if (suggestions.length > 0) {
       setShowSuggestions(true);
     }
@@ -198,8 +208,16 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     // Delay hiding suggestions to allow for clicks
     setTimeout(() => {
       setShowSuggestions(false);
+      onActiveChange?.(false);
     }, 200);
   };
+
+  // Hide suggestions if the parent says we're no longer the active dropdown
+  useEffect(() => {
+    if (active === false) {
+      setShowSuggestions(false);
+    }
+  }, [active]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -218,7 +236,9 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
         </label>
       )}
       <div className="relative">
-        <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        {showMapPin && (
+          <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        )}
         <Input
           ref={inputRef}
           type="text"
@@ -227,7 +247,7 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
           onFocus={handleInputFocus}
           onBlur={handleInputBlur}
           placeholder={placeholder}
-          className={`pl-10 ${className}`}
+          className={showMapPin ? `pl-10 ${className}` : className}
         />
         {isLoading && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -237,21 +257,23 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       </div>
 
       {/* Suggestions Dropdown */}
-      {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-          {suggestions.map((suggestion, index) => (
-            <div
+      {active !== false && showSuggestions && suggestions.length > 0 && (
+        <div className="absolute left-0 right-0 z-[70] mt-3 max-h-72 overflow-y-auto rounded-3xl border border-slate-100 bg-white p-2 shadow-[0_24px_60px_-15px_rgba(15,23,42,0.28)]">
+          {suggestions.map((suggestion) => (
+            <button
+              type="button"
               key={suggestion.place_id}
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleSuggestionClick(suggestion)}
-              className="px-4 py-3 hover:bg-green-50 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors"
+              className="block w-full cursor-pointer rounded-2xl px-4 py-3 text-left transition-colors hover:bg-slate-50"
             >
-              <div className="font-medium text-gray-900">
+              <div className="font-semibold text-slate-900">
                 {suggestion.structured_formatting.main_text}
               </div>
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-slate-500">
                 {suggestion.structured_formatting.secondary_text}
               </div>
-            </div>
+            </button>
           ))}
         </div>
       )}

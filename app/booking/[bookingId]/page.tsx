@@ -36,6 +36,7 @@ interface Booking {
   time: string;
   duration: number;
   status: string;
+  cancelReason?: string;
   createdAt: any;
   sessionId: string;
 }
@@ -61,10 +62,15 @@ export default function BookingDetailsPage() {
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    if (!bookingId || !user) return;
+    if (!authLoading && !user) {
+      router.replace("/");
+      return;
+    }
+
+    if (!bookingId || authLoading || !user) return;
 
     const fetchBooking = async () => {
       setLoading(true);
@@ -130,7 +136,7 @@ export default function BookingDetailsPage() {
     };
 
     fetchBooking();
-  }, [bookingId, user]);
+  }, [authLoading, bookingId, router, user]);
 
   const canCancelBooking = (): boolean => {
     return booking ? isBookingCancellable(booking) : false;
@@ -150,7 +156,10 @@ export default function BookingDetailsPage() {
     setCancelling(true);
     try {
       if (isMockMode) {
-        await updateMockBooking(booking.id, { status: "cancelled" });
+        await updateMockBooking(booking.id, {
+          status: "cancelled",
+          cancelReason: "player_cancellation",
+        });
       } else {
         const idToken = await user.getIdToken();
         const res = await fetch("/api/cancel-booking", {
@@ -166,7 +175,7 @@ export default function BookingDetailsPage() {
           throw new Error(data.error || "Failed to cancel booking");
         }
       }
-      router.push("/dashboard/player");
+      router.push("/upcoming");
     } catch (err: any) {
       alert(err.message || "Failed to cancel booking");
     } finally {
@@ -191,6 +200,10 @@ export default function BookingDetailsPage() {
         return <Badge variant="destructive">Rejected</Badge>;
       case "cancelled":
         return <Badge variant="destructive">Cancelled</Badge>;
+      case "completed":
+        return <Badge className="bg-slate-900 text-white">Completed</Badge>;
+      case "expired":
+        return <Badge variant="outline">Expired</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -217,10 +230,10 @@ export default function BookingDetailsPage() {
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Error</h2>
           <p className="text-gray-600 mb-6">{error}</p>
           <Button
-            onClick={() => router.push("/dashboard/player")}
+            onClick={() => router.push("/upcoming")}
             className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold py-4 px-8 rounded-2xl shadow-xl hover:shadow-glow-hover transition-all duration-300 transform hover:scale-105 hover:cursor-pointer"
           >
-            Back to Dashboard
+            Back to Upcoming
           </Button>
         </div>
       </div>
@@ -239,10 +252,10 @@ export default function BookingDetailsPage() {
             The booking you're looking for doesn't exist.
           </p>
           <Button
-            onClick={() => router.push("/dashboard/player")}
+            onClick={() => router.push("/upcoming")}
             className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold py-4 px-8 rounded-2xl shadow-xl hover:shadow-glow-hover transition-all duration-300 transform hover:scale-105 hover:cursor-pointer"
           >
-            Back to Dashboard
+            Back to Upcoming
           </Button>
         </div>
       </div>
@@ -251,6 +264,14 @@ export default function BookingDetailsPage() {
 
   const isConfirmed = booking.status === "confirmed";
   const isPending = booking.status === "pending";
+  const knownStatuses = [
+    "confirmed",
+    "pending",
+    "completed",
+    "rejected",
+    "cancelled",
+    "expired",
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/20">
@@ -270,16 +291,20 @@ export default function BookingDetailsPage() {
             <h1 className="text-4xl md:text-5xl font-black tracking-tight">
               {isConfirmed && "You're all set"}
               {isPending && "Booking requested"}
+              {booking.status === "completed" && "Booking completed"}
               {booking.status === "rejected" && "Booking declined"}
               {booking.status === "cancelled" && "Booking cancelled"}
-              {!["confirmed", "pending", "rejected", "cancelled"].includes(booking.status) && "Booking details"}
+              {booking.status === "expired" && "Booking expired"}
+              {!knownStatuses.includes(booking.status) && "Booking details"}
             </h1>
             <p className="text-base md:text-lg text-white/90 max-w-xl mx-auto font-medium mt-2">
               {isConfirmed && "Court address and instructions are below. See you on the court."}
-              {isPending && "The court owner will confirm your request soon. We'll notify you."}
-              {booking.status === "rejected" && "The owner was unable to accommodate this time."}
+              {isPending && "The court host will confirm your request soon. We'll notify you."}
+              {booking.status === "completed" && "This reservation has been completed."}
+              {booking.status === "rejected" && "The host was unable to accommodate this time."}
               {booking.status === "cancelled" && "This booking is no longer active."}
-              {!["confirmed", "pending", "rejected", "cancelled"].includes(booking.status) && "View your booking information below."}
+              {booking.status === "expired" && "The host did not accept this request in time."}
+              {!knownStatuses.includes(booking.status) && "View your booking information below."}
             </p>
           </div>
         </div>
@@ -354,6 +379,16 @@ export default function BookingDetailsPage() {
                     </p>
                   </div>
                 </div>
+                {booking.cancelReason && (
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                      Cancel reason
+                    </p>
+                    <p className="mt-1 font-medium text-slate-900">
+                      {booking.cancelReason}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Address - only when confirmed */}
@@ -395,12 +430,12 @@ export default function BookingDetailsPage() {
               {/* Actions */}
               <div className="pt-4 flex flex-col-reverse sm:flex-row gap-3">
                 <Button
-                  onClick={() => router.push("/dashboard/player")}
+                  onClick={() => router.push("/upcoming")}
                   variant="outline"
                   className="flex-1 h-12 font-semibold rounded-xl border-gray-200 hover:bg-gray-50 text-gray-700"
                 >
                   <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back to dashboard
+                  Back to upcoming
                 </Button>
                 {booking.status !== "cancelled" && canCancelBooking() && (
                   <Button
@@ -436,14 +471,6 @@ export default function BookingDetailsPage() {
         </div>
       </section>
 
-      {/* Footer - match /courts */}
-      <footer className="bg-slate-900 text-white py-12 mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-slate-400 text-sm">
-            © {new Date().getFullYear()} CourtShare. All rights reserved.
-          </p>
-        </div>
-      </footer>
     </div>
   );
 }

@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     const courtData = courtDoc.exists ? courtDoc.data() : null;
     if (!courtData || courtData.ownerId !== ownerId) {
       return NextResponse.json(
-        { error: "Only the court owner can accept this booking" },
+        { error: "Only the court host can accept this booking" },
         { status: 403 }
       );
     }

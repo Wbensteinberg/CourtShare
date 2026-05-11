@@ -1,6 +1,6 @@
 const HeroSection = () => {
   return (
-    <section className="relative overflow-hidden w-full min-h-[700px] text-white">
+    <section className="relative overflow-hidden w-full min-h-[760px] text-white">
       <video
         className="absolute inset-0 h-full w-full object-cover"
         autoPlay

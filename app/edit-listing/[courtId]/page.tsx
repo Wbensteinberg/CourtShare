@@ -90,7 +90,7 @@ export default function EditListingPage() {
   const [deletingListing, setDeletingListing] = useState(false);
   
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const form = useForm<CourtFormData>({
     defaultValues: {
@@ -102,6 +102,12 @@ export default function EditListingPage() {
       description: ""
     }
   });
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/");
+    }
+  }, [authLoading, router, user]);
 
   useEffect(() => {
     if (!courtId || !user) return;
@@ -234,7 +240,7 @@ export default function EditListingPage() {
       } else {
         await deleteDoc(doc(db, "courts", courtId));
       }
-      router.push("/dashboard/owner");
+      router.push("/host");
     } catch (err: any) {
       setError(err.message || "Failed to delete listing");
     } finally {
@@ -376,9 +382,9 @@ export default function EditListingPage() {
       
       setSuccess(true);
       
-      // Redirect to owner dashboard after a short delay
+      // Redirect to host dashboard after a short delay
       setTimeout(() => {
-        router.push("/dashboard/owner");
+        router.push("/host");
       }, 2000);
       
     } catch (err: any) {
@@ -407,7 +413,7 @@ export default function EditListingPage() {
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Error</h2>
           <p className="text-gray-600 mb-6">{error}</p>
           <button
-            onClick={() => router.push("/dashboard/owner")}
+            onClick={() => router.push("/host")}
             className="bg-primary text-white py-3 px-6 rounded-lg font-semibold hover:bg-primary transition hover:cursor-pointer"
           >
             Back to Dashboard
@@ -425,7 +431,7 @@ export default function EditListingPage() {
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Court Not Found</h2>
           <p className="text-gray-600 mb-6">The court you're looking for doesn't exist.</p>
           <button
-            onClick={() => router.push("/dashboard/owner")}
+            onClick={() => router.push("/host")}
             className="bg-primary text-white py-3 px-6 rounded-lg font-semibold hover:bg-primary transition hover:cursor-pointer"
           >
             Back to Dashboard
@@ -981,7 +987,7 @@ export default function EditListingPage() {
                       <div className="flex gap-4">
                         <Button 
                           type="button"
-                          onClick={() => router.push("/dashboard/owner")}
+                          onClick={() => router.push("/host")}
                           className="flex-1 h-14 text-lg font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
                         >
                           Back
@@ -1048,14 +1054,6 @@ export default function EditListingPage() {
         </div>
       </section>
       
-      {/* Dark Gray Footer Section - Same as /courts page */}
-      <div className="w-full bg-slate-900 py-16 mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-slate-400 text-sm">
-            © 2025 CourtShare. All rights reserved.
-          </p>
-        </div>
-      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import AuthPage from "@/components/AuthPage";
 
-export default function LoginPage() {
+export default function SignInPage() {
   return <AuthPage mode="sign-in" />;
 }

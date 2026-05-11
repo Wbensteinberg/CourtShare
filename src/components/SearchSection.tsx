@@ -1,75 +1,87 @@
 import { useState, useRef, useEffect } from "react";
-import type { MutableRefObject } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Search,
-  MapPin,
-  Calendar,
-  Clock,
-  Filter,
-  X,
-  Navigation,
-  Trophy,
-} from "lucide-react";
+import * as SelectPrimitive from "@radix-ui/react-select";
+import { Check, Search } from "lucide-react";
 import ReactDatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import type { Coordinates } from "@/lib/geolocation";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 
+type SearchDropdown = "where" | "within" | "date" | "time" | null;
+
+const searchSelectItemClass =
+  "relative flex w-full cursor-pointer select-none items-center justify-between gap-3 rounded-2xl px-4 py-3 font-medium text-slate-700 outline-none transition-colors focus:bg-slate-50 focus:text-slate-900 data-[state=checked]:bg-slate-50 data-[state=checked]:text-slate-900 data-[disabled]:pointer-events-none data-[disabled]:opacity-50";
+
+function SearchSelectItem({
+  value,
+  children,
+}: {
+  value: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <SelectPrimitive.Item value={value} className={searchSelectItemClass}>
+      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      <SelectPrimitive.ItemIndicator className="flex h-4 w-4 shrink-0 items-center justify-center text-[var(--site-accent)]">
+        <Check className="h-4 w-4" />
+      </SelectPrimitive.ItemIndicator>
+    </SelectPrimitive.Item>
+  );
+}
+
 interface SearchSectionProps {
   onLocationChange?: (location: string, coords: Coordinates | null) => void;
   onDistanceChange?: (distance: number | null) => void;
+  initialLocation?: string;
+  initialDistance?: string;
+  initialTime?: string;
+  initialDate?: string;
+  overlapHero?: boolean;
 }
 
 const SearchSection = ({
   onLocationChange,
   onDistanceChange,
+  initialLocation = "",
+  initialDistance = "10",
+  initialTime = "anytime",
+  initialDate,
+  overlapHero = true,
 }: SearchSectionProps) => {
-  const [location, setLocation] = useState("");
+  const router = useRouter();
+  const [location, setLocation] = useState(initialLocation);
   const [date, setDate] = useState<Date | null>(() => {
+    if (initialDate) {
+      const parsedDate = new Date(`${initialDate}T00:00:00`);
+      if (!Number.isNaN(parsedDate.getTime())) {
+        return parsedDate;
+      }
+    }
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     return tomorrow;
   });
   const datePickerRef = useRef<any>(null);
-  const [time, setTime] = useState("anytime");
-  const [activeFilters, setActiveFilters] = useState<string[]>([]);
-  const [distanceFilter, setDistanceFilter] = useState<string>("10");
+  const [time, setTime] = useState(initialTime);
+  const [distanceFilter, setDistanceFilter] = useState<string>(initialDistance);
+  const [activeDropdown, setActiveDropdown] = useState<SearchDropdown>(null);
+
+  const makeSelectHandler = (id: Exclude<SearchDropdown, null>) => (open: boolean) => {
+    setActiveDropdown((prev) => {
+      if (open) return id;
+      return prev === id ? null : prev;
+    });
+  };
   // const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
   // const [locationLoading, setLocationLoading] = useState(false);
   // const [locationError, setLocationError] = useState("");
-
-  const popularFilters = [
-    "Indoor Courts",
-    "Outdoor Courts",
-    "Hard Court",
-    "Clay Court",
-    "Under $50/hr",
-    "Parking Available",
-    "WiFi Available",
-  ];
-
-  const toggleFilter = (filter: string) => {
-    setActiveFilters((prev) =>
-      prev.includes(filter)
-        ? prev.filter((f) => f !== filter)
-        : [...prev, filter]
-    );
-  };
-
-  const removeFilter = (filter: string) => {
-    setActiveFilters((prev) => prev.filter((f) => f !== filter));
-  };
 
   // const handleGetCurrentLocation = async () => {
   //   setLocationLoading(true);
@@ -97,13 +109,6 @@ const SearchSection = ({
   //   onLocationChange?.("", null);
   // };
 
-  const handleLocationInputChange = (value: string) => {
-    setLocation(value);
-    // For manual location input, we don't have coordinates yet
-    // This would need geocoding in a real implementation
-    onLocationChange?.(value, null);
-  };
-
   const handleDistanceChange = (value: string) => {
     setDistanceFilter(value);
     const distance = value && value !== "any" ? parseFloat(value) : null;
@@ -112,202 +117,156 @@ const SearchSection = ({
 
   // Initialize default distance filter on mount
   useEffect(() => {
-    onDistanceChange?.(10); // Default to 10 miles
-  }, [onDistanceChange]);
+    const distance =
+      distanceFilter && distanceFilter !== "any" ? parseFloat(distanceFilter) : null;
+    onDistanceChange?.(distance);
+  }, [distanceFilter, onDistanceChange]);
+
+  const handleSearch = () => {
+    const params = new URLSearchParams();
+    if (location) params.set("location", location);
+    if (distanceFilter) params.set("distance", distanceFilter);
+    if (date) params.set("date", date.toISOString().slice(0, 10));
+    if (time) params.set("time", time);
+    router.push(`/search?${params.toString()}`);
+  };
 
   return (
     <div
-      className="relative z-20 mx-auto -mt-24 flex w-full max-w-6xl flex-col items-center space-y-5 px-4 md:-mt-28"
+      className={`relative z-20 mx-auto flex w-full flex-col items-center space-y-5 ${
+        overlapHero ? "-mt-24 md:-mt-28" : "mt-0"
+      }`}
       data-search-section
     >
-      <Card className="w-full overflow-visible rounded-[32px] border border-white/70 bg-white/92 shadow-[0_24px_80px_rgba(15,23,42,0.18)] backdrop-blur-xl">
-        <CardContent className="overflow-visible p-4 md:p-6">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-[1.45fr_0.9fr_0.95fr_0.95fr_64px] md:items-end">
-            <div className="min-w-0">
-              <label className="mb-3 block whitespace-nowrap text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Where do you want to play?
-              </label>
-              <AddressAutocomplete
-                value={location}
-                onChange={(address, coordinates) => {
-                  handleLocationInputChange(address);
-                  // if (coordinates) {
-                  //   setUserLocation(coordinates);
-                  // }
+      <div className="flex w-full max-w-6xl flex-col overflow-visible rounded-[28px] border border-slate-200/90 bg-white p-2 shadow-[0_8px_32px_rgba(15,23,42,0.1)] md:flex-row md:items-stretch md:rounded-full md:p-1.5 md:pl-3 md:pr-2">
+        <div className="flex min-h-0 flex-1 flex-col divide-y divide-slate-200/80 md:flex-row md:divide-x md:divide-y-0">
+          <div className="group flex min-h-[4.5rem] min-w-0 flex-1 flex-col justify-center gap-0.5 px-4 py-3 transition-[box-shadow,background-color] focus-within:relative focus-within:z-[1] focus-within:rounded-2xl focus-within:bg-white focus-within:shadow-[0_6px_24px_rgba(15,23,42,0.12)] focus-within:ring-1 focus-within:ring-slate-200/90 md:min-h-[3.25rem] md:rounded-full md:px-5 md:py-2.5 md:focus-within:rounded-full">
+            <span className="text-xs font-semibold text-slate-900">
+              Where do you want to play?
+            </span>
+            <AddressAutocomplete
+              value={location}
+              onChange={(address, coordinates) => {
+                setLocation(address);
+                onLocationChange?.(
+                  address,
+                  coordinates
+                    ? {
+                        latitude: coordinates.latitude,
+                        longitude: coordinates.longitude,
+                      }
+                    : null
+                );
+              }}
+              placeholder="Enter city or zip code"
+              showMapPin={false}
+              className="h-auto min-h-[1.25rem] border-0 bg-transparent px-0 py-0 text-sm font-medium text-slate-600 shadow-none placeholder:text-slate-400 focus-visible:ring-0 focus-visible:ring-offset-0"
+              label=""
+              active={activeDropdown === "where"}
+              onActiveChange={(isActive) => {
+                if (isActive) {
+                  setActiveDropdown("where");
+                } else {
+                  setActiveDropdown((prev) => (prev === "where" ? null : prev));
+                }
+              }}
+            />
+          </div>
+
+          <div className="group flex min-h-[4.5rem] min-w-0 flex-1 flex-col justify-center gap-0.5 px-4 py-3 transition-[box-shadow,background-color] focus-within:relative focus-within:z-[1] focus-within:rounded-2xl focus-within:bg-white focus-within:shadow-[0_6px_24px_rgba(15,23,42,0.12)] focus-within:ring-1 focus-within:ring-slate-200/90 md:min-h-[3.25rem] md:min-w-[7.5rem] md:rounded-full md:px-5 md:py-2.5 md:focus-within:rounded-full">
+            <span className="text-xs font-semibold text-slate-900">Within</span>
+            <Select
+              value={distanceFilter}
+              onValueChange={handleDistanceChange}
+              open={activeDropdown === "within"}
+              onOpenChange={makeSelectHandler("within")}
+            >
+              <SelectTrigger className="h-auto min-h-[1.25rem] w-full border-0 bg-transparent p-0 text-left text-sm font-medium text-slate-600 shadow-none ring-offset-0 focus:ring-0 focus:ring-offset-0 data-[state=open]:ring-0 [&>span]:truncate [&>svg]:ml-auto [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0 [&>svg]:opacity-60">
+                <SelectValue placeholder="Any distance" />
+              </SelectTrigger>
+              <SelectContent
+                sideOffset={12}
+                className="z-[70] rounded-3xl border border-slate-100 bg-white p-2 shadow-[0_24px_60px_-15px_rgba(15,23,42,0.28)]"
+              >
+                <SearchSelectItem value="any">Any distance</SearchSelectItem>
+                <SearchSelectItem value="5">5 miles</SearchSelectItem>
+                <SearchSelectItem value="10">10 miles</SearchSelectItem>
+                <SearchSelectItem value="15">15 miles</SearchSelectItem>
+                <SearchSelectItem value="25">25 miles</SearchSelectItem>
+                <SearchSelectItem value="50">50 miles</SearchSelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="group flex min-h-[4.5rem] min-w-0 flex-1 flex-col justify-center gap-0.5 px-4 py-3 transition-[box-shadow,background-color] focus-within:relative focus-within:z-[1] focus-within:rounded-2xl focus-within:bg-white focus-within:shadow-[0_6px_24px_rgba(15,23,42,0.12)] focus-within:ring-1 focus-within:ring-slate-200/90 md:min-h-[3.25rem] md:rounded-full md:px-5 md:py-2.5 md:focus-within:rounded-full">
+            <span className="text-xs font-semibold text-slate-900">Date</span>
+            <div className="w-full min-w-0">
+              <ReactDatePicker
+                selected={date}
+                onChange={(value) => {
+                  setDate(value);
+                  setActiveDropdown((prev) => (prev === "date" ? null : prev));
                 }}
-                placeholder="Enter city or zip code"
-                className="h-14 rounded-2xl border border-slate-200 bg-white pl-12 pr-4 text-base font-semibold text-slate-900 shadow-sm"
-                label=""
+                dateFormat="MM/dd/yyyy"
+                placeholderText="mm/dd/yyyy"
+                className="search-date-input-pill w-full cursor-pointer"
+                ref={(r) => {
+                  datePickerRef.current = r;
+                }}
+                open={activeDropdown === "date"}
+                onInputClick={() => setActiveDropdown("date")}
+                onClickOutside={() =>
+                  setActiveDropdown((prev) => (prev === "date" ? null : prev))
+                }
+                onCalendarClose={() =>
+                  setActiveDropdown((prev) => (prev === "date" ? null : prev))
+                }
+                popperPlacement="bottom-start"
+                popperClassName="z-[70]"
+                calendarClassName="search-calendar"
+                wrapperClassName="w-full"
+                showPopperArrow={false}
+                minDate={new Date()}
+                excludeDates={[]}
               />
-              {/* <div className="mt-2 flex gap-2">
-                {location && (
-                  <button
-                    onClick={clearLocation}
-                    className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:bg-slate-100"
-                    type="button"
-                  >
-                    Clear
-                  </button>
-                )}
-                <button
-                  onClick={handleGetCurrentLocation}
-                  disabled={locationLoading}
-                  className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800 transition-colors disabled:opacity-50"
-                  type="button"
-                  title="Use current location"
-                >
-                  {locationLoading ? "Getting..." : "Current Location"}
-                </button>
-              </div>
-              {locationError && (
-                <p className="mt-2 text-xs text-red-500">{locationError}</p>
-              )} */}
-            </div>
-
-            <div className="min-w-0">
-              <label className="mb-3 block whitespace-nowrap text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Within
-              </label>
-              <Select
-                value={distanceFilter}
-                onValueChange={handleDistanceChange}
-              >
-                <SelectTrigger className="h-14 rounded-2xl border border-slate-200 bg-white px-4 text-base font-semibold shadow-sm">
-                  <SelectValue placeholder="Any distance" />
-                </SelectTrigger>
-                <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-lg">
-                  <SelectItem
-                    value="any"
-                    className="hover:bg-green-50 cursor-pointer"
-                  >
-                    Any distance
-                  </SelectItem>
-                  <SelectItem
-                    value="5"
-                    className="hover:bg-green-50 cursor-pointer"
-                  >
-                    5 miles
-                  </SelectItem>
-                  <SelectItem
-                    value="10"
-                    className="hover:bg-green-50 cursor-pointer"
-                  >
-                    10 miles
-                  </SelectItem>
-                  <SelectItem
-                    value="15"
-                    className="hover:bg-green-50 cursor-pointer"
-                  >
-                    15 miles
-                  </SelectItem>
-                  <SelectItem
-                    value="25"
-                    className="hover:bg-green-50 cursor-pointer"
-                  >
-                    25 miles
-                  </SelectItem>
-                  <SelectItem
-                    value="50"
-                    className="hover:bg-green-50 cursor-pointer"
-                  >
-                    50 miles
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="min-w-0">
-              <label className="mb-3 block whitespace-nowrap text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Date
-              </label>
-              <div className="relative rounded-2xl bg-white">
-                <Calendar className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-slate-500" />
-                <ReactDatePicker
-                  selected={date}
-                  onChange={setDate}
-                  dateFormat="MM/dd/yyyy"
-                  placeholderText="mm/dd/yyyy"
-                  className="search-date-input w-full cursor-pointer"
-                  ref={(r) => {
-                    datePickerRef.current = r;
-                  }}
-                  popperPlacement="bottom-start"
-                  popperClassName="z-[100]"
-                  calendarClassName="z-[100]"
-                  wrapperClassName="w-full"
-                  showPopperArrow={false}
-                  minDate={new Date()}
-                  excludeDates={[]}
-                />
-              </div>
-            </div>
-
-            <div className="min-w-0">
-              <label className="mb-3 block whitespace-nowrap text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-                Time
-              </label>
-              <Select value={time} onValueChange={setTime}>
-                <SelectTrigger className="h-14 rounded-2xl border border-slate-200 bg-white px-4 text-base font-semibold shadow-sm">
-                  <div className="flex items-center">
-                    <Clock className="mr-2 h-4 w-4 text-slate-500" />
-                    <SelectValue placeholder="Select time" />
-                  </div>
-                </SelectTrigger>
-                <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-lg">
-                  <SelectItem
-                    value="morning"
-                    className="hover:bg-green-50 cursor-pointer"
-                  >
-                    Morning (6AM - 12PM)
-                  </SelectItem>
-                  <SelectItem
-                    value="afternoon"
-                    className="hover:bg-green-50 cursor-pointer"
-                  >
-                    Afternoon (12PM - 6PM)
-                  </SelectItem>
-                  <SelectItem
-                    value="evening"
-                    className="hover:bg-green-50 cursor-pointer"
-                  >
-                    Evening (6PM - 10PM)
-                  </SelectItem>
-                  <SelectItem
-                    value="anytime"
-                    className="hover:bg-green-50 cursor-pointer"
-                  >
-                    Anytime
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-end">
-              <Button
-                className="h-14 w-full rounded-[22px] bg-[var(--site-accent)] text-white shadow-none transition-all duration-300 hover:bg-[var(--site-accent-hover)] md:w-14 md:rounded-full"
-                type="button"
-              >
-                <Search className="h-5 w-5 md:mr-0" />
-                <span className="ml-2 md:hidden">Search Courts</span>
-              </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
 
-      <div className="flex flex-wrap items-center justify-center gap-3 px-4 text-center text-sm font-semibold text-slate-700">
-        <span className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 shadow-sm ring-1 ring-slate-200">
-          <MapPin className="h-4 w-4 text-[#1b2534]" />
-          Local private courts
-        </span>
-        <span className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 shadow-sm ring-1 ring-slate-200">
-          <Calendar className="h-4 w-4 text-[#1b2534]" />
-          Live availability
-        </span>
-        <span className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 shadow-sm ring-1 ring-slate-200">
-          <Trophy className="h-4 w-4 text-[#1b2534]" />
-          Premium match-day feel
-        </span>
+          <div className="group flex min-h-[4.5rem] min-w-0 flex-1 flex-col justify-center gap-0.5 px-4 py-3 transition-[box-shadow,background-color] focus-within:relative focus-within:z-[1] focus-within:rounded-2xl focus-within:bg-white focus-within:shadow-[0_6px_24px_rgba(15,23,42,0.12)] focus-within:ring-1 focus-within:ring-slate-200/90 md:min-h-[3.25rem] md:min-w-[8rem] md:rounded-full md:px-5 md:py-2.5 md:focus-within:rounded-full">
+            <span className="text-xs font-semibold text-slate-900">Time</span>
+            <Select
+              value={time}
+              onValueChange={setTime}
+              open={activeDropdown === "time"}
+              onOpenChange={makeSelectHandler("time")}
+            >
+              <SelectTrigger className="h-auto min-h-[1.25rem] w-full border-0 bg-transparent p-0 text-left text-sm font-medium text-slate-600 shadow-none ring-offset-0 focus:ring-0 focus:ring-offset-0 data-[state=open]:ring-0 [&>span]:truncate [&>svg]:ml-auto [&>svg]:h-4 [&>svg]:w-4 [&>svg]:shrink-0 [&>svg]:opacity-60">
+                <SelectValue placeholder="Select time" />
+              </SelectTrigger>
+              <SelectContent
+                sideOffset={12}
+                className="z-[70] rounded-3xl border border-slate-100 bg-white p-2 shadow-[0_24px_60px_-15px_rgba(15,23,42,0.28)]"
+              >
+                <SearchSelectItem value="morning">Morning (6AM - 12PM)</SearchSelectItem>
+                <SearchSelectItem value="afternoon">Afternoon (12PM - 6PM)</SearchSelectItem>
+                <SearchSelectItem value="evening">Evening (6PM - 10PM)</SearchSelectItem>
+                <SearchSelectItem value="anytime">Anytime</SearchSelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-center border-t border-slate-200/80 p-2 md:border-t-0 md:border-l md:border-slate-200/80 md:pl-3 md:pr-1">
+          <Button
+            className="inline-flex h-12 w-full max-w-[12rem] items-center justify-center rounded-full bg-[var(--site-accent)] text-white shadow-sm transition-transform hover:scale-[1.02] hover:bg-[var(--site-accent-hover)] md:h-12 md:w-12 md:max-w-none md:shrink-0"
+            type="button"
+            onClick={handleSearch}
+            aria-label="Search courts"
+          >
+            <Search className="h-5 w-5" />
+            <span className="ml-2 font-semibold md:sr-only">Search</span>
+          </Button>
+        </div>
       </div>
 
       {/* Filters Section - COMMENTED OUT FOR FUTURE USE */}

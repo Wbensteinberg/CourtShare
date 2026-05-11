@@ -143,8 +143,8 @@ export async function POST(req: NextRequest) {
         );
         const accountLink = await stripe.accountLinks.create({
           account: account.id,
-          refresh_url: `${req.nextUrl.origin}/dashboard/owner?refresh=true`,
-          return_url: `${req.nextUrl.origin}/dashboard/owner?success=true`,
+          refresh_url: `${req.nextUrl.origin}/host?refresh=true`,
+          return_url: `${req.nextUrl.origin}/host?success=true`,
           type: "account_onboarding",
         });
 
@@ -230,8 +230,8 @@ export async function POST(req: NextRequest) {
     // Create account link for onboarding
     const accountLink = await stripe.accountLinks.create({
       account: account.id,
-      refresh_url: `${req.nextUrl.origin}/dashboard/owner?refresh=true`,
-      return_url: `${req.nextUrl.origin}/dashboard/owner?success=true`,
+      refresh_url: `${req.nextUrl.origin}/host?refresh=true`,
+      return_url: `${req.nextUrl.origin}/host?success=true`,
       type: "account_onboarding",
     });
 

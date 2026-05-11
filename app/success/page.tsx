@@ -23,7 +23,7 @@ function SuccessContent() {
     if (!sessionId || authLoading) return;
 
     if (!user) {
-      router.push(`/login?redirect=/success?session_id=${sessionId}`);
+      router.push("/");
       return;
     }
 
@@ -49,7 +49,7 @@ function SuccessContent() {
         if (cancelled) return;
         setStatus("ready");
         setMessage("Booking request created. Taking you to your dashboard...");
-        setTimeout(() => router.push("/dashboard/player"), 900);
+        setTimeout(() => router.push("/upcoming"), 900);
       } catch (err: any) {
         if (cancelled) return;
         setStatus("error");
@@ -100,7 +100,7 @@ function SuccessContent() {
             </p>
           )}
           <Button
-            onClick={() => router.push("/dashboard/player")}
+            onClick={() => router.push("/upcoming")}
             className="mt-6 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-glow-hover transition-all"
           >
             Go to dashboard now

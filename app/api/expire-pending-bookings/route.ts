@@ -68,6 +68,7 @@ export async function POST(req: NextRequest) {
 
         await bookingRef.update({
           status: "expired",
+          cancelReason: "host_acceptance_window_expired",
           expiredAt: new Date(),
           paymentStatus: releasedPayment.paymentStatus,
           ...(releasedPayment.refundId

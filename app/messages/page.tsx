@@ -116,8 +116,8 @@ const getProfileDisplayName = (
 };
 
 const formatFallbackName = (uid: string, role: "player" | "owner") => {
-  if (!uid) return role === "player" ? "Player" : "Court owner";
-  return role === "player" ? "Player" : "Court owner";
+  if (!uid) return role === "player" ? "Player" : "Court host";
+  return role === "player" ? "Player" : "Court host";
 };
 
 const getBookingSummary = (conversation: Conversation) => {
@@ -154,7 +154,7 @@ function MessagesPageContent() {
 
   useEffect(() => {
     if (!authLoading && !user) {
-      router.push("/login?redirect=/messages");
+      router.push("/");
     }
   }, [authLoading, router, user]);
 

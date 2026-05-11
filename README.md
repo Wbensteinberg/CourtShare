@@ -1,7 +1,7 @@
 # CourtShare Project Brief 
 
 CourtShare, a mobile-first tennis court rental platform.
-It allows players to find and book private tennis courts by the hour, and lets court owners list their available courts, manage bookings, and receive payments.
+It allows players to find and book private tennis courts by the hour, and lets court hosts list their available courts, manage bookings, and receive payments.
 
 ## 🛠️ Tech Stack
 - **Frontend:** Next.js (App Router) + Tailwind CSS + TypeScript
@@ -15,7 +15,7 @@ It allows players to find and book private tennis courts by the hour, and lets c
 - Court browsing + filtering
 - Booking calendar with time slots
 - Stripe integration for booking payments
-- Owner dashboard (see bookings, manage courts)
+- Host dashboard (see bookings, manage courts)
 - Player dashboard (upcoming bookings)
 
 ## Project Phases

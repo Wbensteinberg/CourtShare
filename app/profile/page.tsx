@@ -2,10 +2,9 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { auth, db, getStorageInstance, isMockMode } from "@/lib/firebase";
+import { db, getStorageInstance, isMockMode } from "@/lib/firebase";
 import { collection, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { signOut } from "firebase/auth";
 import { useAuth } from "@/lib/AuthContext";
 import ReactCrop, {
   Crop,
@@ -17,21 +16,33 @@ import "react-image-crop/dist/ReactCrop.css";
 import AppHeader from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
-  Camera,
   ArrowLeft,
-  Save,
-  CheckCircle,
   AlertCircle,
+  Calendar,
+  Camera,
+  CheckCircle,
+  Clock,
+  MapPin,
+  Pencil,
+  Star,
 } from "lucide-react";
 import {
   fileToDataUrl,
+  getMockBookingsForUser,
+  getMockCourtById,
   getMockCourts,
   getMockProfile,
-  signOutMockUser,
+  getMockReviewsForTarget,
+  type MockReview,
   updateMockProfile,
 } from "@/lib/mockData";
+import {
+  formatBookingDateWithDay,
+  isPastOrInactiveBooking,
+  sortBookingsAscending,
+} from "@/lib/bookingDates";
 
 interface UserProfile {
   uid: string;
@@ -40,7 +51,46 @@ interface UserProfile {
   bio?: string;
   profileImageUrl?: string;
   isOwner: boolean;
+  playerReviewCount?: number;
+  playerRating?: number;
+  ownerReviewCount?: number;
+  ownerRating?: number;
+  createdAt?: any;
 }
+
+interface Booking {
+  id: string;
+  courtId: string;
+  userId: string;
+  date: string;
+  time: string;
+  duration: number;
+  durationMinutes?: number;
+  status: string;
+  courtNumber?: number;
+}
+
+interface Court {
+  id: string;
+  name: string;
+  location: string;
+  imageUrl: string;
+  surface?: string;
+  indoor?: boolean;
+}
+
+interface PublicReview {
+  id: string;
+  bookingId: string;
+  courtId: string;
+  reviewerRole?: string;
+  targetType?: string;
+  rating: number;
+  comment: string;
+  createdAt?: string | null;
+}
+
+type ProfileTab = "about" | "past" | "reviews";
 
 function centerAspectCrop(
   mediaWidth: number,
@@ -62,13 +112,50 @@ function centerAspectCrop(
   );
 }
 
+const getProfileDate = (value: any): Date | null => {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === "string" || typeof value === "number") {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  if (typeof value.toDate === "function") {
+    return value.toDate();
+  }
+  if (typeof value.seconds === "number") {
+    return new Date(value.seconds * 1000);
+  }
+  return null;
+};
+
+const formatReviewDate = (value?: string | null) => {
+  const date = value ? new Date(value) : new Date();
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+};
+
+const getMonthCount = (createdAt: any) => {
+  const start = getProfileDate(createdAt);
+  if (!start) return 0;
+  const now = new Date();
+  return Math.max(
+    0,
+    (now.getFullYear() - start.getFullYear()) * 12 +
+      now.getMonth() -
+      start.getMonth()
+  );
+};
+
 export default function ProfilePage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const [loggingOut, setLoggingOut] = useState(false);
+  const [activeTab, setActiveTab] = useState<ProfileTab>("about");
+  const [isEditing, setIsEditing] = useState(false);
 
   // Form state
   const [displayName, setDisplayName] = useState("");
@@ -76,6 +163,9 @@ export default function ProfilePage() {
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [profileImagePreview, setProfileImagePreview] = useState<string>("");
   const [hasOwnerListing, setHasOwnerListing] = useState(false);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [courtsById, setCourtsById] = useState<Record<string, Court>>({});
+  const [reviews, setReviews] = useState<PublicReview[]>([]);
 
   // Cropping state
   const [crop, setCrop] = useState<Crop>();
@@ -89,9 +179,7 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!user) {
-      if (!loggingOut) {
-        router.push("/login");
-      }
+      router.push("/login");
       return;
     }
 
@@ -147,11 +235,68 @@ export default function ProfilePage() {
           setHasOwnerListing(
             getMockCourts().some((court) => court.ownerId === user.uid)
           );
+
+          const userBookings = getMockBookingsForUser(user.uid) as Booking[];
+          setBookings(userBookings);
+          setCourtsById(
+            Object.fromEntries(
+              userBookings
+                .map((booking) => getMockCourtById(booking.courtId) as Court | null)
+                .filter((court): court is Court => Boolean(court))
+                .map((court) => [court.id, court])
+            )
+          );
+          setReviews(
+            getMockReviewsForTarget(user.uid).map((review: MockReview) => ({
+              id: review.id,
+              bookingId: review.bookingId,
+              courtId: review.courtId,
+              reviewerRole: review.reviewerRole,
+              targetType: review.targetType,
+              rating: review.rating,
+              comment: review.comment,
+              createdAt: review.createdAt,
+            }))
+          );
         } else {
           const ownerCourts = await getDocs(
             query(collection(db, "courts"), where("ownerId", "==", user.uid))
           );
           setHasOwnerListing(!ownerCourts.empty);
+
+          const bookingsSnapshot = await getDocs(
+            query(collection(db, "bookings"), where("userId", "==", user.uid))
+          );
+          const userBookings = bookingsSnapshot.docs.map((bookingDoc) => ({
+            id: bookingDoc.id,
+            ...bookingDoc.data(),
+          })) as Booking[];
+          setBookings(userBookings);
+
+          const uniqueCourtIds = Array.from(
+            new Set(userBookings.map((booking) => booking.courtId))
+          );
+          const courtEntries = await Promise.all(
+            uniqueCourtIds.map(async (courtId) => {
+              const courtSnap = await getDoc(doc(db, "courts", courtId));
+              return courtSnap.exists()
+                ? [courtSnap.id, { id: courtSnap.id, ...courtSnap.data() } as Court]
+                : null;
+            })
+          );
+          setCourtsById(
+            Object.fromEntries(
+              courtEntries.filter(
+                (entry): entry is [string, Court] => Boolean(entry)
+              )
+            )
+          );
+
+          const reviewsRes = await fetch(
+            `/api/reviews?targetUserId=${encodeURIComponent(user.uid)}`
+          );
+          const reviewsData = await reviewsRes.json().catch(() => ({}));
+          setReviews(reviewsRes.ok ? reviewsData.reviews || [] : []);
         }
       } catch (err: any) {
         setError(err.message || "Failed to fetch profile");
@@ -161,25 +306,7 @@ export default function ProfilePage() {
     };
 
     fetchProfile();
-  }, [user, router, loggingOut]);
-
-  const handleLogout = async () => {
-    setLoggingOut(true);
-    setError("");
-
-    try {
-      if (isMockMode) {
-        signOutMockUser();
-      } else {
-        await signOut(auth);
-      }
-      router.replace("/courts");
-      router.refresh();
-    } catch (err: any) {
-      setLoggingOut(false);
-      setError(err.message || "Failed to log out");
-    }
-  };
+  }, [user, router]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -354,7 +481,8 @@ export default function ProfilePage() {
       );
 
       setProfileImage(null);
-      router.push("/courts");
+      setSuccess(true);
+      setIsEditing(false);
     } catch (err: any) {
       setError(err.message || "Failed to update profile");
     } finally {
@@ -376,7 +504,7 @@ export default function ProfilePage() {
     );
   }
 
-  if (error) {
+  if (error && !profile) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30">
         <AppHeader />
@@ -402,199 +530,474 @@ export default function ProfilePage() {
     );
   }
 
+  const profileName =
+    displayName.trim() ||
+    profile?.displayName?.trim() ||
+    user?.email?.split("@")[0] ||
+    "CourtShare player";
+  const profileInitial = profileName.charAt(0).toUpperCase();
+  const pastBookings = bookings
+    .filter((booking) => isPastOrInactiveBooking(booking))
+    .sort(sortBookingsAscending);
+  const confirmedTrips = bookings.filter(
+    (booking) => booking.status === "confirmed"
+  ).length;
+  const reviewCount =
+    typeof profile?.playerReviewCount === "number"
+      ? profile.playerReviewCount
+      : reviews.length;
+  const monthsOnCourtShare = getMonthCount(profile?.createdAt);
+  const tabs: { id: ProfileTab; label: string }[] = [
+    { id: "about", label: "About Me" },
+    { id: "past", label: "Past Bookings" },
+    { id: "reviews", label: "My Reviews" },
+  ];
+
   return (
     <>
       <div className="min-h-screen bg-slate-50">
         <AppHeader />
 
-        <main className="w-full">
-          <form
-            onSubmit={handleSubmit}
-            className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8"
-          >
-            <div className="flex items-center justify-between gap-4 border-b border-slate-200 pb-6">
-              <h1 className="text-3xl font-bold text-slate-950">Profile</h1>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleLogout}
-                disabled={loggingOut}
-                className="h-11 rounded-lg border-slate-300 text-red-600 hover:bg-red-50 hover:text-red-700"
-              >
-                {loggingOut ? "Logging out..." : "Log out"}
-              </Button>
-            </div>
+        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="border-b border-slate-200 pb-6">
+            <h1 className="text-4xl font-black tracking-tight text-slate-950">
+              Profile
+            </h1>
+          </div>
 
-            <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[360px_minmax(0,1fr)]">
-              <aside className="space-y-6">
-                <Card className="overflow-hidden rounded-[32px] border-slate-200 bg-white shadow-sm">
-                  <CardContent className="p-6">
-                    <div className="flex flex-col items-center text-center">
-                      <div className="relative">
-                        <div className="h-36 w-36 overflow-hidden rounded-full border-4 border-white bg-slate-100 shadow-lg ring-1 ring-slate-200">
+          <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[360px_minmax(0,1fr)]">
+            <aside className="space-y-6">
+              <nav className="space-y-3">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                      setIsEditing(false);
+                      setSuccess(false);
+                    }}
+                    className={`flex w-full items-center gap-5 rounded-[32px] px-6 py-5 text-left text-base font-bold transition ${
+                      activeTab === tab.id && !isEditing
+                        ? "bg-white text-slate-950 shadow-sm ring-1 ring-slate-100"
+                        : "text-slate-600 hover:bg-white/70"
+                    }`}
+                  >
+                    <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-pink-50 text-lg font-black text-pink-700">
+                      {tab.id === "about" ? (
+                        profileImagePreview ? (
                           <img
-                            src={profileImagePreview || "/default-avatar.png"}
-                            alt="Profile"
+                            src={profileImagePreview}
+                            alt=""
                             className="h-full w-full object-cover"
-                            onError={(e) => {
-                              e.currentTarget.src =
-                                "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23d1d5db'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E";
-                            }}
                           />
-                        </div>
-                        {profileImagePreview && (
-                          <div className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-full bg-emerald-600 text-white shadow-sm">
-                            <CheckCircle className="h-5 w-5" />
-                          </div>
-                        )}
-                      </div>
+                        ) : (
+                          profileInitial
+                        )
+                      ) : (
+                        <>
+                          {tab.id === "past" ? (
+                            <Calendar className="h-5 w-5 text-slate-500" />
+                          ) : (
+                            <Star className="h-5 w-5 text-slate-500" />
+                          )}
+                        </>
+                      )}
+                    </span>
+                    {tab.label}
+                  </button>
+                ))}
+              </nav>
 
-                      <h2 className="mt-4 text-xl font-semibold text-slate-950">
-                        {displayName || "Unnamed player"}
+              {!hasOwnerListing && (
+                <Card className="rounded-[32px] border-slate-200 bg-white shadow-sm">
+                  <CardContent className="p-6">
+                    <h2 className="text-lg font-bold text-slate-950">
+                      Have a court? List it now to start earning.
+                    </h2>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      Create your first listing to unlock the host dashboard.
+                    </p>
+                    <Button
+                      type="button"
+                      className="mt-5 w-full rounded-2xl bg-[var(--site-accent)] text-white hover:bg-[var(--site-accent-hover)]"
+                      onClick={() => router.push("/create-listing")}
+                    >
+                      Create a Listing
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </aside>
+
+            <section className="space-y-8">
+              {isEditing ? (
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h2 className="text-3xl font-black tracking-tight text-slate-950">
+                        Edit Profile
                       </h2>
-                      <p className="mt-1 text-sm text-slate-500">
-                        {profile?.email || user?.email}
+                      <p className="mt-2 text-slate-500">
+                        Update the details other players and hosts see.
                       </p>
+                    </div>
+                    <div className="flex gap-3">
                       <Button
                         type="button"
                         variant="outline"
-                        className="mt-5 w-full rounded-lg border-slate-300"
-                        onClick={() =>
-                          document
-                            .getElementById("profile-image-input")
-                            ?.click()
-                        }
+                        onClick={() => {
+                          setIsEditing(false);
+                          setError("");
+                          setSuccess(false);
+                          setDisplayName(profile?.displayName || "");
+                          setBio(profile?.bio || "");
+                          setProfileImagePreview(profile?.profileImageUrl || "");
+                          setProfileImage(null);
+                        }}
+                        className="rounded-2xl"
                       >
-                        <Camera className="mr-2 h-4 w-4" />
-                        Change photo
+                        Cancel
                       </Button>
-                      <input
-                        id="profile-image-input"
-                        className="hidden"
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageChange}
-                      />
-                      <p className="mt-3 text-xs text-slate-500">
-                        JPG or PNG works best. You can crop before saving.
-                      </p>
+                      <Button
+                        type="submit"
+                        disabled={saving}
+                        className="rounded-2xl bg-[var(--site-accent)] text-white hover:bg-[var(--site-accent-hover)]"
+                      >
+                        {saving ? "Saving..." : "Save profile"}
+                      </Button>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
 
-                {!hasOwnerListing && (
                   <Card className="rounded-[32px] border-slate-200 bg-white shadow-sm">
-                    <CardContent className="p-5">
-                      <h2 className="text-lg font-semibold text-slate-950">
-                        Have a tennis court? Become an owner and start earning.
-                      </h2>
-                      <p className="mt-2 text-sm text-slate-600">
-                        Create your first listing to unlock the owner dashboard.
-                      </p>
+                    <CardContent className="space-y-6 p-6">
+                      <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+                        <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-full bg-pink-50 text-pink-700">
+                          {profileImagePreview ? (
+                            <img
+                              src={profileImagePreview}
+                              alt="Profile"
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-4xl font-black">
+                              {profileInitial}
+                            </div>
+                          )}
+                          {profileImagePreview && (
+                            <div className="absolute bottom-1 right-1 flex h-8 w-8 items-center justify-center rounded-full bg-[var(--site-accent)] text-white shadow-sm">
+                              <CheckCircle className="h-4 w-4" />
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="rounded-2xl border-slate-300"
+                            onClick={() =>
+                              document
+                                .getElementById("profile-image-input")
+                                ?.click()
+                            }
+                          >
+                            <Camera className="mr-2 h-4 w-4" />
+                            Change photo
+                          </Button>
+                          <input
+                            id="profile-image-input"
+                            className="hidden"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleImageChange}
+                          />
+                          <p className="mt-2 text-sm text-slate-500">
+                            JPG or PNG works best. You can crop before saving.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <label className="block text-sm font-semibold text-slate-700">
+                            Full Name
+                          </label>
+                          <Input
+                            type="text"
+                            placeholder="Enter your full name"
+                            value={displayName}
+                            onChange={(e) => setDisplayName(e.target.value)}
+                            className="h-12 rounded-2xl border-slate-300 bg-white focus:border-[var(--site-accent)] focus:ring-[var(--site-accent)]"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="block text-sm font-semibold text-slate-700">
+                            Email Address
+                          </label>
+                          <Input
+                            type="email"
+                            value={user?.email || ""}
+                            disabled
+                            className="h-12 rounded-2xl border-slate-300 bg-slate-50 text-slate-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="block text-sm font-semibold text-slate-700">
+                          Bio
+                        </label>
+                        <textarea
+                          placeholder="Tell players and hosts a little about your tennis style."
+                          value={bio}
+                          onChange={(e) => setBio(e.target.value)}
+                          rows={6}
+                          className="w-full resize-none rounded-2xl border border-slate-300 bg-white p-4 text-sm focus:border-[var(--site-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--site-accent)]"
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                </form>
+              ) : activeTab === "about" ? (
+                <>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <h2 className="text-3xl font-black tracking-tight text-slate-950">
+                      About Me
+                    </h2>
+  
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        setIsEditing(true);
+                        setSuccess(false);
+                        setError("");
+                      }}
+                      className="w-fit rounded-2xl bg-slate-100 px-6 text-slate-900 hover:bg-slate-200"
+                    >
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Edit
+                    </Button>
+                  </div>
+
+                  <Card className="w-full rounded-[32px] border-slate-200 bg-white shadow-xl shadow-slate-200/70">
+                    <CardContent className="grid gap-8 p-8 sm:grid-cols-[1fr_170px] sm:p-10">
+                      <div className="flex flex-col items-center text-center">
+                        <div className="relative h-36 w-36 overflow-hidden rounded-full bg-pink-50 text-pink-700">
+                          {profileImagePreview ? (
+                            <img
+                              src={profileImagePreview}
+                              alt={profileName}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-6xl font-black">
+                              {profileInitial}
+                            </div>
+                          )}
+                        </div>
+                        <h3 className="mt-5 text-4xl font-black tracking-tight text-slate-950">
+                          {profileName}
+                        </h3>
+                          <p className="mt-4 max-w-sm text-base leading-7 text-slate-600">
+                            {profile?.bio ||
+                              "No bio yet. Add a short note about your tennis style and what hosts should know."}
+                          </p>
+                        </div>
+
+                      <div className="grid content-center divide-y divide-slate-200">
+                        <div className="py-4 first:pt-0">
+                          <p className="text-3xl font-black text-slate-950">
+                            {confirmedTrips}
+                          </p>
+                          <p className="text-sm font-semibold text-slate-600">
+                            Bookings
+                          </p>
+                        </div>
+                        <div className="py-4">
+                          <p className="text-3xl font-black text-slate-950">
+                            {reviewCount}
+                          </p>
+                          <p className="text-sm font-semibold text-slate-600">
+                            Reviews
+                          </p>
+                        </div>
+                        <div className="py-4">
+                          <p className="text-3xl font-black text-slate-950">
+                            {monthsOnCourtShare}
+                          </p>
+                          <p className="text-sm font-semibold text-slate-600">
+                            Months on CourtShare
+                          </p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              ) : activeTab === "reviews" ? (
+                <>
+                  <div>
+                    <h2 className="text-3xl font-black tracking-tight text-slate-950">
+                      My Reviews
+                    </h2>
+                    <p className="mt-2 text-slate-500">
+                      Your reviews from court hosts from completed bookings.
+                    </p>
+                    {reviews.length === 0 ? (
+                      <Card className="mt-6 rounded-[32px] border-slate-200 bg-white shadow-sm">
+                        <CardContent className="p-8 text-slate-600">
+                          You have no reviews yet.
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <div className="mt-8 grid gap-8 md:grid-cols-3">
+                        {reviews.slice(0, 3).map((review, index) => (
+                          <article
+                            key={review.id}
+                            className={`space-y-5 ${
+                              index > 0 ? "md:border-l md:border-slate-200 md:pl-8" : ""
+                            }`}
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-pink-50 text-xl font-black text-pink-700">
+                                {review.reviewerRole === "owner" ? "O" : "P"}
+                              </div>
+                              <div>
+                                <p className="font-bold text-slate-950">
+                                  CourtShare host
+                                </p>
+                                <div className="mt-1 flex gap-0.5 text-amber-400">
+                                  {Array.from({ length: 5 }).map((_, star) => (
+                                    <Star
+                                      key={star}
+                                      className={`h-4 w-4 ${
+                                        star < review.rating
+                                          ? "fill-amber-400"
+                                          : "text-slate-300"
+                                      }`}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                            <p className="text-slate-500">
+                              {formatReviewDate(review.createdAt)}
+                            </p>
+                            <p className="text-xl leading-8 text-slate-900">
+                              {review.comment || "No written review provided."}
+                            </p>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                    {reviews.length > 3 && (
                       <Button
                         type="button"
-                        className="mt-4 w-full rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
-                        onClick={() => router.push("/create-listing")}
+                        variant="outline"
+                        className="mt-8 rounded-2xl px-8 py-6 text-base font-bold"
                       >
-                        List your court
+                        Show all {reviews.length} reviews
                       </Button>
-                    </CardContent>
-                  </Card>
-                )}
-              </aside>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <h2 className="text-3xl font-black tracking-tight text-slate-950">
+                      Past Bookings
+                    </h2>
+                    <p className="mt-2 text-slate-500">
+                      Your completed bookings are listed chronologically.
+                    </p>
+                  </div>
 
-              <section className="space-y-6">
-                <Card className="rounded-[32px] border-slate-200 bg-white shadow-sm">
-                  <CardHeader className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h2 className="text-lg font-semibold text-slate-950">
-                        Personal information
-                      </h2>
-                      <p className="text-sm text-slate-500">
-                        This information is used across bookings, requests, and owner communication.
-                      </p>
+                  {pastBookings.length === 0 ? (
+                    <Card className="rounded-[32px] border-slate-200 bg-white shadow-sm">
+                      <CardContent className="p-8 text-slate-600">
+                        You do not have any completed bookings yet.
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="space-y-4">
+                      {pastBookings.map((booking) => {
+                        const court = courtsById[booking.courtId];
+                        return (
+                          <button
+                            key={booking.id}
+                            type="button"
+                            onClick={() => router.push(`/booking/${booking.id}`)}
+                            className="grid w-full gap-5 rounded-[32px] border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:grid-cols-[144px_minmax(0,1fr)_auto]"
+                          >
+                            <div className="h-28 overflow-hidden rounded-[24px] bg-slate-100">
+                              {court?.imageUrl ? (
+                                <img
+                                  src={court.imageUrl}
+                                  alt={court.name}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-3xl">
+                                  🎾
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <h3 className="truncate text-xl font-black text-slate-950">
+                                {court?.name || "Court booking"}
+                              </h3>
+                              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-slate-600">
+                                <span className="inline-flex items-center">
+                                  <Calendar className="mr-2 h-4 w-4 text-slate-400" />
+                                  {formatBookingDateWithDay(booking.date)}
+                                </span>
+                                <span className="inline-flex items-center">
+                                  <Clock className="mr-2 h-4 w-4 text-slate-400" />
+                                  {booking.time}
+                                </span>
+                                {court?.location && (
+                                  <span className="inline-flex items-center">
+                                    <MapPin className="mr-2 h-4 w-4 text-slate-400" />
+                                    {court.location}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="self-center rounded-full bg-slate-100 px-4 py-2 text-sm font-bold capitalize text-slate-700">
+                              {booking.status}
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
-                    <Button
-                      type="submit"
-                      disabled={saving}
-                      className="w-fit rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
-                    >
-                      {saving ? (
-                        <>
-                          <div className="mr-2 h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
-                          Saving
-                        </>
+                  )}
+                </>
+              )}
+
+              {(error || success) && (
+                <Card
+                  className={`rounded-[32px] ${
+                    error
+                      ? "border-red-200 bg-red-50"
+                      : "border-emerald-200 bg-emerald-50"
+                  }`}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      {error ? (
+                        <AlertCircle className="h-5 w-5 text-red-500" />
                       ) : (
-                        <>
-                          <Save className="mr-2 h-4 w-4" />
-                          Save
-                        </>
+                        <CheckCircle className="h-5 w-5 text-emerald-600" />
                       )}
-                    </Button>
-                  </CardHeader>
-                  <CardContent className="space-y-6 p-5">
-                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <label className="block text-sm font-medium text-slate-700">
-                          Full Name
-                        </label>
-                        <Input
-                          type="text"
-                          placeholder="Enter your full name"
-                          value={displayName}
-                          onChange={(e) => setDisplayName(e.target.value)}
-                          className="h-11 rounded-lg border-slate-300 bg-white focus:border-emerald-500 focus:ring-emerald-500"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="block text-sm font-medium text-slate-700">
-                          Email Address
-                        </label>
-                        <Input
-                          type="email"
-                          value={user?.email || ""}
-                          disabled
-                          className="h-11 rounded-lg border-slate-300 bg-slate-50 text-slate-500"
-                        />
-                        <p className="text-xs text-slate-500">
-                          Email cannot be changed
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="block text-sm font-medium text-slate-700">
-                        Bio
-                      </label>
-                      <textarea
-                        placeholder="Tell us about yourself, your tennis experience, or what you're looking for..."
-                        value={bio}
-                        onChange={(e) => setBio(e.target.value)}
-                        rows={6}
-                        className="w-full resize-none rounded-lg border border-slate-300 bg-white p-3 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      />
-                      <p className="text-xs text-slate-500">
-                        Share your tennis story, experience level, or what you look for in a court.
+                      <p className={error ? "text-red-700" : "text-emerald-700"}>
+                        {error || "Profile updated."}
                       </p>
                     </div>
                   </CardContent>
                 </Card>
-
-                {error && (
-                  <Card className="rounded-[32px] border-red-200 bg-red-50">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        <AlertCircle className="h-5 w-5 text-red-500" />
-                        <p className="text-red-700">{error}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
-
-              </section>
-            </div>
-          </form>
+              )}
+            </section>
+          </div>
         </main>
       </div>
 

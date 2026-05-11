@@ -100,6 +100,7 @@ interface Booking {
   time: string;
   duration: number;
   status: string;
+  cancelReason?: string;
   courtNumber?: number;
   createdAt?: Date | string | number | { toDate?: () => Date; seconds?: number; nanoseconds?: number };
   expiresAt?: Date | string | number | { toDate?: () => Date; seconds?: number; nanoseconds?: number };
@@ -162,7 +163,7 @@ export default function OwnerDashboard() {
 
   useEffect(() => {
     if (!authLoading && !user) {
-      router.push("/login");
+      router.push("/");
     }
   }, [user, authLoading, router]);
 
@@ -240,7 +241,10 @@ export default function OwnerDashboard() {
           if (isMockMode) {
             await Promise.allSettled(
               expiredPendingBookings.map((booking) =>
-                updateMockBooking(booking.id, { status: "expired" })
+                updateMockBooking(booking.id, {
+                  status: "expired",
+                  cancelReason: "host_acceptance_window_expired",
+                })
               )
             );
           } else {
@@ -264,7 +268,11 @@ export default function OwnerDashboard() {
           }
           bookingsData = bookingsData.map((booking) =>
             expiredPendingBookings.some((expired) => expired.id === booking.id)
-              ? { ...booking, status: "expired" }
+              ? {
+                  ...booking,
+                  status: "expired",
+                  cancelReason: "host_acceptance_window_expired",
+                }
               : booking
           );
         }
@@ -370,7 +378,7 @@ export default function OwnerDashboard() {
             "[OWNER DASHBOARD] Stripe account check failed:",
             errorData
           );
-          // Still show Connect flow so owners aren't stuck with no payout UI (e.g. transient errors).
+          // Still show Connect flow so hosts aren't stuck with no payout UI (e.g. transient errors).
           if (res.status !== 401) {
             setStripeAccountStatus({
               hasAccount: false,
@@ -542,7 +550,10 @@ export default function OwnerDashboard() {
       const bookingToAccept = bookings.find((booking) => booking.id === bookingId);
       if (!bookingToAccept || !isActionablePendingBooking(bookingToAccept)) {
         if (isMockMode) {
-          await updateMockBooking(bookingId, { status: "expired" });
+          await updateMockBooking(bookingId, {
+            status: "expired",
+            cancelReason: "host_acceptance_window_expired",
+          });
         } else {
           const idToken = await user?.getIdToken();
           await fetch("/api/expire-pending-bookings", {
@@ -555,7 +566,15 @@ export default function OwnerDashboard() {
           });
         }
         setBookings((prev) =>
-          prev.map((b) => (b.id === bookingId ? { ...b, status: "expired" } : b))
+          prev.map((b) =>
+            b.id === bookingId
+              ? {
+                  ...b,
+                  status: "expired",
+                  cancelReason: "host_acceptance_window_expired",
+                }
+              : b
+          )
         );
         alert("This booking request has expired.");
         return;
@@ -606,7 +625,10 @@ export default function OwnerDashboard() {
     setUpdatingBookingId(bookingId);
     try {
       if (isMockMode) {
-        await updateMockBooking(bookingId, { status: "rejected" });
+        await updateMockBooking(bookingId, {
+          status: "rejected",
+          cancelReason: "host_rejection",
+        });
       } else {
         const idToken = await user.getIdToken();
         const res = await fetch("/api/reject-booking", {
@@ -623,7 +645,11 @@ export default function OwnerDashboard() {
         }
       }
       setBookings((prev) =>
-        prev.map((b) => (b.id === bookingId ? { ...b, status: "rejected" } : b))
+        prev.map((b) =>
+          b.id === bookingId
+            ? { ...b, status: "rejected", cancelReason: "host_rejection" }
+            : b
+        )
       );
     } catch (err: any) {
       alert(err.message || "Failed to reject booking");
@@ -859,14 +885,14 @@ export default function OwnerDashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="flex flex-col gap-4 border-b border-slate-200 pb-6 xl:flex-row xl:items-center xl:justify-between">
             <h1 className="text-3xl font-bold text-slate-950">
-              Owner Dashboard
+              Host Dashboard
             </h1>
             <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
               {[
                 { label: "Upcoming bookings", value: upcomingBookings.length },
                 { label: "Pending requests", value: pendingBookings.length },
                 { label: "Past bookings", value: pastBookings.length },
-                { label: "Owner revenue", value: `$${estimatedRevenue.toFixed(0)}` },
+                { label: "Host revenue", value: `$${estimatedRevenue.toFixed(0)}` },
                 { label: "Authorized requests", value: `$${pendingPayments.toFixed(0)}` },
               ].map(({ label, value }) => (
                 <Card

@@ -52,6 +52,7 @@ export type MockBooking = {
   time: string;
   duration: number;
   status: string;
+  cancelReason?: string;
   courtNumber?: number;
   createdAt?: string;
   sessionId?: string;

@@ -53,6 +53,7 @@ interface Booking {
   time: string;
   duration: number;
   status: string;
+  cancelReason?: string;
   conversationId?: string;
   durationMinutes?: number;
 }
@@ -100,7 +101,7 @@ export default function PlayerDashboard() {
 
   useEffect(() => {
     if (!authLoading && !user) {
-      router.push("/login");
+      router.push("/");
     }
   }, [user, authLoading, router]);
 
@@ -164,7 +165,10 @@ export default function PlayerDashboard() {
         if (isMockMode) {
           await Promise.allSettled(
             expiredPendingBookings.map((booking) =>
-              updateMockBooking(booking.id, { status: "expired" })
+              updateMockBooking(booking.id, {
+                status: "expired",
+                cancelReason: "host_acceptance_window_expired",
+              })
             )
           );
         } else {
@@ -189,7 +193,11 @@ export default function PlayerDashboard() {
 
         bookingsData = bookingsData.map((booking) =>
           expiredPendingBookings.some((expired) => expired.id === booking.id)
-            ? { ...booking, status: "expired" }
+            ? {
+                ...booking,
+                status: "expired",
+                cancelReason: "host_acceptance_window_expired",
+              }
             : booking
         );
       }
@@ -225,14 +233,14 @@ export default function PlayerDashboard() {
       await Promise.all(
         ownerIds.map(async (ownerId) => {
           if (isMockMode) {
-            ownersMap[ownerId] = getMockUserDisplayName(ownerId) || "Court owner";
+            ownersMap[ownerId] = getMockUserDisplayName(ownerId) || "Court host";
             return;
           }
 
           const ownerDoc = await getDoc(doc(db, "users", ownerId));
           ownersMap[ownerId] = ownerDoc.exists()
-            ? getProfileDisplayName(ownerDoc.data(), "Court owner")
-            : "Court owner";
+            ? getProfileDisplayName(ownerDoc.data(), "Court host")
+            : "Court host";
         })
       );
       setCourtOwners(ownersMap);
@@ -259,7 +267,10 @@ export default function PlayerDashboard() {
     setCancelling(bookingId);
     try {
       if (isMockMode) {
-        await updateMockBooking(bookingId, { status: "cancelled" });
+        await updateMockBooking(bookingId, {
+          status: "cancelled",
+          cancelReason: "player_cancellation",
+        });
       } else {
         const idToken = await user.getIdToken();
         const res = await fetch("/api/cancel-booking", {
@@ -277,7 +288,9 @@ export default function PlayerDashboard() {
       }
       setBookings((prev) =>
         prev.map((b) =>
-          b.id === bookingId ? { ...b, status: "cancelled" } : b
+          b.id === bookingId
+            ? { ...b, status: "cancelled", cancelReason: "player_cancellation" }
+            : b
         )
       );
     } catch (err: any) {
@@ -297,7 +310,7 @@ export default function PlayerDashboard() {
 
   const getCourtOwnerName = (booking: Booking) => {
     const ownerId = courts[booking.courtId]?.ownerId;
-    return ownerId ? courtOwners[ownerId] || "Court owner" : "Court owner";
+    return ownerId ? courtOwners[ownerId] || "Court host" : "Court host";
   };
 
   const openBookingConversation = (booking: Booking) => {

@@ -63,7 +63,7 @@ const CreateListing = () => {
   const [ownerWaiverOpen, setOwnerWaiverOpen] = useState(false);
   const [ownerWaiverChecked, setOwnerWaiverChecked] = useState(false);
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   // Number of bookable courts
   const [numberOfCourts, setNumberOfCourts] = useState<number>(1);
@@ -169,6 +169,12 @@ const CreateListing = () => {
     if (ownerWaiverOpen) setOwnerWaiverChecked(false);
   }, [ownerWaiverOpen]);
 
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/");
+    }
+  }, [authLoading, router, user]);
+
   /** Validates form; opens waiver dialog before Firestore write. */
   const trySubmitListing = (data: CourtFormData) => {
     setError("");
@@ -241,7 +247,7 @@ const CreateListing = () => {
         await addDoc(collection(db, "courts"), courtDoc);
       }
 
-      router.push("/dashboard/owner");
+      router.push("/host");
     } catch (err: any) {
       setError(err.message || "Failed to create listing");
     } finally {
@@ -705,7 +711,7 @@ const CreateListing = () => {
       <WaiverAcknowledgmentDialog
         open={ownerWaiverOpen}
         onOpenChange={setOwnerWaiverOpen}
-        title="Owner acknowledgment & release"
+        title="Host acknowledgment & release"
         introBeforeTerms={OWNER_LISTING_WAIVER_INTRO}
         body={OWNER_LISTING_WAIVER_BODY}
         agreeLabel="I have read and agree to this acknowledgment, and I confirm that I have authority to list this facility. I understand CourtShare’s role is limited to providing software as described above."
@@ -716,11 +722,6 @@ const CreateListing = () => {
         confirmDisabled={saving}
       />
 
-      <div className="w-full bg-slate-900 py-16 mt-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-slate-400 text-sm">© 2025 CourtShare. All rights reserved.</p>
-        </div>
-      </div>
     </div>
   );
 };

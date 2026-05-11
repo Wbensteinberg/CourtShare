@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import {
@@ -11,21 +11,36 @@ import {
   query,
   where,
 } from "firebase/firestore";
-import { db, isMockMode } from "@/lib/firebase";
+import { signOut } from "firebase/auth";
+import { auth, db, isMockMode } from "@/lib/firebase";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Menu, X } from "lucide-react";
+import {
+  CalendarDays,
+  CircleUserRound,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  MessageSquare,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getMockCourts, getMockProfile } from "@/lib/mockData";
+import { getMockCourts, getMockProfile, signOutMockUser } from "@/lib/mockData";
 
 export default function AppHeader() {
   const { user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const headerRef = useRef<HTMLElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [hasOwnerListing, setHasOwnerListing] = useState(false);
   const [profileImageUrl, setProfileImageUrl] = useState("");
-  const isLandingPage = pathname === "/courts";
+  const [loggingOut, setLoggingOut] = useState(false);
+  const isLandingPage = pathname === "/";
+  const isAuthPage =
+    pathname === "/sign-in" ||
+    pathname === "/sign-up" ||
+    pathname === "/login" ||
+    pathname === "/signup";
 
   useEffect(() => {
     const fetchUserHeaderData = async () => {
@@ -71,6 +86,19 @@ export default function AppHeader() {
     fetchUserHeaderData();
   }, [user, pathname]);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!headerRef.current?.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [menuOpen]);
+
   const navButtonClass = isLandingPage
     ? "rounded-full border border-white/20 bg-white/10 px-5 text-white backdrop-blur-md hover:bg-white/18 hover:text-white"
     : "rounded-lg font-medium text-slate-700 transition-colors hover:bg-emerald-50 hover:text-emerald-700";
@@ -80,82 +108,40 @@ export default function AppHeader() {
     setMenuOpen(false);
   };
 
+  const handleLogout = async () => {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      if (isMockMode) {
+        signOutMockUser();
+      } else {
+        await signOut(auth);
+      }
+      setMenuOpen(false);
+      router.replace("/courts");
+      router.refresh();
+    } catch (error) {
+      console.error("Error logging out:", error);
+    } finally {
+      setLoggingOut(false);
+    }
+  };
+
   const profileInitial =
     user?.displayName?.trim().charAt(0) || user?.email?.trim().charAt(0) || "P";
 
-  const profileButton = (showLabel: boolean) => (
-    <Button
-      variant="ghost"
-      size={showLabel ? "sm" : "icon"}
-      className={cn(
-        showLabel
-          ? navButtonClass
-          : "h-10 w-10 rounded-full p-0 transition-transform hover:scale-105",
-        !showLabel && isLandingPage
-          ? "bg-white/10 text-white hover:bg-white/18 hover:text-white"
-          : !showLabel &&
-              "bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
-      )}
-      onClick={() => closeAndGo("/profile")}
-      aria-label="Profile"
-      title="Profile"
-    >
-      {profileImageUrl ? (
-        <Avatar className="h-9 w-9 border border-white/60">
-          <AvatarImage
-            src={profileImageUrl}
-            alt="Profile"
-            className="object-cover"
-          />
-          <AvatarFallback className="bg-emerald-100 text-sm font-semibold text-emerald-800">
-            {profileInitial.toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-      ) : (
-        showLabel ? (
-          "Profile"
-        ) : (
-          <Avatar className="h-9 w-9 border border-white/60">
-            <AvatarFallback className="bg-emerald-100 text-sm font-semibold text-emerald-800">
-              {profileInitial.toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-        )
-      )}
-    </Button>
-  );
-
-  const authedLinks = (showProfileLabel: boolean) => (
-    <>
-      <Button
-        variant="ghost"
-        size="sm"
-        className={navButtonClass}
-        onClick={() => closeAndGo("/messages")}
-      >
-        Messages
-      </Button>
-      <Button
-        variant="ghost"
-        size="sm"
-        className={navButtonClass}
-        onClick={() => closeAndGo("/dashboard/player")}
-      >
-        Player Dashboard
-      </Button>
-      {hasOwnerListing && (
-        <Button
-          variant="ghost"
-          size="sm"
-          className={navButtonClass}
-          onClick={() => closeAndGo("/dashboard/owner")}
-        >
-          Owner Dashboard
-        </Button>
-      )}
-      {profileButton(showProfileLabel)}
-    </>
-  );
+  const accountLinks: Array<{
+    label: string;
+    path: string;
+    Icon: ComponentType<{ className?: string }>;
+  }> = [
+    { label: "Upcoming Bookings", path: "/upcoming", Icon: CalendarDays },
+    { label: "Messages", path: "/messages", Icon: MessageSquare },
+    ...(hasOwnerListing
+      ? [{ label: "Host Dashboard", path: "/host", Icon: LayoutDashboard }]
+      : []),
+    { label: "Profile", path: "/profile", Icon: CircleUserRound },
+  ];
 
   const guestLinks = (
     <>
@@ -163,7 +149,7 @@ export default function AppHeader() {
         variant="ghost"
         size="sm"
         className={navButtonClass}
-        onClick={() => closeAndGo("/login")}
+        onClick={() => closeAndGo("/sign-in")}
       >
         Sign In
       </Button>
@@ -174,7 +160,7 @@ export default function AppHeader() {
             ? "rounded-full bg-white px-5 text-slate-900 shadow-none hover:bg-slate-100"
             : "rounded-lg bg-emerald-600 px-5 text-white hover:bg-emerald-700"
         }
-        onClick={() => closeAndGo("/signup")}
+        onClick={() => closeAndGo("/sign-up")}
       >
         Sign Up
       </Button>
@@ -183,52 +169,135 @@ export default function AppHeader() {
 
   return (
     <header
+      ref={headerRef}
       className={
         isLandingPage
           ? "absolute inset-x-0 top-0 z-50 w-full"
           : "sticky top-0 z-50 w-full border-b border-slate-200/70 bg-white/90 shadow-sm backdrop-blur-xl"
       }
     >
-      <div className="relative mx-auto flex h-18 w-full max-w-screen-2xl items-center justify-between px-6">
+      <div className="relative mx-auto flex h-18 w-full items-center justify-between px-6">
         <button
           type="button"
           className={cn(
-            "cursor-pointer rounded-xl px-4 py-2 text-2xl font-black tracking-tight transition-colors",
+            "cursor-pointer rounded-xl py-2 pr-4 text-2xl font-black tracking-tight transition-colors",
             isLandingPage
               ? "text-white"
               : "text-brand-logo"
           )}
-          onClick={() => closeAndGo("/courts")}
+          onClick={() => closeAndGo("/")}
         >
           CourtShare
         </button>
 
-        <nav className="hidden items-center gap-2 md:flex">
-          {user ? authedLinks(false) : guestLinks}
-        </nav>
+        <div className="flex items-center gap-2">
+          {!user && !isAuthPage && (
+            <nav className="hidden items-center gap-2 md:flex">
+              {guestLinks}
+            </nav>
+          )}
 
-        <Button
-          variant="ghost"
-          size="icon"
-          className={cn("md:hidden", isLandingPage && "text-white")}
-          onClick={() => setMenuOpen((prev) => !prev)}
-          aria-label={menuOpen ? "Close menu" : "Open menu"}
-        >
-          {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-        </Button>
+          {user && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-11 w-11 overflow-hidden rounded-full border p-0 transition-transform hover:scale-105 hover:bg-transparent",
+                isLandingPage
+                  ? "border-white/25 bg-white/10"
+                  : "border-slate-200 bg-white"
+              )}
+              onClick={() => closeAndGo("/profile")}
+              aria-label="Profile"
+              title="Profile"
+            >
+              <Avatar className="h-full w-full">
+                <AvatarImage
+                  src={profileImageUrl}
+                  alt="Profile"
+                  className="object-cover"
+                />
+                <AvatarFallback className="bg-emerald-100 text-sm font-semibold text-emerald-800">
+                  {profileInitial.toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+            </Button>
+          )}
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "h-11 w-11 rounded-full border transition-colors",
+              user ? "md:flex" : "md:hidden",
+              isLandingPage
+                ? "border-white/25 bg-white/10 text-white hover:bg-white/18 hover:text-white"
+                : "border-slate-200 bg-white text-slate-800 hover:bg-slate-100"
+            )}
+            onClick={() => setMenuOpen((prev) => !prev)}
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        </div>
       </div>
 
       <div
         className={cn(
-          "border-t md:hidden",
-          isLandingPage
-            ? "border-white/20 bg-slate-950/95"
-            : "border-slate-200 bg-white",
+          "absolute right-6 left-6 top-16 z-50 rounded-[28px] border border-slate-200 bg-white p-3 text-slate-950 shadow-2xl sm:left-auto sm:w-80",
           menuOpen ? "block" : "hidden"
         )}
       >
-        <nav className="flex flex-col gap-2 px-4 py-4">
-          {user ? authedLinks(true) : guestLinks}
+        <nav className="flex flex-col gap-1">
+          {user ? (
+            <>
+              {accountLinks.map(({ Icon, ...link }) => (
+                <button
+                  key={link.path}
+                  type="button"
+                  onClick={() => closeAndGo(link.path)}
+                  className="flex items-center gap-4 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition-colors hover:bg-slate-100 hover:text-slate-950"
+                >
+                  <Icon className="h-5 w-5 text-slate-800" />
+                  {link.label}
+                </button>
+              ))}
+              {!hasOwnerListing && (
+                <>
+                  <div className="my-1 h-px bg-slate-200" />
+                  <button
+                    type="button"
+                    onClick={() => closeAndGo("/create-listing")}
+                    className="flex items-center justify-between rounded-2xl px-4 py-4 text-left transition-colors hover:bg-slate-100"
+                  >
+                    <span>
+                      <span className="block text-base font-bold text-slate-950">
+                        Become a Host
+                      </span>
+                      <span className="mt-1 block text-sm leading-5 text-slate-500">
+                        Have a court? It&apos;s easy to start hosting and earn extra income.
+                      </span>
+                    </span>
+                    <span className="ml-4 flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-lg font-black text-[var(--site-accent)]">
+                      $
+                    </span>
+                  </button>
+                </>
+              )}
+              <div className="my-1 h-px bg-slate-200" />
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="flex items-center gap-4 rounded-2xl px-4 py-3 text-left text-sm font-semibold text-red-600 transition-colors hover:bg-red-50 hover:text-red-700 disabled:opacity-60"
+              >
+                <LogOut className="h-5 w-5" />
+                {loggingOut ? "Logging out..." : "Log out"}
+              </button>
+            </>
+          ) : (
+            <div className="flex flex-col gap-2">{guestLinks}</div>
+          )}
         </nav>
       </div>
     </header>

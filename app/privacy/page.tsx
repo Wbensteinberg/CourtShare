@@ -35,7 +35,7 @@ export default function PrivacyPage() {
             <ul className="list-disc pl-6 text-slate-600 space-y-1 mb-3">
               <li>Account information (email, name, profile picture when you sign in with Google or create an account)</li>
               <li>Booking details (court, date, time, payment-related information)</li>
-              <li>Listing information (if you are a court owner: court details, address, availability, photos)</li>
+              <li>Listing information (if you are a court host: court details, address, availability, photos)</li>
               <li>Communications (messages or support inquiries you send us)</li>
             </ul>
             <p className="text-slate-600 leading-relaxed">
@@ -97,7 +97,7 @@ export default function PrivacyPage() {
             Terms of Service
           </Link>
           <Link
-            href="/courts"
+            href="/"
             className="text-emerald-600 hover:text-emerald-700 font-medium"
           >
             Back to CourtShare

@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
 
     if (!courtData || courtData.ownerId !== userId) {
       return NextResponse.json(
-        { error: "Only the court owner can reject bookings" },
+        { error: "Only the court host can reject bookings" },
         { status: 403 }
       );
     }
@@ -81,12 +81,13 @@ export async function POST(req: NextRequest) {
       stripe,
       bookingData.sessionId,
       bookingId,
-      "owner_rejection"
+      "host_rejection"
     );
 
     // Update booking status
     await adminDb.collection("bookings").doc(bookingId).update({
       status: "rejected",
+      cancelReason: "host_rejection",
       rejectedAt: new Date(),
       paymentStatus: releasedPayment.paymentStatus,
       ...(releasedPayment.refundId ? { refundId: releasedPayment.refundId } : {}),

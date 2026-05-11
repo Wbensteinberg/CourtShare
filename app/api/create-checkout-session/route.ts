@@ -337,14 +337,14 @@ export async function POST(req: NextRequest) {
 
     if (!ownerId) {
       return NextResponse.json(
-        { error: "Court owner not found" },
+        { error: "Court host not found" },
         { status: 404 }
       );
     }
 
     if (ownerId === userId) {
       return NextResponse.json(
-        { error: "Owners cannot book their own courts" },
+        { error: "Hosts cannot book their own courts" },
         { status: 403 }
       );
     }
@@ -434,7 +434,7 @@ export async function POST(req: NextRequest) {
 
     if (!stripeAccountId) {
       return NextResponse.json(
-        { error: "This owner has not finished payout setup yet." },
+        { error: "This host has not finished payout setup yet." },
         { status: 409 }
       );
     }
@@ -451,7 +451,7 @@ export async function POST(req: NextRequest) {
           `[CHECKOUT] Owner ${ownerId} Stripe account not fully activated (charges_enabled: ${account.charges_enabled}, payouts_enabled: ${account.payouts_enabled}, details_submitted: ${account.details_submitted})`
         );
         return NextResponse.json(
-          { error: "This owner's payout account is not ready yet." },
+        { error: "This host's payout account is not ready yet." },
           { status: 409 }
         );
       }
@@ -472,7 +472,7 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       console.error("[CHECKOUT] Error verifying Stripe account:", err);
       return NextResponse.json(
-        { error: "Unable to verify this owner's payout account." },
+        { error: "Unable to verify this host's payout account." },
         { status: 500 }
       );
     }

@@ -10,7 +10,7 @@ type TimestampLike = {
 };
 
 export const PENDING_BOOKING_ACCEPTANCE_WINDOW_MS = 24 * 60 * 60 * 1000;
-export const BOOKING_REVIEW_WINDOW_MS = 60 * 24 * 60 * 60 * 1000;
+export const BOOKING_REVIEW_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const parseBookingDateTime = (dateStr: string, timeStr: string): Date => {
   const [timePart = "0:0", period] = timeStr.trim().split(/\s+/);
@@ -159,7 +159,7 @@ export const isBookingReviewable = (
   },
   now = new Date()
 ): boolean => {
-  if (booking.status !== "confirmed") return false;
+  if (booking.status !== "confirmed" && booking.status !== "completed") return false;
 
   try {
     const end = getBookingEndDateTime(booking);
@@ -179,7 +179,8 @@ export const isPastOrInactiveBooking = (
       parseBookingDateTime(booking.date, booking.time) < now ||
       booking.status === "cancelled" ||
       booking.status === "rejected" ||
-      booking.status === "expired"
+      booking.status === "expired" ||
+      booking.status === "completed"
     );
   } catch {
     return true;
@@ -195,7 +196,8 @@ export const isActiveFutureBooking = (
       parseBookingDateTime(booking.date, booking.time) >= now &&
       booking.status !== "cancelled" &&
       booking.status !== "rejected" &&
-      booking.status !== "expired"
+      booking.status !== "expired" &&
+      booking.status !== "completed"
     );
   } catch {
     return false;

@@ -47,7 +47,10 @@ jest.mock("@/lib/AuthContext", () => ({
 describe("LoginPage", () => {
   it("renders login form", () => {
     render(<LoginPage />);
-    expect(screen.getByText(/Sign in securely with Google/i)).toBeInTheDocument();
+    expect(screen.getByText(/Welcome back/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/access your bookings, messages, and listings/i)
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Continue with Google/i })
     ).toBeInTheDocument();

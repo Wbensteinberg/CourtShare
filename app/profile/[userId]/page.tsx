@@ -184,7 +184,7 @@ export default function PublicProfilePage() {
                 </h1>
                 <div className="mt-3 flex flex-wrap justify-center gap-2">
                   <Badge variant="secondary">
-                    {profile.isOwner ? "Court owner" : "Player"}
+                    {profile.isOwner ? "Court host" : "Player"}
                   </Badge>
                   {profile.ownerReviewCount ? (
                     <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">

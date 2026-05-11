@@ -9,7 +9,7 @@ export const PLAYER_BOOKING_WAIVER_VERSION = "player-booking-v1";
 export const OWNER_LISTING_WAIVER_INTRO =
   "Before your listing goes live, please read and accept the following. This acknowledgment is in addition to our ";
 
-export const OWNER_LISTING_WAIVER_BODY = `CourtShare is a technology platform that facilitates connections between court owners and players. CourtShare does not own, lease, operate, manage, or control any court, club, or physical facility listed on the Service.
+export const OWNER_LISTING_WAIVER_BODY = `CourtShare is a technology platform that facilitates connections between court hosts and players. CourtShare does not own, lease, operate, manage, or control any court, club, or physical facility listed on the Service.
 
 You are solely responsible for your listing’s accuracy, for your legal right to offer the facility for booking, and for compliance with all applicable laws, regulations, permits, insurance, and safety obligations. You set your own rules, pricing (subject to platform mechanics), and acceptance of bookings.
 

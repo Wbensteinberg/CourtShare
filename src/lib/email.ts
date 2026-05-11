@@ -57,7 +57,7 @@ const paymentReleaseCopy = (
 };
 
 /**
- * Send email to court owner when a new booking is created
+ * Send email to court host when a new booking is created
  */
 export async function sendOwnerBookingNotification(
   data: BookingEmailData
@@ -80,7 +80,7 @@ export async function sendOwnerBookingNotification(
   }
 
   try {
-    console.log("[EMAIL] Attempting to send owner notification...");
+    console.log("[EMAIL] Attempting to send host notification...");
     console.log("[EMAIL] From:", getFromEmail());
     console.log("[EMAIL] To:", data.ownerEmail);
     const result = await resend.emails.send({
@@ -150,12 +150,12 @@ export async function sendOwnerBookingNotification(
               
               <p style="font-size: 16px;">Please log in to your <a href="${
                 process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.co"
-              }/dashboard/owner" style="color: ${brandGreen}; text-decoration: none; font-weight: 600;">owner dashboard</a> to accept or decline this request.</p>
+              }/host" style="color: ${brandGreen}; text-decoration: none; font-weight: 600;">host dashboard</a> to accept or decline this request.</p>
               
               <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center;">
                 <a href="${
                   process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.co"
-                }/dashboard/owner" style="display: inline-block; background: ${brandGreen}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 10px;">View Dashboard</a>
+                }/host" style="display: inline-block; background: ${brandGreen}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 10px;">View Dashboard</a>
               </div>
               
               <p style="font-size: 14px; color: ${mutedTextColor}; margin-top: 30px; margin-bottom: 0;">This request expires after 24 hours if no action is taken.</p>
@@ -194,13 +194,13 @@ export async function sendOwnerBookingNotification(
     }
 
     console.log(
-      "[EMAIL] Owner notification sent successfully to:",
+      "[EMAIL] Host notification sent successfully to:",
       data.ownerEmail,
       "Email ID:",
       result.data.id
     );
   } catch (error: any) {
-    console.error("[EMAIL] Failed to send owner notification:", error);
+    console.error("[EMAIL] Failed to send host notification:", error);
     console.error("[EMAIL] Error details:", {
       message: error.message,
       stack: error.stack,
@@ -211,7 +211,7 @@ export async function sendOwnerBookingNotification(
 }
 
 /**
- * Send email to player when owner accepts their booking
+ * Send email to player when host accepts their booking
  */
 export async function sendPlayerBookingConfirmation(
   data: BookingEmailData
@@ -264,7 +264,7 @@ export async function sendPlayerBookingConfirmation(
               
               <p style="font-size: 16px;">Your booking request for <strong>${
                 data.courtName
-              }</strong> has been accepted by the court owner. Your payment has now been captured.</p>
+              }</strong> has been accepted by the court host. Your payment has now been captured.</p>
               
               <div style="background: ${pageBg}; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
                 <h2 style="margin-top: 0; color: ${brandGreen}; font-size: 20px;">Booking Details</h2>
@@ -306,7 +306,7 @@ export async function sendPlayerBookingConfirmation(
               
               <div style="background: ${brandGreenSoft}; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
                 <p style="margin: 0; font-size: 14px; color: ${brandGreen};">
-                  <strong>You're all set.</strong> Please arrive on time and follow any access instructions from the court owner.
+                  <strong>You're all set.</strong> Please arrive on time and follow any access instructions from the court host.
                 </p>
               </div>
               
@@ -358,13 +358,13 @@ export interface CancellationEmailData {
 }
 
 /**
- * Send email to court owner when a player cancels their booking
+ * Send email to court host when a player cancels their booking
  */
 export async function sendOwnerCancellationNotification(
   data: CancellationEmailData
 ): Promise<void> {
   if (!resend) {
-    console.warn("[EMAIL] Resend not initialized, skipping owner cancellation email");
+    console.warn("[EMAIL] Resend not initialized, skipping host cancellation email");
     return;
   }
 
@@ -404,9 +404,9 @@ export async function sendOwnerCancellationNotification(
         </html>
       `,
     });
-    console.log("[EMAIL] Owner cancellation notification sent to:", data.ownerEmail);
+    console.log("[EMAIL] Host cancellation notification sent to:", data.ownerEmail);
   } catch (error: any) {
-    console.error("[EMAIL] Failed to send owner cancellation email:", error);
+    console.error("[EMAIL] Failed to send host cancellation email:", error);
     throw error;
   }
 }
@@ -487,7 +487,7 @@ export interface RejectionEmailData {
 }
 
 /**
- * Send email to player when owner rejects their booking
+ * Send email to player when host rejects their booking
  */
 export async function sendPlayerRejectionNotification(
   data: RejectionEmailData
@@ -520,7 +520,7 @@ export async function sendPlayerRejectionNotification(
             </div>
             <div style="background: ${cardBg}; padding: 30px; border-radius: 0 0 14px 14px; border: 1px solid ${borderColor}; border-top: none;">
               <p style="font-size: 16px;">Hello${data.playerName ? ` ${data.playerName}` : ""},</p>
-              <p style="font-size: 16px;">The court owner declined your booking request for <strong>${data.courtName}</strong>.</p>
+              <p style="font-size: 16px;">The court host declined your booking request for <strong>${data.courtName}</strong>.</p>
               <div style="background: ${pageBg}; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
                 <p style="margin: 0 0 8px;"><strong>Date:</strong> ${formattedDate}</p>
                 <p style="margin: 0 0 8px;"><strong>Time:</strong> ${data.time} (${data.duration}h)</p>
@@ -528,7 +528,7 @@ export async function sendPlayerRejectionNotification(
               </div>
               <p style="font-size: 16px;">You can browse other courts and book a different time.</p>
               <div style="margin-top: 20px; text-align: center;">
-                <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.co"}/courts" style="display: inline-block; background: ${brandGreen}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Browse Courts</a>
+                <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.co"}/search" style="display: inline-block; background: ${brandGreen}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Browse Courts</a>
               </div>
               <p style="font-size: 14px; color: ${mutedTextColor}; margin-top: 30px;">This is an automated notification from CourtShare.</p>
             </div>

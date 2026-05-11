@@ -30,7 +30,7 @@ export default function TermsPage() {
               2. Description of Service
             </h2>
             <p className="text-slate-600 leading-relaxed">
-              CourtShare is a platform that connects court owners with players for booking tennis (and similar) courts. We provide the technology for listing courts, managing availability, processing bookings, and payments. We are not the owner of the courts nor the provider of the underlying facilities.
+              CourtShare is a platform that connects court hosts with players for booking tennis (and similar) courts. We provide the technology for listing courts, managing availability, processing bookings, and payments. We are not the host of the courts nor the provider of the underlying facilities.
             </p>
           </section>
 
@@ -48,13 +48,13 @@ export default function TermsPage() {
               4. Bookings and Payments
             </h2>
             <p className="text-slate-600 leading-relaxed">
-              Bookings are subject to availability and acceptance by the court owner. Payments are processed through Stripe. Refund and cancellation policies are determined by the court owner and/or our platform policies. We may charge fees as described at the time of booking or in your account settings.
+              Bookings are subject to availability and acceptance by the court host. Payments are processed through Stripe. Refund and cancellation policies are determined by the court host and/or our platform policies. We may charge fees as described at the time of booking or in your account settings.
             </p>
           </section>
 
           <section className="mb-8">
             <h2 className="text-xl font-semibold text-slate-800 mt-6 mb-3">
-              5. Listings and Owner Responsibilities
+              5. Listings and Host Responsibilities
             </h2>
             <p className="text-slate-600 leading-relaxed">
               If you list a court, you represent that you have the right to offer it for booking and that your listing is accurate. You are responsible for honoring accepted bookings, maintaining a safe facility, and complying with applicable laws. We may remove listings or suspend accounts for violations.
@@ -97,7 +97,7 @@ export default function TermsPage() {
             Privacy Policy
           </Link>
           <Link
-            href="/courts"
+            href="/"
             className="text-emerald-600 hover:text-emerald-700 font-medium"
           >
             Back to CourtShare

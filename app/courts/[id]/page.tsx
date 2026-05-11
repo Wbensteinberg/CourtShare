@@ -442,13 +442,13 @@ export default function CourtDetailPage() {
 
     const currentUser = isMockMode ? getMockAuthUser() : auth.currentUser;
     if (!user && !currentUser) {
-      router.push(`/login?redirect=/courts/${id}`);
+      router.push(`/sign-in?redirect=/courts/${id}`);
       return;
     }
 
     const activeUser = user || currentUser;
     if (!activeUser) {
-      router.push(`/login?redirect=/courts/${id}`);
+      router.push(`/sign-in?redirect=/courts/${id}`);
       return;
     }
 
@@ -500,7 +500,7 @@ export default function CourtDetailPage() {
     const currentUser = isMockMode ? getMockAuthUser() : auth.currentUser;
     const activeUser = user || currentUser;
     if (!activeUser) {
-      router.push(`/login?redirect=/courts/${id}`);
+      router.push(`/sign-in?redirect=/courts/${id}`);
       return;
     }
 
@@ -534,7 +534,7 @@ export default function CourtDetailPage() {
     const currentUser = isMockMode ? getMockAuthUser() : auth.currentUser;
     const activeUser = user || currentUser;
     if (!activeUser) {
-      router.push(`/login?redirect=/courts/${id}`);
+      router.push(`/sign-in?redirect=/courts/${id}`);
       return;
     }
 
@@ -668,7 +668,7 @@ export default function CourtDetailPage() {
             variant="ghost"
             size="sm"
             className="mb-4 font-semibold group"
-            onClick={() => router.push("/courts")}
+            onClick={() => router.push("/")}
           >
             <ArrowLeft className="w-5 h-5 mr-2 group-hover:-translate-x-1 transition-transform" />
             Back to Browse
@@ -827,7 +827,7 @@ export default function CourtDetailPage() {
                           Hosted by
                         </p>
                         <h2 className="text-lg font-bold text-slate-950">
-                          {hostProfile?.displayName || "Court owner"}
+                          {hostProfile?.displayName || "Court host"}
                         </h2>
                       </div>
                     </div>
@@ -1038,7 +1038,7 @@ export default function CourtDetailPage() {
                       </span>
                     </div>
                     <p className="text-xs text-gray-500">
-                      Your card is authorized now and only charged if the owner
+                      Your card is authorized now and only charged if the host
                       accepts within 24 hours.
                     </p>
                   </div>
@@ -1065,7 +1065,7 @@ export default function CourtDetailPage() {
                   </Button>
                   {isOwnCourt && (
                     <p className="text-sm text-center text-slate-500">
-                      Owners cannot book their own courts.
+                      Hosts cannot book their own courts.
                     </p>
                   )}
 
@@ -1081,7 +1081,7 @@ export default function CourtDetailPage() {
                   )}
 
                   <p className="text-xs text-muted-foreground text-center">
-                    Secure payment processing. Owners have 24 hours to accept.
+                    Secure payment processing. Hosts have 24 hours to accept.
                   </p>
                 </CardContent>
               </Card>

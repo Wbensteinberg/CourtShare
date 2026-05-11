@@ -81,6 +81,7 @@ export async function POST(req: NextRequest) {
     // Update booking status
     await adminDb.collection("bookings").doc(bookingId).update({
       status: "cancelled",
+      cancelReason: "player_cancellation",
       cancelledAt: new Date(),
       paymentStatus: releasedPayment.paymentStatus,
       ...(releasedPayment.refundId ? { refundId: releasedPayment.refundId } : {}),

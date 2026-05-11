@@ -1,12 +1,5 @@
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { MapPin, Star, Clock, Users, Wifi, Car } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { MapPin, Star } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface CourtCardProps {
@@ -28,12 +21,6 @@ interface CourtCardProps {
 
 const CourtCard = ({ court }: CourtCardProps) => {
   const router = useRouter();
-  const amenityIcons: { [key: string]: any } = {
-    WiFi: Wifi,
-    Parking: Car,
-    "Changing Rooms": Users,
-  };
-
   const goToDetails = () => router.push(`/courts/${court.id}`);
 
   return (
@@ -63,88 +50,27 @@ const CourtCard = ({ court }: CourtCardProps) => {
         </div>
       </div>
 
-      <CardContent className="py-7 px-7 bg-gradient-to-b from-white via-white to-emerald-50/30 text-black">
-        <div className="space-y-5">
-          <div>
-            <h3 className="font-extrabold text-2xl text-gray-900 group-hover:text-emerald-600 transition-colors duration-300 cursor-pointer mb-3 tracking-tight leading-tight">
-              {court.name}
-            </h3>
-            <div className="flex items-center flex-wrap gap-2 text-sm text-gray-600">
-              <div className="flex items-center">
-                <MapPin className="h-4 w-4 mr-1.5 text-emerald-600" />
-                <span className="font-medium">{court.location}</span>
-              </div>
-              {court.distance && (
-                <span className="px-3 py-1 bg-gradient-to-r from-emerald-100 to-teal-100 text-emerald-700 font-bold rounded-full text-xs border border-emerald-200/50 shadow-sm">
-                  {court.distance.toFixed(1)} mi
-                </span>
-              )}
-            </div>
+      <CardContent className="px-7 py-7 bg-gradient-to-b from-white via-white to-emerald-50/30 text-black">
+        <h3 className="mb-3 font-extrabold text-2xl text-gray-900 group-hover:text-emerald-600 transition-colors duration-300 cursor-pointer tracking-tight leading-tight">
+          {court.name}
+        </h3>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-600">
+          <div className="flex min-w-0 items-center">
+            <MapPin className="mr-1.5 h-4 w-4 shrink-0 text-emerald-600" />
+            <span className="truncate font-medium">{court.location}</span>
           </div>
-
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center">
-              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 mr-1" />
-              <span className="font-medium">{court.rating}</span>
-              <span className="text-sm text-gray-500 ml-1">
-                ({court.reviewCount})
-              </span>
-            </div>
-            <div className="flex items-center text-sm text-gray-500">
-              <Clock className="h-4 w-4 mr-1" />
-              {court.availability}
-            </div>
+          <div className="flex items-center">
+            <Star className="mr-1 h-4 w-4 fill-yellow-400 text-yellow-400" />
+            <span className="font-semibold text-gray-900">{court.rating}</span>
+            <span className="ml-1 text-gray-500">({court.reviewCount})</span>
           </div>
-
-          <div className="flex flex-wrap gap-2">
-            {court.amenities.slice(0, 3).map((amenity) => {
-              const Icon = amenityIcons[amenity] || Users;
-              return (
-                <div
-                  key={amenity}
-                  className="flex items-center text-xs text-gray-400"
-                >
-                  <Icon className="h-3 w-3 mr-1" />
-                  {amenity}
-                </div>
-              );
-            })}
-            {court.amenities.length > 3 && (
-              <span className="text-xs text-gray-400">
-                +{court.amenities.length - 3} more
-              </span>
-            )}
-          </div>
+          {court.distance && (
+            <span className="rounded-full border border-emerald-200/50 bg-gradient-to-r from-emerald-100 to-teal-100 px-3 py-1 text-xs font-bold text-emerald-700 shadow-sm">
+              {court.distance.toFixed(1)} mi
+            </span>
+          )}
         </div>
       </CardContent>
-
-      <CardFooter className="px-7 pb-7 pt-5 bg-white rounded-b-3xl">
-        <div className="flex w-full gap-3">
-          <Button
-            variant="outline"
-            className="w-full h-13 cursor-pointer text-base font-extrabold border-2 border-gray-200 hover:border-emerald-500 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-teal-50 hover:text-emerald-700 transition-all duration-300 rounded-2xl shadow-sm hover:shadow-md"
-            onClick={(e) => {
-              e.stopPropagation();
-              goToDetails();
-            }}
-            aria-label="View Details"
-          >
-            View Details
-          </Button>
-          <Button
-            variant="tennis"
-            className="w-full h-13 cursor-pointer text-base font-extrabold bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white shadow-xl hover:shadow-glow-hover transition-all duration-300 rounded-2xl transform hover:scale-[1.02] relative overflow-hidden group"
-            onClick={(e) => {
-              e.stopPropagation();
-              goToDetails();
-            }}
-            aria-label="Book Now"
-          >
-            <span className="relative z-10">Book Now</span>
-            <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></span>
-          </Button>
-        </div>
-      </CardFooter>
     </Card>
   );
 };
