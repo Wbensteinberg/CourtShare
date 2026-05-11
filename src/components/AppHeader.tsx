@@ -267,8 +267,8 @@ export default function AppHeader() {
                   <div className="my-1 h-px bg-slate-200" />
                   <button
                     type="button"
-                    onClick={() => closeAndGo("/create-listing")}
-                    className="flex cursor-pointer items-center justify-between rounded-2xl px-4 py-4 text-left transition-colors hover:bg-slate-100"
+                    onClick={() => closeAndGo("/host?tab=courts&addCourt=1")}
+                    className="flex items-center justify-between rounded-2xl px-4 py-4 text-left transition-colors hover:bg-slate-100"
                   >
                     <span>
                       <span className="block text-base font-bold text-slate-950">

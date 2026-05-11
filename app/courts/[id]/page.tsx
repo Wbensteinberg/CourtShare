@@ -31,6 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { calculateBookingPriceBreakdown, formatCents } from "@/lib/pricing";
 import { WaiverAcknowledgmentDialog } from "@/components/WaiverAcknowledgmentDialog";
+import LoadingScreen from "@/components/LoadingScreen";
 import {
   PLAYER_BOOKING_WAIVER_INTRO,
   PLAYER_BOOKING_WAIVER_BODY,
@@ -626,12 +627,10 @@ export default function CourtDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">Loading court...</p>
-        </div>
-      </div>
+      <LoadingScreen
+        message="Loading court"
+        detail="Checking court details, availability, host info, and reviews."
+      />
     );
   }
 
@@ -801,90 +800,92 @@ export default function CourtDetailPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Host Card */}
+            <Card className="border-0 shadow-elegant rounded-3xl">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-14 w-14">
+                      <AvatarImage
+                        src={hostProfile?.profileImageUrl || undefined}
+                        alt={hostProfile?.displayName || "Court host"}
+                      />
+                      <AvatarFallback className="bg-emerald-100 font-semibold text-emerald-800">
+                        {hostInitial}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Hosted by
+                      </p>
+                      <h2 className="text-lg font-bold text-slate-950">
+                        {hostProfile?.displayName || "Court host"}
+                      </h2>
+                    </div>
+                  </div>
+                  {court.ownerId && (
+                    <Button
+                      variant="outline"
+                      className="rounded-xl"
+                      onClick={() => router.push(`/profile/${court.ownerId}`)}
+                    >
+                      <UserRound className="mr-2 h-4 w-4" />
+                      Profile
+                    </Button>
+                  )}
+                </div>
+
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl border border-slate-200 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Court reviews
+                    </p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                      <span className="font-semibold">
+                        {court.rating ? court.rating.toFixed(1) : "New"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {court.reviewCount || 0} reviews
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Host reviews
+                    </p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                      <span className="font-semibold">
+                        {hostProfile?.ownerRating
+                          ? hostProfile.ownerRating.toFixed(1)
+                          : "New"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {hostProfile?.ownerReviewCount || 0} reviews
+                    </p>
+                  </div>
+                </div>
+
+                {latestCourtReview?.comment && (
+                  <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+                    <div className="flex items-center gap-1 text-sm font-semibold text-slate-950">
+                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                      {latestCourtReview.rating}/5
+                    </div>
+                    <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">
+                      {latestCourtReview.comment}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           {/* Booking Form */}
           <div className="space-y-4 lg:sticky lg:top-8">
-              <Card className="border-0 shadow-elegant rounded-3xl">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-14 w-14">
-                        <AvatarImage
-                          src={hostProfile?.profileImageUrl || undefined}
-                          alt={hostProfile?.displayName || "Court host"}
-                        />
-                        <AvatarFallback className="bg-emerald-100 font-semibold text-emerald-800">
-                          {hostInitial}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Hosted by
-                        </p>
-                        <h2 className="text-lg font-bold text-slate-950">
-                          {hostProfile?.displayName || "Court host"}
-                        </h2>
-                      </div>
-                    </div>
-                    {court.ownerId && (
-                      <Button
-                        variant="outline"
-                        className="rounded-xl"
-                        onClick={() => router.push(`/profile/${court.ownerId}`)}
-                      >
-                        <UserRound className="mr-2 h-4 w-4" />
-                        Profile
-                      </Button>
-                    )}
-                  </div>
-
-                  <div className="mt-5 grid grid-cols-2 gap-3">
-                    <div className="rounded-2xl border border-slate-200 p-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Court reviews
-                      </p>
-                      <div className="mt-2 flex items-center gap-2">
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                        <span className="font-semibold">
-                          {court.rating ? court.rating.toFixed(1) : "New"}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {court.reviewCount || 0} reviews
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border border-slate-200 p-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Host reviews
-                      </p>
-                      <div className="mt-2 flex items-center gap-2">
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                        <span className="font-semibold">
-                          {hostProfile?.ownerRating
-                            ? hostProfile.ownerRating.toFixed(1)
-                            : "New"}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {hostProfile?.ownerReviewCount || 0} reviews
-                      </p>
-                    </div>
-                  </div>
-
-                  {latestCourtReview?.comment && (
-                    <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-                      <div className="flex items-center gap-1 text-sm font-semibold text-slate-950">
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                        {latestCourtReview.rating}/5
-                      </div>
-                      <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">
-                        {latestCourtReview.comment}
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
               <Card className="shadow-elegant border-0 rounded-3xl">
                 <CardHeader className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 text-white border-0 rounded-t-3xl">
                   <CardTitle className="text-2xl font-black tracking-tight">

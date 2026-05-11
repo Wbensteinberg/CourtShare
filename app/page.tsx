@@ -212,7 +212,7 @@ export default function HomePage() {
                   onClick={() => router.push("/sign-up")}
                   className="mt-10 w-fit cursor-pointer rounded-full border border-white bg-white px-7 py-3 text-sm font-extrabold text-[var(--site-accent)] transition-colors hover:bg-slate-100"
                 >
-                  Create a Listing
+                  Become a Host
                 </button>
               </div>
             </div>

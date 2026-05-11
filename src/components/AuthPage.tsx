@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import AppHeader from "@/components/AppHeader";
+import LoadingScreen from "@/components/LoadingScreen";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
@@ -190,12 +191,10 @@ export default function AuthPage({ mode }: { mode: AuthMode }) {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-white">
-          <div className="text-center">
-            <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-600" />
-            <p className="font-medium text-gray-500">Loading...</p>
-          </div>
-        </div>
+        <LoadingScreen
+          message="Loading sign in"
+          detail="Preparing secure Google authentication."
+        />
       }
     >
       <AuthForm mode={mode} />

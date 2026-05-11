@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { db, getStorageInstance, isMockMode } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
-import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,9 +12,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Upload, Calendar as CalendarIcon, Clock, Trophy, Edit3, Trash2, Settings2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Calendar as CalendarIcon,
+  CheckCircle2,
+  Clock,
+  Settings2,
+  Trash2,
+  Trophy,
+  Upload,
+} from "lucide-react";
 import { useForm } from "react-hook-form";
 import AppHeader from "@/components/AppHeader";
+import LoadingScreen from "@/components/LoadingScreen";
 import AddressAutocomplete from "@/components/AddressAutocomplete";
 import {
   deleteMockCourt,
@@ -61,13 +71,6 @@ export default function EditListingPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   
-  // Form state
-  const [name, setName] = useState("");
-  const [location, setLocation] = useState("");
-  const [address, setAddress] = useState("");
-  const [accessInstructions, setAccessInstructions] = useState("");
-  const [price, setPrice] = useState("");
-  const [description, setDescription] = useState("");
   const [images, setImages] = useState<File[]>([]);
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [removedImages, setRemovedImages] = useState<string[]>([]);
@@ -84,8 +87,6 @@ export default function EditListingPage() {
   const [courtSpecificAlwaysBlockedTimesByDay, setCourtSpecificAlwaysBlockedTimesByDay] = useState<{ [courtNum: string]: { [dayOfWeek: string]: string[] } }>({});
   const [expandedCourt, setExpandedCourt] = useState<number | null>(null);
   
-  // New state for the beautiful UI
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [deletingListing, setDeletingListing] = useState(false);
   
@@ -144,13 +145,6 @@ export default function EditListingPage() {
         
         setCourt(resolvedCourt);
         
-        // Populate form fields
-        setName(resolvedCourt.name);
-        setLocation(resolvedCourt.location);
-        setAddress(resolvedCourt.address || "");
-        setAccessInstructions(resolvedCourt.accessInstructions || "");
-        setPrice(resolvedCourt.price.toString());
-        setDescription(resolvedCourt.description);
         setExistingImages(resolvedCourt.imageUrls || [resolvedCourt.imageUrl]);
         // Set the main image index to 0 (first image) by default
         setMainImageIndex(0);
@@ -209,21 +203,15 @@ export default function EditListingPage() {
     }
   };
 
-  // New file handling functions for the beautiful UI
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      const files = Array.from(event.target.files);
-      setSelectedFiles(prev => [...prev, ...files]);
-    }
-  };
-
-  const removeFile = (index: number) => {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-  };
-
   const triggerFileInput = () => {
     fileInputRef.current?.click();
   };
+
+  const inputClass =
+    "h-12 rounded-2xl border-slate-300 bg-white text-base font-medium focus:border-[var(--site-accent)] focus:ring-[var(--site-accent)]";
+  const textareaClass =
+    "min-h-[120px] resize-none rounded-2xl border-slate-300 bg-white p-4 text-base focus:border-[var(--site-accent)] focus:ring-[var(--site-accent)]";
+  const sectionCardClass = "rounded-[32px] border-slate-200 bg-white shadow-sm";
 
   const handleDeleteListing = async () => {
     if (
@@ -240,7 +228,7 @@ export default function EditListingPage() {
       } else {
         await deleteDoc(doc(db, "courts", courtId));
       }
-      router.push("/host");
+      router.push("/host?tab=courts");
     } catch (err: any) {
       setError(err.message || "Failed to delete listing");
     } finally {
@@ -384,7 +372,7 @@ export default function EditListingPage() {
       
       // Redirect to host dashboard after a short delay
       setTimeout(() => {
-        router.push("/host");
+        router.push("/host?tab=courts");
       }, 2000);
       
     } catch (err: any) {
@@ -396,331 +384,349 @@ export default function EditListingPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-primary px-4">
-        <div className="text-white text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-          <p>Loading court details...</p>
-        </div>
-      </div>
+      <LoadingScreen
+        message="Loading listing"
+        detail="Preparing your court details and availability settings."
+      />
     );
   }
 
-  if (error) {
+  if (error && !court) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-primary px-4">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 mx-auto text-center">
-          <div className="text-6xl mb-4">❌</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Error</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
-          <button
-            onClick={() => router.push("/host")}
-            className="bg-primary text-white py-3 px-6 rounded-lg font-semibold hover:bg-primary transition hover:cursor-pointer"
-          >
-            Back to Dashboard
-          </button>
-        </div>
+      <div className="min-h-screen bg-slate-50">
+        <AppHeader />
+        <main className="flex min-h-[70vh] items-center justify-center px-4">
+          <Card className="w-full max-w-md rounded-[32px] border-slate-200 bg-white text-center shadow-sm">
+            <CardContent className="p-8">
+              <h2 className="text-2xl font-black text-slate-950">Unable to edit listing</h2>
+              <p className="mt-3 text-slate-500">{error}</p>
+              <Button
+                onClick={() => router.push("/host?tab=courts")}
+                className="mt-6 h-12 rounded-2xl bg-[var(--site-accent)] px-6 font-bold text-white hover:bg-[var(--site-accent-hover)]"
+              >
+                Back to Your Courts
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
       </div>
     );
   }
 
   if (!court) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-primary px-4">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 mx-auto text-center">
-          <div className="text-6xl mb-4">❓</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Court Not Found</h2>
-          <p className="text-gray-600 mb-6">The court you're looking for doesn't exist.</p>
-          <button
-            onClick={() => router.push("/host")}
-            className="bg-primary text-white py-3 px-6 rounded-lg font-semibold hover:bg-primary transition hover:cursor-pointer"
-          >
-            Back to Dashboard
-          </button>
-        </div>
+      <div className="min-h-screen bg-slate-50">
+        <AppHeader />
+        <main className="flex min-h-[70vh] items-center justify-center px-4">
+          <Card className="w-full max-w-md rounded-[32px] border-slate-200 bg-white text-center shadow-sm">
+            <CardContent className="p-8">
+              <h2 className="text-2xl font-black text-slate-950">Court Not Found</h2>
+              <p className="mt-3 text-slate-500">The court you're looking for doesn't exist.</p>
+              <Button
+                onClick={() => router.push("/host?tab=courts")}
+                className="mt-6 h-12 rounded-2xl bg-[var(--site-accent)] px-6 font-bold text-white hover:bg-[var(--site-accent-hover)]"
+              >
+                Back to Your Courts
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/20">
+    <div className="min-h-screen bg-slate-50">
       <AppHeader />
 
-      {/* Hero Section with Background - Same as create listing */}
-      <section className="relative py-24 bg-gradient-tennis overflow-hidden">
-        <div className="absolute inset-0">
-          <div className="absolute top-20 left-20 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-float"></div>
-          <div
-            className="absolute bottom-20 right-20 w-80 h-80 bg-cyan-300/10 rounded-full blur-3xl animate-float"
-            style={{ animationDelay: "2s" }}
-          ></div>
-        </div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="text-center text-white">
-            <div className="flex items-center justify-center mb-6">
-              <div className="w-20 h-20 rounded-3xl glass-dark flex items-center justify-center shadow-glow">
-                <Edit3 className="h-12 w-12 text-white" />
-              </div>
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="border-b border-slate-200 pb-6">
+          <Button
+            type="button"
+            variant="ghost"
+            className="mb-4 -ml-3 rounded-2xl text-slate-600 hover:bg-white hover:text-slate-950"
+            onClick={() => router.push("/host?tab=courts")}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Your Courts
+          </Button>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h1 className="text-4xl font-black tracking-tight text-slate-950">
+                Edit Court Listing
+              </h1>
+              <p className="mt-3 max-w-2xl text-base leading-7 text-slate-500">
+                Keep your listing accurate so players know what to expect before they book.
+              </p>
             </div>
-            <h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tight">
-              Edit Court Listing
-            </h1>
-            <p className="text-xl md:text-2xl text-white/95 max-w-2xl mx-auto font-medium">
-              Update your court details below to keep your listing current
-            </p>
+            <div className="rounded-[24px] border border-emerald-100 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-800">
+              Changes apply to future booking requests
+            </div>
           </div>
         </div>
-      </section>
 
-      {/* Main Content - Modernized */}
-      <section className="py-12 -mt-10 relative z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-4xl mx-auto">
-            <Card className="shadow-elegant border-0 rounded-3xl glass backdrop-blur-xl mt-8">
-              <CardHeader className="space-y-2 pb-10 pt-10">
-                <CardTitle className="text-3xl md:text-4xl font-black text-center tracking-tight bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
-                  Court Details
+        <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[340px_minmax(0,1fr)]">
+          <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+            <Card className={sectionCardClass}>
+              <CardContent className="p-6">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-[var(--site-accent)]">
+                  <Trophy className="h-6 w-6" />
+                </div>
+                <h2 className="mt-5 text-xl font-black text-slate-950">
+                  Editing checklist
+                </h2>
+                <div className="mt-5 space-y-4 text-sm leading-6 text-slate-600">
+                  {[
+                    "Review public court details",
+                    "Keep access instructions current",
+                    "Choose a strong main photo",
+                    "Confirm pricing and court count",
+                    "Update blocked time rules",
+                  ].map((item) => (
+                    <div key={item} className="flex gap-3">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--site-accent)]" />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className={sectionCardClass}>
+              <CardContent className="p-6">
+                <h2 className="text-lg font-black text-slate-950">
+                  Listing status
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Saved changes update the live court listing. Existing confirmed bookings keep their booking details.
+                </p>
+              </CardContent>
+            </Card>
+          </aside>
+
+          <section>
+            <Card className={sectionCardClass}>
+              <CardHeader className="border-b border-slate-200 p-6">
+                <CardTitle className="text-2xl font-black tracking-tight text-slate-950">
+                  Court details
                 </CardTitle>
-                <CardDescription className="text-center text-gray-600 font-medium text-lg">
-                  Please update the information about your tennis court
+                <CardDescription className="text-base text-slate-500">
+                  Update the core information players see before requesting a reservation.
                 </CardDescription>
               </CardHeader>
-              
-              <CardContent className="space-y-8">
+
+              <CardContent className="space-y-8 p-6">
                 <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                    {/* Basic Information */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <FormField
-                        control={form.control}
-                        name="courtName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm font-semibold">Court Name</FormLabel>
-                            <FormControl>
-                              <Input 
-                                placeholder="Enter court name" 
-                                className="h-13 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 text-base font-medium"
-                                {...field} 
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      
-                      <FormField
-                        control={form.control}
-                        name="location"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm font-semibold">Location</FormLabel>
-                            <FormControl>
-                              <Input 
-                                placeholder="City, State" 
-                                className="h-13 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 text-base font-medium"
-                                {...field} 
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <FormField
-                      control={form.control}
-                      name="fullAddress"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <AddressAutocomplete
-                              value={field.value}
-                              onChange={(address, coordinates) => {
-                                field.onChange(address);
-                                // Auto-populate coordinates if available
-                                if (coordinates) {
-                                  // Note: Edit listing page doesn't have latitude/longitude fields yet
-                                  // This would need to be added to the form if coordinates are needed
-                                  console.log('Coordinates:', coordinates);
-                                }
-                              }}
-                              placeholder="Complete street address"
-                              className="h-13 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 text-base font-medium"
-                              label="Full Address"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="accessInstructions"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-sm font-semibold">Access Instructions</FormLabel>
-                          <FormControl>
-                            <Textarea 
-                              placeholder="Gate code, building access, parking info..."
-                              className="min-h-[100px] border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 resize-none"
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <FormField
-                        control={form.control}
-                        name="pricePerHour"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm font-semibold">Price per Hour (USD)</FormLabel>
-                            <FormControl>
-                              <Input 
-                                placeholder="25.00" 
-                                type="number"
-                                step="0.01"
-                                className="h-13 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300 text-base font-medium"
-                                {...field} 
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <FormField
-                      control={form.control}
-                      name="description"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-sm font-semibold">Description</FormLabel>
-                          <FormControl>
-                            <Textarea 
-                              placeholder="Describe your court's features, amenities, surface type..."
-                              className="min-h-[120px] border-gray-300 focus:border-green-600 focus:ring-2 focus:ring-green-600 focus:ring-opacity-20 transition-all duration-200 resize-none"
-                              {...field} 
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Existing Images */}
-                    {existingImages.length > 0 && (
-                      <div className="space-y-4">
-                        <FormLabel className="text-sm font-semibold">Current Images ({existingImages.length})</FormLabel>
-                        <p className="text-xs text-gray-500">
-                          Click "Set as Main" to choose which photo appears first in your listing
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                    <div className="space-y-5">
+                      <div>
+                        <h3 className="text-lg font-black text-slate-950">Basics</h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Name, location, pricing, and a short description.
                         </p>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                          {existingImages.map((imageUrl, index) => (
-                            <div key={index} className="relative group">
-                              <img
-                                src={imageUrl}
-                                alt={`Current ${index + 1}`}
-                                className={`w-full h-24 object-cover rounded-lg border border-gray-200 ${mainImageIndex === index ? 'ring-2 ring-emerald-600' : ''}`}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => removeExistingImage(imageUrl)}
-                                className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-rose-600 transition-colors opacity-0 group-hover:opacity-100"
-                              >
-                                ×
-                              </button>
-                              {mainImageIndex === index && (
-                                <div className="absolute -top-2 -left-2 bg-emerald-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">
-                                  ★
-                                </div>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => setMainImageIndex(index)}
-                                className={`absolute bottom-1 left-1 px-2 py-1 rounded text-xs font-medium transition ${
-                                  mainImageIndex === index 
-                                    ? 'bg-emerald-600 text-white' 
-                                    : 'bg-white/90 text-gray-700 hover:bg-emerald-600 hover:text-white'
-                                }`}
-                              >
-                                {mainImageIndex === index ? 'Main Photo' : 'Set as Main'}
-                              </button>
-                            </div>
-                          ))}
-                        </div>
                       </div>
-                    )}
 
-                    {/* Image Upload Section */}
-                    <div className="space-y-4">
-                      <FormLabel className="text-sm font-semibold">Upload New Images</FormLabel>
-                      <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-emerald-500/50 transition-colors">
-                        <Upload className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="courtName"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-sm font-semibold">Court Name</FormLabel>
+                              <FormControl>
+                                <Input placeholder="e.g. Brentwood Backyard Court" className={inputClass} {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormField
+                          control={form.control}
+                          name="location"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-sm font-semibold">Location</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Los Angeles, CA" className={inputClass} {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <FormField
+                        control={form.control}
+                        name="fullAddress"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormControl>
+                              <AddressAutocomplete
+                                value={field.value}
+                                onChange={(address) => field.onChange(address)}
+                                placeholder="Complete street address"
+                                className={inputClass}
+                                label="Full Address"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="accessInstructions"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-semibold">Access Instructions</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Gate code, building access, parking info, where players should enter..."
+                                className={textareaClass}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                        <FormField
+                          control={form.control}
+                          name="pricePerHour"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="text-sm font-semibold">Price per Hour (USD)</FormLabel>
+                              <FormControl>
+                                <Input placeholder="25.00" type="number" step="0.01" className={inputClass} {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <FormItem>
+                          <FormLabel className="text-sm font-semibold">Number of Bookable Courts</FormLabel>
+                          <Select value={String(numberOfCourts)} onValueChange={(v) => setNumberOfCourts(parseInt(v, 10))}>
+                            <SelectTrigger className={inputClass}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl border border-slate-200 bg-white shadow-lg">
+                              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                                <SelectItem key={n} value={String(n)} className="cursor-pointer hover:bg-emerald-50 hover:text-emerald-700">
+                                  {n} {n === 1 ? "court" : "courts"}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {numberOfCourts === 1 ? "Single court listing" : `Club listing with ${numberOfCourts} bookable courts`}
+                          </p>
+                        </FormItem>
+                      </div>
+
+                      <FormField
+                        control={form.control}
+                        name="description"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-semibold">Description</FormLabel>
+                            <FormControl>
+                              <Textarea
+                                placeholder="Describe your court's surface, lighting, amenities, privacy, and anything players should know."
+                                className={textareaClass}
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="space-y-5">
+                      <div>
+                        <h3 className="text-lg font-black text-slate-950">Photos</h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Choose which existing photo appears first and add new photos as needed.
+                        </p>
+                      </div>
+
+                      {existingImages.length > 0 && (
+                        <div className="space-y-3 rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                          <p className="text-sm font-bold text-slate-700">Current photos ({existingImages.length})</p>
+                          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                            {existingImages.map((imageUrl, index) => (
+                              <div key={imageUrl} className="group relative">
+                                <img
+                                  src={imageUrl}
+                                  alt={`Current ${index + 1}`}
+                                  className={`h-28 w-full rounded-2xl border object-cover ${mainImageIndex === index ? "border-[var(--site-accent)] ring-2 ring-[var(--site-accent)]" : "border-slate-200"}`}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => removeExistingImage(imageUrl)}
+                                  className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm font-black text-red-600 opacity-0 shadow-sm transition hover:bg-red-50 group-hover:opacity-100"
+                                >
+                                  ×
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setMainImageIndex(index)}
+                                  className={`absolute bottom-2 left-2 rounded-full px-3 py-1 text-xs font-bold shadow-sm transition ${mainImageIndex === index ? "bg-[var(--site-accent)] text-white" : "bg-white text-slate-700 hover:bg-slate-100"}`}
+                                >
+                                  {mainImageIndex === index ? "Main photo" : "Set main"}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="rounded-[28px] border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center transition-colors hover:border-[var(--site-accent)]">
+                        <Upload className="mx-auto mb-4 h-12 w-12 text-slate-400" />
                         <div className="space-y-2">
-                          <input
-                            ref={fileInputRef}
-                            type="file"
-                            multiple
-                            accept="image/*"
-                            onChange={handleImageChange}
-                            className="hidden"
-                          />
-                          <Button 
-                            type="button" 
-                            variant="outline" 
-                            className="border-emerald-500/20 hover:bg-emerald-50 text-emerald-700 hover:border-emerald-500 cursor-pointer"
-                            onClick={triggerFileInput}
-                          >
-                            Choose Files
+                          <input ref={fileInputRef} type="file" multiple accept="image/*" onChange={handleImageChange} className="hidden" />
+                          <Button type="button" variant="outline" className="rounded-2xl border-slate-300 bg-white font-bold text-slate-800 hover:bg-slate-100" onClick={triggerFileInput}>
+                            Choose Photos
                           </Button>
-                          <p className="text-sm text-gray-500">
-                            {images.length === 0 ? "No new files chosen" : `${images.length} new file(s) selected`}
+                          <p className="text-sm text-slate-500">
+                            {images.length === 0 ? "No new photos selected" : `${images.length} new photo(s) selected`}
                           </p>
                         </div>
                       </div>
-                      
-                      {/* Display new images */}
+
                       {images.length > 0 && (
                         <div className="space-y-3">
-                          <p className="text-sm font-medium text-gray-700">New Images ({images.length}):</p>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          <p className="text-sm font-bold text-slate-700">New photos</p>
+                          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
                             {images.map((image, index) => {
                               const newImageIndex = existingImages.length + index;
                               return (
-                                <div key={index} className="relative group">
+                                <div key={`${image.name}-${index}`} className="group relative">
                                   <img
                                     src={URL.createObjectURL(image)}
                                     alt={`New ${index + 1}`}
-                                    className={`w-full h-24 object-cover rounded-lg border border-gray-200 ${mainImageIndex === newImageIndex ? 'ring-2 ring-green-600' : ''}`}
+                                    className={`h-28 w-full rounded-2xl border object-cover ${mainImageIndex === newImageIndex ? "border-[var(--site-accent)] ring-2 ring-[var(--site-accent)]" : "border-slate-200"}`}
                                   />
                                   <button
                                     type="button"
                                     onClick={() => removeImage(index)}
-                                    className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-rose-600 transition-colors opacity-0 group-hover:opacity-100"
+                                    className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white text-sm font-black text-red-600 shadow-sm transition hover:bg-red-50"
                                   >
                                     ×
                                   </button>
-                                  {mainImageIndex === newImageIndex && (
-                                    <div className="absolute -top-2 -left-2 bg-green-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs">
-                                      ★
-                                    </div>
-                                  )}
                                   <button
                                     type="button"
                                     onClick={() => setMainImageIndex(newImageIndex)}
-                                    className={`absolute bottom-1 left-1 px-2 py-1 rounded text-xs font-medium transition ${
-                                      mainImageIndex === newImageIndex 
-                                        ? 'bg-green-600 text-white' 
-                                        : 'bg-white/90 text-gray-700 hover:bg-green-600 hover:text-white'
-                                    }`}
+                                    className={`absolute bottom-2 left-2 rounded-full px-3 py-1 text-xs font-bold shadow-sm transition ${mainImageIndex === newImageIndex ? "bg-[var(--site-accent)] text-white" : "bg-white text-slate-700 hover:bg-slate-100"}`}
                                   >
-                                    {mainImageIndex === newImageIndex ? 'Main Photo' : 'Set as Main'}
+                                    {mainImageIndex === newImageIndex ? "Main photo" : "Set main"}
                                   </button>
+                                  <p className="mt-1 truncate text-xs text-slate-500">{image.name}</p>
                                 </div>
                               );
                             })}
@@ -729,156 +735,111 @@ export default function EditListingPage() {
                       )}
                     </div>
 
-                    {/* Simple Div Separator */}
-                    <div className="my-8 border-t border-gray-200"></div>
+                    <div className="border-t border-slate-200" />
 
-                    {/* Availability Management */}
                     <div className="space-y-6">
                       <div>
-                        <h3 className="text-lg font-semibold mb-2">Availability Management</h3>
-                        <p className="text-sm text-gray-600">
-                          Manage when your court is available for booking
+                        <h3 className="text-lg font-black text-slate-950">Availability</h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Manage when your court is available for booking.
                         </p>
                       </div>
 
-                      {/* Default Blocked Settings */}
-                      <Card className="border-gray-200">
+                      <Card className={sectionCardClass}>
                         <CardHeader className="pb-4">
-                          <CardTitle className="text-base flex items-center gap-2">
+                          <CardTitle className="flex items-center gap-2 text-base font-black text-slate-950">
                             <Settings2 className="h-4 w-4" />
                             Default Blocked Settings
                           </CardTitle>
-                          <CardDescription className="text-sm text-gray-600">
-                            Set booking availability rules that apply to all dates
+                          <CardDescription className="text-sm text-slate-500">
+                            Set booking availability rules that apply to all dates.
                           </CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div>
-                            <FormLabel className="text-sm">How far in advance can guests book?</FormLabel>
-                            <Select
-                              value={maxAdvanceBookingDays === null ? "unlimited" : String(maxAdvanceBookingDays)}
-                              onValueChange={(v) => setMaxAdvanceBookingDays(v === "unlimited" ? null : parseInt(v, 10))}
-                            >
-                              <SelectTrigger className="h-12 mt-2 border-2 border-gray-200 rounded-xl focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all duration-300">
-                                <SelectValue placeholder="Select booking window" />
-                              </SelectTrigger>
-                              <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-xl">
-                                <SelectItem
-                                  value="unlimited"
-                                  className="hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer transition-colors duration-150 focus:bg-emerald-100 focus:text-emerald-800"
-                                >
-                                  No limit
+                        <CardContent>
+                          <FormLabel className="text-sm font-semibold">How far in advance can guests book?</FormLabel>
+                          <Select
+                            value={maxAdvanceBookingDays === null ? "unlimited" : String(maxAdvanceBookingDays)}
+                            onValueChange={(v) => setMaxAdvanceBookingDays(v === "unlimited" ? null : parseInt(v, 10))}
+                          >
+                            <SelectTrigger className={`${inputClass} mt-2`}>
+                              <SelectValue placeholder="Select booking window" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl border border-slate-200 bg-white shadow-lg">
+                              {[
+                                { value: "unlimited", label: "No limit" },
+                                { value: "7", label: "1 week in advance" },
+                                { value: "14", label: "2 weeks in advance" },
+                                { value: "30", label: "1 month in advance" },
+                                { value: "60", label: "2 months in advance" },
+                                { value: "90", label: "3 months in advance" },
+                              ].map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value} className="cursor-pointer hover:bg-emerald-50 hover:text-emerald-700">
+                                  {opt.label}
                                 </SelectItem>
-                                <SelectItem
-                                  value="7"
-                                  className="hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer transition-colors duration-150 focus:bg-emerald-100 focus:text-emerald-800"
-                                >
-                                  1 week in advance
-                                </SelectItem>
-                                <SelectItem
-                                  value="14"
-                                  className="hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer transition-colors duration-150 focus:bg-emerald-100 focus:text-emerald-800"
-                                >
-                                  2 weeks in advance
-                                </SelectItem>
-                                <SelectItem
-                                  value="30"
-                                  className="hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer transition-colors duration-150 focus:bg-emerald-100 focus:text-emerald-800"
-                                >
-                                  1 month in advance
-                                </SelectItem>
-                                <SelectItem
-                                  value="60"
-                                  className="hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer transition-colors duration-150 focus:bg-emerald-100 focus:text-emerald-800"
-                                >
-                                  2 months in advance
-                                </SelectItem>
-                                <SelectItem
-                                  value="90"
-                                  className="hover:bg-emerald-50 hover:text-emerald-700 cursor-pointer transition-colors duration-150 focus:bg-emerald-100 focus:text-emerald-800"
-                                >
-                                  3 months in advance
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </CardContent>
                       </Card>
 
-                      {/* Always Blocked Times (every day) */}
-                      <Card className="border-gray-200">
+                      <Card className={sectionCardClass}>
                         <CardHeader className="pb-4">
-                          <CardTitle className="text-base flex items-center gap-2">
+                          <CardTitle className="flex items-center gap-2 text-base font-black text-slate-950">
                             <Clock className="h-4 w-4" />
-                            Always Blocked Times
+                            {numberOfCourts > 1 ? "Always Blocked Times (All Courts)" : "Always Blocked Times"}
                           </CardTitle>
-                          <CardDescription className="text-sm text-gray-600">
-                            Select times that are always blocked on every day
+                          <CardDescription className="text-sm text-slate-500">
+                            Select times that are always blocked on every day.
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-3">
-                          <p className="text-sm text-gray-600">Click to toggle. Selected times are blocked every day.</p>
+                          <p className="text-sm text-slate-500">Click to toggle. Selected times are blocked every day.</p>
                           <div className="flex flex-wrap gap-2">
                             {timeSlots.map((time) => {
-                              const hour = parseInt(time.split(":")[0], 10);
-                              const display = hour < 12 ? `${hour === 0 ? 12 : hour}:00 AM` : `${hour === 12 ? 12 : hour - 12}:00 PM`;
                               const isBlocked = alwaysBlockedTimes.includes(time);
                               return (
                                 <button
                                   key={time}
                                   type="button"
                                   onClick={() => toggleAlwaysBlockedTime(time)}
-                                  className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
-                                    isBlocked
-                                      ? "bg-red-100 text-red-800 border-2 border-red-300"
-                                      : "bg-gray-100 text-gray-700 border-2 border-transparent hover:bg-gray-200"
-                                  }`}
+                                  className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${isBlocked ? "border-red-200 bg-red-50 text-red-700" : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"}`}
                                 >
-                                  {display}
+                                  {formatTimeDisplay(time)}
                                 </button>
                               );
                             })}
                           </div>
                           {alwaysBlockedTimes.length > 0 && (
-                            <p className="text-sm text-red-600">
-                              {alwaysBlockedTimes.length} time(s) always blocked
-                            </p>
+                            <p className="text-sm text-red-600">{alwaysBlockedTimes.length} time(s) always blocked</p>
                           )}
                         </CardContent>
                       </Card>
 
-                      {/* Always Blocked on Specific Day */}
-                      <Card className="border-gray-200">
+                      <Card className={sectionCardClass}>
                         <CardHeader className="pb-4">
-                          <CardTitle className="text-base flex items-center gap-2">
+                          <CardTitle className="flex items-center gap-2 text-base font-black text-slate-950">
                             <CalendarIcon className="h-4 w-4" />
-                            Always Blocked on Specific Day
+                            {numberOfCourts > 1 ? "Always Blocked on Specific Day (All Courts)" : "Always Blocked on Specific Day"}
                           </CardTitle>
-                          <CardDescription className="text-sm text-gray-600">
-                            Set times that are blocked every week on a specific day (e.g. “9 AM blocked every Monday”)
+                          <CardDescription className="text-sm text-slate-500">
+                            Set times that are blocked every week on a specific day.
                           </CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                           {DAYS_OF_WEEK.map(({ value: dayOfWeek, label }) => (
                             <div key={dayOfWeek} className="space-y-2">
-                              <FormLabel className="text-sm font-medium">{label}</FormLabel>
+                              <FormLabel className="text-sm font-semibold">{label}</FormLabel>
                               <div className="flex flex-wrap gap-2">
                                 {timeSlots.map((time) => {
-                                  const hour = parseInt(time.split(":")[0], 10);
-                                  const display = hour < 12 ? `${hour === 0 ? 12 : hour}:00 AM` : `${hour === 12 ? 12 : hour - 12}:00 PM`;
                                   const isBlocked = (alwaysBlockedTimesByDay[dayOfWeek] || []).includes(time);
                                   return (
                                     <button
                                       key={time}
                                       type="button"
                                       onClick={() => toggleAlwaysBlockedTimeForDay(dayOfWeek, time)}
-                                      className={`px-2 py-1.5 rounded text-xs font-medium transition ${
-                                        isBlocked
-                                          ? "bg-orange-100 text-orange-800 border border-orange-300"
-                                          : "bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100"
-                                      }`}
+                                      className={`rounded-lg border px-2 py-1.5 text-xs font-semibold transition ${isBlocked ? "border-orange-200 bg-orange-50 text-orange-700" : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"}`}
                                     >
-                                      {display}
+                                      {formatTimeDisplay(time)}
                                     </button>
                                   );
                                 })}
@@ -888,23 +849,23 @@ export default function EditListingPage() {
                         </CardContent>
                       </Card>
 
-                      {/* Per-Court Availability (multi-court listings) */}
                       {numberOfCourts > 1 && (
-                        <div className="space-y-4">
-                          <div className="my-4 border-t-2 border-emerald-200"></div>
-                          <h4 className="text-base font-semibold">Individual Court Availability</h4>
-                          <p className="text-sm text-gray-600">
-                            Optionally set additional blocked times for specific courts. These are added on top of the &quot;all courts&quot; settings above.
-                          </p>
+                        <div className="space-y-4 rounded-[32px] border border-slate-200 bg-slate-50 p-5">
+                          <div>
+                            <h3 className="text-lg font-black text-slate-950">Individual court availability</h3>
+                            <p className="mt-1 text-sm text-slate-500">
+                              Add restrictions for a specific court. These stack on top of the all-court rules above.
+                            </p>
+                          </div>
 
                           {Array.from({ length: numberOfCourts }, (_, i) => i + 1).map((courtNum) => (
-                            <Card key={courtNum} className="border-gray-200">
-                              <CardHeader className="pb-2 cursor-pointer" onClick={() => setExpandedCourt(expandedCourt === courtNum ? null : courtNum)}>
-                                <CardTitle className="text-base flex items-center justify-between">
+                            <Card key={courtNum} className="rounded-[24px] border-slate-200 bg-white shadow-sm">
+                              <CardHeader className="cursor-pointer pb-3" onClick={() => setExpandedCourt(expandedCourt === courtNum ? null : courtNum)}>
+                                <CardTitle className="flex items-center justify-between text-base font-black text-slate-950">
                                   <span>Court {courtNum}</span>
-                                  <span className="text-sm text-gray-400">{expandedCourt === courtNum ? "▼" : "▶"}</span>
+                                  <span className="text-sm text-slate-400">{expandedCourt === courtNum ? "Collapse" : "Edit"}</span>
                                 </CardTitle>
-                                <CardDescription className="text-xs text-gray-500">
+                                <CardDescription className="text-xs text-slate-500">
                                   {(courtSpecificAlwaysBlockedTimes[String(courtNum)] || []).length > 0
                                     ? `${(courtSpecificAlwaysBlockedTimes[String(courtNum)] || []).length} additional blocked time(s)`
                                     : "No additional restrictions"}
@@ -914,47 +875,47 @@ export default function EditListingPage() {
                               {expandedCourt === courtNum && (
                                 <CardContent className="space-y-4 pt-0">
                                   <div>
-                                    <FormLabel className="text-sm font-medium">Additional Always Blocked Times</FormLabel>
-                                    <p className="text-xs text-gray-500 mb-2">Blocked every day for Court {courtNum} only.</p>
+                                    <FormLabel className="text-sm font-semibold">Additional always blocked times</FormLabel>
+                                    <p className="mb-3 text-xs text-slate-500">These times will be blocked every day for Court {courtNum} only.</p>
                                     <div className="flex flex-wrap gap-2">
                                       {timeSlots.map((time) => {
                                         const isBlocked = (courtSpecificAlwaysBlockedTimes[String(courtNum)] || []).includes(time);
                                         const isGlobalBlocked = alwaysBlockedTimes.includes(time);
                                         return (
-                                          <button key={time} type="button"
+                                          <button
+                                            key={time}
+                                            type="button"
                                             onClick={() => !isGlobalBlocked && toggleCourtSpecificTime(courtNum, time)}
                                             disabled={isGlobalBlocked}
-                                            className={`px-2 py-1.5 rounded text-xs font-medium transition ${
-                                              isGlobalBlocked ? "bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed"
-                                              : isBlocked ? "bg-red-100 text-red-800 border border-red-300"
-                                              : "bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100"
-                                            }`}>
+                                            className={`rounded-lg border px-2 py-1.5 text-xs font-semibold transition ${isGlobalBlocked ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400" : isBlocked ? "border-red-200 bg-red-50 text-red-700" : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"}`}
+                                          >
                                             {formatTimeDisplay(time)}
                                           </button>
                                         );
                                       })}
                                     </div>
                                   </div>
+
                                   <div>
-                                    <FormLabel className="text-sm font-medium">Additional Blocked on Specific Day</FormLabel>
+                                    <FormLabel className="text-sm font-semibold">Additional blocked on specific days</FormLabel>
+                                    <p className="mb-3 text-xs text-slate-500">Block specific times on specific days for Court {courtNum} only.</p>
                                     {DAYS_OF_WEEK.map(({ value: dayOfWeek, label }) => (
-                                      <div key={dayOfWeek} className="space-y-1 mb-3">
-                                        <span className="text-xs font-medium text-gray-600">{label}</span>
-                                        <div className="flex flex-wrap gap-1">
+                                      <div key={dayOfWeek} className="mb-3 space-y-2">
+                                        <span className="text-xs font-semibold text-slate-600">{label}</span>
+                                        <div className="flex flex-wrap gap-1.5">
                                           {timeSlots.map((time) => {
                                             const courtKey = String(courtNum);
                                             const dayKey = String(dayOfWeek);
                                             const isBlocked = ((courtSpecificAlwaysBlockedTimesByDay[courtKey] || {})[dayKey] || []).includes(time);
                                             const isGlobalBlocked = alwaysBlockedTimes.includes(time) || (alwaysBlockedTimesByDay[dayOfWeek] || []).includes(time);
                                             return (
-                                              <button key={time} type="button"
+                                              <button
+                                                key={time}
+                                                type="button"
                                                 onClick={() => !isGlobalBlocked && toggleCourtSpecificTimeForDay(courtNum, dayOfWeek, time)}
                                                 disabled={isGlobalBlocked}
-                                                className={`px-1.5 py-1 rounded text-[10px] font-medium transition ${
-                                                  isGlobalBlocked ? "bg-gray-200 text-gray-400 border border-gray-300 cursor-not-allowed"
-                                                  : isBlocked ? "bg-orange-100 text-orange-800 border border-orange-300"
-                                                  : "bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100"
-                                                }`}>
+                                                className={`rounded-lg border px-1.5 py-1 text-[10px] font-semibold transition ${isGlobalBlocked ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400" : isBlocked ? "border-orange-200 bg-orange-50 text-orange-700" : "border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"}`}
+                                              >
                                                 {formatTimeDisplay(time)}
                                               </button>
                                             );
@@ -971,89 +932,55 @@ export default function EditListingPage() {
                       )}
                     </div>
 
-                    {/* Error and Success Messages */}
                     {error && (
-                      <p className="text-red-500 text-sm text-center">{error}</p>
-                    )}
-                    
-                    {success && (
-                      <p className="text-emerald-600 text-sm text-center font-medium">
-                        Court updated successfully! Redirecting to dashboard...
-                      </p>
+                      <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                        {error}
+                      </div>
                     )}
 
-                    {/* Submit Buttons */}
-                    <div className="pt-6 flex flex-col gap-4">
-                      <div className="flex gap-4">
-                        <Button 
-                          type="button"
-                          onClick={() => router.push("/host")}
-                          className="flex-1 h-14 text-lg font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-                        >
-                          Back
-                        </Button>
-                      <Button 
-                        type="submit" 
-                        className="flex-1 h-14 text-lg font-extrabold bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white shadow-xl hover:shadow-glow-hover transition-all duration-300 rounded-2xl transform hover:scale-[1.02]"
-                        disabled={saving}
-                      >
-                        {saving ? (
-                          <span className="flex items-center justify-center gap-2">
-                            <svg
-                              className="animate-spin h-5 w-5 text-white"
-                              xmlns="http://www.w3.org/2000/svg"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                            >
-                              <circle
-                                className="opacity-25"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                              ></circle>
-                              <path
-                                className="opacity-75"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8v8z"
-                              ></path>
-                            </svg>
-                            Updating...
-                          </span>
-                        ) : (
-                          "Update Listing"
-                        )}
-                      </Button>
+                    {success && (
+                      <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
+                        Court updated successfully. Redirecting to Your Courts...
                       </div>
+                    )}
+
+                    <div className="space-y-4 pt-6">
+                      <div className="flex flex-col gap-3 sm:flex-row">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => router.push("/host?tab=courts")}
+                          className="h-14 flex-1 rounded-2xl border-slate-300 bg-white text-lg font-bold text-slate-700 hover:bg-slate-100"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          className="h-14 flex-1 rounded-2xl bg-[var(--site-accent)] text-lg font-extrabold text-white shadow-sm transition hover:bg-[var(--site-accent-hover)]"
+                          disabled={saving}
+                        >
+                          {saving ? "Updating Listing..." : "Update Listing"}
+                        </Button>
+                      </div>
+
                       <Button
                         type="button"
                         variant="outline"
                         onClick={handleDeleteListing}
                         disabled={deletingListing}
-                        className="h-12 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 hover:text-red-700"
+                        className="h-12 w-full rounded-2xl border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700"
                       >
-                        {deletingListing ? (
-                          <span className="flex items-center justify-center gap-2">
-                            <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                            </svg>
-                            Deleting...
-                          </span>
-                        ) : (
-                          <><Trash2 className="h-4 w-4 mr-2 inline" /> Delete Listing</>
-                        )}
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        {deletingListing ? "Deleting..." : "Delete Listing"}
                       </Button>
                     </div>
                   </form>
                 </Form>
               </CardContent>
             </Card>
-          </div>
+          </section>
         </div>
-      </section>
-      
+      </main>
     </div>
   );
 }

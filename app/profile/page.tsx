@@ -14,6 +14,7 @@ import ReactCrop, {
 } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import AppHeader from "@/components/AppHeader";
+import LoadingScreen from "@/components/LoadingScreen";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -176,6 +177,13 @@ export default function ProfilePage() {
 
   const router = useRouter();
   const { user } = useAuth();
+
+  useEffect(() => {
+    const requestedTab = new URLSearchParams(window.location.search).get("tab");
+    if (requestedTab === "past" || requestedTab === "reviews") {
+      setActiveTab(requestedTab);
+    }
+  }, []);
 
   useEffect(() => {
     if (!user) {
@@ -492,15 +500,10 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30">
-        <AppHeader />
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
-            <p className="text-gray-600 font-medium">Loading your profile...</p>
-          </div>
-        </div>
-      </div>
+      <LoadingScreen
+        message="Loading your profile"
+        detail="Pulling together your bookings, reviews, and profile details."
+      />
     );
   }
 
@@ -546,6 +549,22 @@ export default function ProfilePage() {
     typeof profile?.playerReviewCount === "number"
       ? profile.playerReviewCount
       : reviews.length;
+  const playerRating =
+    typeof profile?.playerRating === "number"
+      ? profile.playerRating
+      : reviews.length > 0
+        ? reviews.reduce((total, review) => total + review.rating, 0) /
+          reviews.length
+        : 0;
+  const reviewSummary =
+    reviewCount > 0
+      ? `${playerRating.toFixed(1)} (${reviewCount} ${
+          reviewCount === 1 ? "review" : "reviews"
+        })`
+      : "No reviews";
+  const completedPastBookingCount = pastBookings.filter(
+    (booking) => booking.status === "completed" || booking.status === "confirmed"
+  ).length;
   const monthsOnCourtShare = getMonthCount(profile?.createdAt);
   const tabs: { id: ProfileTab; label: string }[] = [
     { id: "about", label: "About Me" },
@@ -621,7 +640,7 @@ export default function ProfilePage() {
                     <Button
                       type="button"
                       className="mt-5 w-full rounded-2xl bg-[var(--site-accent)] text-white hover:bg-[var(--site-accent-hover)]"
-                      onClick={() => router.push("/create-listing")}
+                      onClick={() => router.push("/host?tab=courts&addCourt=1")}
                     >
                       Create a Listing
                     </Button>
@@ -837,9 +856,14 @@ export default function ProfilePage() {
               ) : activeTab === "reviews" ? (
                 <>
                   <div>
-                    <h2 className="text-3xl font-black tracking-tight text-slate-950">
-                      My Reviews
-                    </h2>
+                    <div className="flex flex-wrap items-baseline gap-3">
+                      <h2 className="text-3xl font-black tracking-tight text-slate-950">
+                        My Reviews
+                      </h2>
+                      <span className="text-base font-semibold text-slate-400">
+                        {reviewSummary}
+                      </span>
+                    </div>
                     <p className="mt-2 text-slate-500">
                       Your reviews from court hosts from completed bookings.
                     </p>
@@ -904,9 +928,14 @@ export default function ProfilePage() {
               ) : (
                 <>
                   <div>
-                    <h2 className="text-3xl font-black tracking-tight text-slate-950">
-                      Past Bookings
-                    </h2>
+                    <div className="flex flex-wrap items-baseline gap-3">
+                      <h2 className="text-3xl font-black tracking-tight text-slate-950">
+                        Past Bookings
+                      </h2>
+                      <span className="text-base font-semibold text-slate-400">
+                        ({completedPastBookingCount})
+                      </span>
+                    </div>
                     <p className="mt-2 text-slate-500">
                       Your completed bookings are listed chronologically.
                     </p>

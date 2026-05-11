@@ -4,6 +4,7 @@ import { useEffect, Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import AppHeader from "@/components/AppHeader";
+import LoadingScreen from "@/components/LoadingScreen";
 import { AlertCircle, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -115,12 +116,10 @@ export default function SuccessPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-gradient-tennis px-4 py-12 flex items-center justify-center">
-          <div className="w-full max-w-md bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-8 mx-auto text-center border border-white/30">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
-            <p className="text-gray-600 font-medium">Loading...</p>
-          </div>
-        </div>
+        <LoadingScreen
+          message="Finalizing booking"
+          detail="Confirming your request and preparing the next step."
+        />
       }
     >
       <SuccessContent />

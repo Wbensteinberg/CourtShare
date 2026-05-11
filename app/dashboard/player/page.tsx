@@ -26,6 +26,7 @@ import {
   X,
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
+import LoadingScreen from "@/components/LoadingScreen";
 import GoogleMapsLink from "@/components/GoogleMapsLink";
 import ReviewDialog from "@/components/ReviewDialog";
 import {
@@ -43,9 +44,7 @@ import {
   isBookingCancellable,
   isBookingReviewable,
   isPendingBookingExpired,
-  isPastOrInactiveBooking,
   sortBookingsAscending,
-  sortBookingsDescending,
 } from "@/lib/bookingDates";
 
 interface Booking {
@@ -96,7 +95,9 @@ export default function PlayerDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState<string | null>(null);
-  const [showPastBookings, setShowPastBookings] = useState(false);
+  const [activeTab, setActiveTab] = useState<"upcoming" | "cancelled">(
+    "upcoming"
+  );
   const [reviewedBookingIds, setReviewedBookingIds] = useState<Set<string>>(
     new Set()
   );
@@ -415,27 +416,42 @@ export default function PlayerDashboard() {
     }
   };
 
-  // Split bookings into upcoming and past
   const now = new Date();
-  const upcoming = bookings
-    .filter((booking) => isActiveFutureBooking(booking, now))
+  const upcomingBookings = bookings
+    .filter(
+      (booking) =>
+        (booking.status === "confirmed" || booking.status === "pending") &&
+        isActiveFutureBooking(booking, now)
+    )
     .sort(sortBookingsAscending);
-  const past = bookings
-    .filter((booking) => isPastOrInactiveBooking(booking, now))
-    .sort(sortBookingsDescending);
-  const upcomingConfirmedCount = upcoming.filter(
-    (b) => b.status === "confirmed"
-  ).length;
-  const pendingCount = bookings.filter((b) => b.status === "pending").length;
+  const cancelledRequests = bookings
+    .filter((booking) =>
+      ["cancelled", "expired", "rejected"].includes(booking.status)
+    )
+    .sort(sortBookingsAscending);
+  const visibleBookings =
+    activeTab === "upcoming" ? upcomingBookings : cancelledRequests;
+  const tabs = [
+    {
+      id: "upcoming" as const,
+      label: "Upcoming Bookings",
+      count: upcomingBookings.length,
+      Icon: Calendar,
+    },
+    {
+      id: "cancelled" as const,
+      label: "Cancelled Requests",
+      count: cancelledRequests.length,
+      Icon: X,
+    },
+  ];
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">Loading your bookings...</p>
-        </div>
-      </div>
+      <LoadingScreen
+        message="Loading your bookings"
+        detail="Checking your reservations, requests, and messages."
+      />
     );
   }
 
@@ -452,267 +468,181 @@ export default function PlayerDashboard() {
   return (
     <div className="min-h-screen bg-slate-50 w-full">
       <AppHeader />
-      <main className="w-full">
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-          <div className="flex flex-col gap-4 border-b border-slate-200 pb-6 lg:flex-row lg:items-center lg:justify-between">
-            <h1 className="text-3xl font-bold text-slate-950">
-              Player Dashboard
-            </h1>
-            <section className="grid grid-cols-3 gap-2">
-              {[
-                { label: "Upcoming", value: upcomingConfirmedCount },
-                { label: "Pending", value: pendingCount },
-                { label: "Past", value: past.length },
-              ].map(({ label, value }) => (
-                <Card
-                  key={label}
-                  className="min-w-24 rounded-[32px] border-slate-200 bg-white shadow-sm"
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="border-b border-slate-200 pb-6">
+          <h1 className="text-4xl font-black tracking-tight text-slate-950">
+            Upcoming Bookings
+          </h1>
+        </div>
+
+        <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[360px_minmax(0,1fr)]">
+          <aside className="space-y-6">
+            <nav className="space-y-3">
+              {tabs.map(({ Icon, ...tab }) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex w-full items-center justify-between rounded-[32px] px-6 py-5 text-left text-base font-bold transition ${
+                    activeTab === tab.id
+                      ? "bg-white text-slate-950 shadow-sm ring-1 ring-slate-100"
+                      : "text-slate-600 hover:bg-white/70"
+                  }`}
                 >
-                  <CardContent className="p-3">
-                    <p className="text-xs font-medium text-slate-500">{label}</p>
-                    <p className="mt-1 text-xl font-semibold text-slate-950">
-                      {value}
-                    </p>
-                  </CardContent>
-                </Card>
+                  <span className="flex items-center gap-5">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-pink-50 text-pink-700">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    {tab.label}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-bold text-slate-600">
+                    {tab.count}
+                  </span>
+                </button>
               ))}
-            </section>
-          </div>
+            </nav>
 
-          <section className="mt-6 space-y-6">
-              <div className="rounded-[32px] border border-slate-200 bg-white shadow-sm">
-                <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h2 className="text-lg font-semibold text-slate-950">
-                      Upcoming bookings
-                    </h2>
-                    <p className="text-sm text-slate-500">
-                      Active reservations and requests that still need attention.
-                    </p>
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className="w-fit rounded-md border-emerald-200 bg-emerald-50 text-emerald-700"
-                  >
-                    {upcoming.length} active
-                  </Badge>
-                </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full rounded-[24px] border-slate-200 bg-white px-6 py-6 text-base font-bold text-slate-950 shadow-sm hover:bg-slate-50"
+              onClick={() => router.push("/profile?tab=past")}
+            >
+              See Past Completed Bookings
+            </Button>
+          </aside>
 
-                {upcoming.length === 0 ? (
-                  <div className="p-10 text-center">
-                    <Calendar className="mx-auto h-10 w-10 text-slate-300" />
-                    <h3 className="mt-3 text-base font-semibold text-slate-900">
-                      No upcoming bookings
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Start a search to find an available court.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-slate-200">
-                    {upcoming.map((booking) => {
-                      const court = courts[booking.courtId];
-                      const courtName = getCourtName(booking);
-                      const timeRemaining =
-                        booking.status === "pending"
-                          ? formatPendingBookingTimeRemaining(booking, clockNow)
-                          : null;
-                      return (
-                        <div
-                          key={booking.id}
-                          className="grid gap-4 bg-gradient-to-r from-white via-white to-emerald-50/40 p-5 lg:grid-cols-[minmax(0,1fr)_auto]"
-                        >
-                          <div className="flex min-w-0 gap-4">
-                            <div className="relative h-20 w-24 flex-shrink-0 overflow-hidden rounded-[24px] bg-slate-100">
-                              {court?.imageUrl ? (
-                                <Image
-                                  src={court.imageUrl}
-                                  alt={courtName}
-                                  fill
-                                  className="object-cover"
-                                />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center text-sm text-slate-400">
-                                  Court
-                                </div>
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="truncate text-base font-semibold text-slate-950">
-                                  {courtName}
-                                </h3>
-                                {getStatusBadge(booking.status)}
-                              </div>
-                              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
-                                <span className="inline-flex items-center">
-                                  <Calendar className="mr-1.5 h-4 w-4 text-slate-400" />
-                                  {formatBookingDateWithDay(booking.date)}
-                                </span>
-                                <span className="inline-flex items-center">
-                                  <Clock className="mr-1.5 h-4 w-4 text-slate-400" />
-                                  {booking.time} for {booking.duration}h
-                                </span>
-                                <span className="inline-flex items-center">
-                                  <MapPin className="mr-1.5 h-4 w-4 text-slate-400" />
-                                  {court ? court.location : "Unknown location"}
-                                </span>
-                                <span className="inline-flex items-center">
-                                  <User className="mr-1.5 h-4 w-4 text-slate-400" />
-                                  Hosted by {getCourtOwnerName(booking)}
-                                </span>
-                                {timeRemaining && (
-                                  <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-                                    Host has {timeRemaining}
-                                  </span>
-                                )}
-                              </div>
-                              {court?.address && booking.status === "confirmed" && (
-                                <div className="mt-2 text-sm">
-                                  <GoogleMapsLink
-                                    address={court.address}
-                                    variant="link"
-                                    className="font-medium text-emerald-700"
-                                  >
-                                    {court.address}
-                                  </GoogleMapsLink>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 lg:justify-end">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="rounded-lg border-slate-300"
-                              onClick={() => openBookingConversation(booking)}
-                            >
-                              <MessageCircle className="mr-2 h-4 w-4" />
-                              Message
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="rounded-lg border-slate-300"
-                              onClick={() => router.push(`/booking/${booking.id}`)}
-                            >
-                              <User className="mr-2 h-4 w-4" />
-                              Details
-                            </Button>
-                            {canCancelBooking(booking) && (
-                              <Button
-                                variant="destructive"
-                                size="sm"
-                                className="rounded-lg"
-                                onClick={() => handleCancel(booking.id)}
-                                disabled={cancelling === booking.id}
-                              >
-                                <X className="mr-2 h-4 w-4" />
-                                {cancelling === booking.id
-                                  ? "Cancelling..."
-                                  : "Cancel"}
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+          <section className="space-y-6">
+            <div>
+              <h2 className="text-3xl font-black tracking-tight text-slate-950">
+                {activeTab === "upcoming"
+                  ? "Upcoming Bookings"
+                  : "Cancelled Requests"}
+              </h2>
+              <p className="mt-2 text-slate-500">
+                {activeTab === "upcoming"
+                  ? "Confirmed reservations and pending requests that still need attention."
+                  : "Expired, rejected, and cancelled booking requests."}
+              </p>
+            </div>
 
-              <div className="rounded-[32px] border border-slate-200 bg-white shadow-sm">
-                  <div className="flex w-full items-center justify-between p-5 text-left">
-                    <div>
-                      <h2 className="text-lg font-semibold text-slate-950">
-                        Past Bookings
-                      </h2>
-                      <p className="text-sm text-slate-500">
-                        Cancelled, rejected, and completed reservations.
-                      </p>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className="rounded-md border-slate-300 bg-slate-50 text-slate-700"
+            {visibleBookings.length === 0 ? (
+              <Card className="rounded-[32px] border-slate-200 bg-white shadow-sm">
+                <CardContent className="p-10 text-center">
+                  <Calendar className="mx-auto h-10 w-10 text-slate-300" />
+                  <h3 className="mt-3 text-base font-semibold text-slate-900">
+                    {activeTab === "upcoming"
+                      ? "No upcoming bookings"
+                      : "No cancelled requests"}
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {activeTab === "upcoming"
+                      ? "Start a search to find an available court."
+                      : "Cancelled, expired, or rejected requests will appear here."}
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {visibleBookings.map((booking) => {
+                  const court = courts[booking.courtId];
+                  const courtName = getCourtName(booking);
+                  return (
+                    <div
+                      key={booking.id}
+                      className="grid gap-5 rounded-[32px] border border-slate-200 bg-white p-5 text-left shadow-sm sm:grid-cols-[144px_minmax(0,1fr)]"
                     >
-                      {past.length} records
-                    </Badge>
-                  </div>
-
-                  {past.length === 0 ? (
-                    <div className="border-t border-slate-200 p-8 text-center text-sm text-slate-500">
-                      No past bookings yet.
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-slate-200 border-t border-slate-200">
-                      {past.map((booking) => {
-                        const court = courts[booking.courtId];
-                        const courtName = getCourtName(booking);
-                        return (
-                          <div
-                            key={booking.id}
-                            className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between"
-                          >
-                            <div>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="font-semibold text-slate-950">
-                                  {courtName}
-                                </h3>
-                                {getStatusBadge(booking.status)}
-                              </div>
-                              <p className="mt-1 text-sm text-slate-600">
-                                {formatBookingDateWithDay(booking.date)} at {booking.time}
-                              </p>
-                              <p className="mt-1 text-sm text-slate-500">
-                                Hosted by {getCourtOwnerName(booking)}
-                              </p>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {canReviewBooking(booking) && court && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="w-fit rounded-lg border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"
-                                  onClick={() => setReviewingBooking(booking)}
-                                >
-                                  <Star className="mr-2 h-4 w-4 fill-amber-400 text-amber-400" />
-                                  Review
-                                </Button>
-                              )}
-                              {reviewedBookingIds.has(booking.id) && (
-                                <Badge
-                                  variant="outline"
-                                  className="w-fit rounded-lg border-slate-200 bg-slate-50 px-3 py-2 text-slate-600"
-                                >
-                                  Reviewed
-                                </Badge>
-                              )}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="w-fit rounded-lg border-slate-300"
-                                onClick={() => openBookingConversation(booking)}
-                              >
-                                <MessageCircle className="mr-2 h-4 w-4" />
-                                Message
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="w-fit rounded-lg border-slate-300"
-                                onClick={() => router.push(`/booking/${booking.id}`)}
-                              >
-                                <User className="mr-2 h-4 w-4" />
-                                Details
-                              </Button>
-                            </div>
+                      <div className="relative h-28 overflow-hidden rounded-[24px] bg-slate-100">
+                        {court?.imageUrl ? (
+                          <Image
+                            src={court.imageUrl}
+                            alt={courtName}
+                            fill
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-sm text-slate-400">
+                            Court
                           </div>
-                        );
-                      })}
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="truncate text-xl font-black text-slate-950">
+                            {courtName}
+                          </h3>
+                          {getStatusBadge(booking.status)}
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-slate-600">
+                          <span className="inline-flex items-center">
+                            <Calendar className="mr-2 h-4 w-4 text-slate-400" />
+                            {formatBookingDateWithDay(booking.date)}
+                          </span>
+                          <span className="inline-flex items-center">
+                            <Clock className="mr-2 h-4 w-4 text-slate-400" />
+                            {booking.time} for {booking.duration}h
+                          </span>
+                          <span className="inline-flex items-center">
+                            <MapPin className="mr-2 h-4 w-4 text-slate-400" />
+                            {court ? court.location : "Unknown location"}
+                          </span>
+                          <span className="inline-flex items-center">
+                            <User className="mr-2 h-4 w-4 text-slate-400" />
+                            Hosted by {getCourtOwnerName(booking)}
+                          </span>
+                        </div>
+                        {court?.address && booking.status === "confirmed" && (
+                          <div className="mt-2 text-sm">
+                            <GoogleMapsLink
+                              address={court.address}
+                              variant="link"
+                              className="font-medium text-emerald-700"
+                            >
+                              {court.address}
+                            </GoogleMapsLink>
+                          </div>
+                        )}
+                        <div className="mt-5 flex flex-wrap gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-lg border-slate-300"
+                            onClick={() => openBookingConversation(booking)}
+                          >
+                            <MessageCircle className="mr-2 h-4 w-4" />
+                            Message
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-lg border-slate-300"
+                            onClick={() => router.push(`/booking/${booking.id}`)}
+                          >
+                            <User className="mr-2 h-4 w-4" />
+                            Details
+                          </Button>
+                          {canCancelBooking(booking) && (
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              className="rounded-lg"
+                              onClick={() => handleCancel(booking.id)}
+                              disabled={cancelling === booking.id}
+                            >
+                              <X className="mr-2 h-4 w-4" />
+                              {cancelling === booking.id
+                                ? "Cancelling..."
+                                : "Cancel"}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
-            </section>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         </div>
       </main>
       <ReviewDialog

@@ -645,18 +645,13 @@ function MessagesPageContent() {
     <div className="min-h-screen bg-slate-50">
       <AppHeader />
       <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-2 border-b border-slate-200 pb-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-              <MessageCircle className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-slate-950">Messages</h1>
-              <p className="text-sm text-slate-500">
-                Booking requests and court conversations live here.
-              </p>
-            </div>
-          </div>
+        <div className="border-b border-slate-200 pb-6">
+          <h1 className="text-4xl font-black tracking-tight text-slate-950">
+            Messages
+          </h1>
+          <p className="mt-2 text-sm text-slate-500">
+            Booking requests and court conversations live here.
+          </p>
         </div>
 
         {error && (

@@ -16,6 +16,15 @@ import {
   updateDoc,
 } from "firebase/firestore";
 import Image from "next/image";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +53,7 @@ import {
   Star,
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
+import LoadingScreen from "@/components/LoadingScreen";
 import InlineWeeklyCalendar from "@/components/InlineWeeklyCalendar";
 import ReviewDialog from "@/components/ReviewDialog";
 import {
@@ -60,6 +70,7 @@ import {
   getMockBookingsForOwner,
   getMockCourts,
   getMockProfile,
+  getMockReviewsForTarget,
   getMockReviewsForUser,
   getMockUserDisplayName,
   updateMockBooking,
@@ -113,6 +124,19 @@ interface Booking {
   durationMinutes?: number;
 }
 
+interface PublicReview {
+  id: string;
+  bookingId: string;
+  courtId: string;
+  reviewerRole?: string;
+  targetType?: string;
+  rating: number;
+  comment: string;
+  createdAt?: string | null;
+}
+
+type EarningsRange = "1w" | "1m" | "3m" | "6m" | "1y" | "all";
+
 const getProfileDisplayName = (
   profile: Record<string, any> | undefined,
   fallback: string
@@ -124,6 +148,23 @@ const getProfileDisplayName = (
     typeof profile?.email === "string" ? profile.email.split("@")[0].trim() : "";
 
   return displayName || name || emailPrefix || fallback;
+};
+
+const formatReviewDate = (value?: string | null) => {
+  const date = value ? new Date(value) : new Date();
+  return date.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+};
+
+const earningsRangeLabels: Record<EarningsRange, string> = {
+  "1w": "1w",
+  "1m": "1m",
+  "3m": "3m",
+  "6m": "6m",
+  "1y": "1y",
+  all: "All",
 };
 
 type BookingUserSummary = {
@@ -140,6 +181,7 @@ export default function OwnerDashboard() {
   const [reviewedBookingIds, setReviewedBookingIds] = useState<Set<string>>(
     new Set()
   );
+  const [receivedReviews, setReceivedReviews] = useState<PublicReview[]>([]);
   const [reviewingBooking, setReviewingBooking] = useState<Booking | null>(null);
   const [submittingReview, setSubmittingReview] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -170,6 +212,16 @@ export default function OwnerDashboard() {
   const [checkingStripe, setCheckingStripe] = useState(false);
   const [connectingStripe, setConnectingStripe] = useState(false);
   const [expandedCourtId, setExpandedCourtId] = useState<string | null>(null);
+  const [earningsRange, setEarningsRange] = useState<EarningsRange>("3m");
+  const [showAddCourtDialog, setShowAddCourtDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState<
+    | "upcoming"
+    | "courts"
+    | "earnings"
+    | "reviews"
+    | "completed"
+    | "cancelled"
+  >("upcoming");
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -178,9 +230,25 @@ export default function OwnerDashboard() {
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    const interval = window.setInterval(() => setClockNow(new Date()), 30000);
-    return () => window.clearInterval(interval);
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("tab") === "courts") {
+      setActiveTab("courts");
+    }
+    if (params.get("addCourt") === "1") {
+      setActiveTab("courts");
+      setShowAddCourtDialog(true);
+    }
   }, []);
+
+  const openAddCourtDialog = () => {
+    setActiveTab("courts");
+    setShowAddCourtDialog(true);
+  };
+
+  const closeAddCourtDialog = () => {
+    setShowAddCourtDialog(false);
+    router.replace("/host?tab=courts", { scroll: false });
+  };
 
   const loadReviewedBookings = async (bookingsData: Booking[]) => {
     if (!user || bookingsData.length === 0) {
@@ -293,6 +361,34 @@ export default function OwnerDashboard() {
         }
         setBookings(bookingsData);
         await loadReviewedBookings(bookingsData);
+        if (isMockMode) {
+          setReceivedReviews(
+            getMockReviewsForTarget(user.uid)
+              .filter((review) => review.reviewerRole === "player")
+              .map((review) => ({
+                id: review.id,
+                bookingId: review.bookingId,
+                courtId: review.courtId,
+                reviewerRole: review.reviewerRole,
+                targetType: review.targetType,
+                rating: review.rating,
+                comment: review.comment,
+                createdAt: review.createdAt,
+              }))
+          );
+        } else {
+          const reviewsRes = await fetch(
+            `/api/reviews?targetUserId=${encodeURIComponent(user.uid)}`
+          );
+          const reviewsData = await reviewsRes.json().catch(() => ({}));
+          setReceivedReviews(
+            reviewsRes.ok
+              ? (reviewsData.reviews || []).filter(
+                  (review: PublicReview) => review.reviewerRole === "player"
+                )
+              : []
+          );
+        }
 
         const uniqueUserIds = Array.from(
           new Set(bookingsData.map((booking) => booking.userId).filter(Boolean))
@@ -811,14 +907,10 @@ export default function OwnerDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-4 border-emerald-200 border-t-emerald-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">
-            Loading courts and bookings...
-          </p>
-        </div>
-      </div>
+      <LoadingScreen
+        message="Loading host dashboard"
+        detail="Syncing your courts, reservations, payouts, and reviews."
+      />
     );
   }
 
@@ -851,7 +943,7 @@ export default function OwnerDashboard() {
   const pastBookings = bookings
     .filter((booking) => isPastOrInactiveBooking(booking))
     .sort(sortBookingsDescending);
-  const estimatedRevenue = bookings
+  const estimatedEarnings = bookings
     .filter((booking) => booking.status === "confirmed")
     .reduce((sum, booking) => {
       const court = courtsById[booking.courtId];
@@ -877,6 +969,55 @@ export default function OwnerDashboard() {
       profile.displayName,
     ])
   );
+  const earningsBookings = bookings
+    .filter((booking) => ["confirmed", "completed"].includes(booking.status))
+    .map((booking) => {
+      const date = parseBookingDateTime(booking.date, booking.time);
+      const court = courtsById[booking.courtId];
+      const earnings =
+        typeof booking.ownerAmountCents === "number"
+          ? booking.ownerAmountCents / 100
+          : (court?.price || 0) * booking.duration;
+      return { date, earnings };
+    })
+    .filter((item) => !Number.isNaN(item.date.getTime()));
+  const earningsCutoff = (() => {
+    if (earningsRange === "all") return null;
+    const cutoff = new Date();
+    const daysByRange: Record<Exclude<EarningsRange, "all">, number> = {
+      "1w": 7,
+      "1m": 30,
+      "3m": 90,
+      "6m": 180,
+      "1y": 365,
+    };
+    cutoff.setDate(cutoff.getDate() - daysByRange[earningsRange]);
+    return cutoff;
+  })();
+  const filteredEarningsBookings = earningsCutoff
+    ? earningsBookings.filter((item) => item.date >= earningsCutoff)
+    : earningsBookings;
+  const earningsByDate = filteredEarningsBookings
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .reduce<Record<string, number>>((acc, item) => {
+      const key = item.date.toISOString().slice(0, 10);
+      acc[key] = (acc[key] || 0) + item.earnings;
+      return acc;
+    }, {});
+  const earningsChartData = Object.entries(earningsByDate).map(
+    ([date, earnings]) => ({
+      date,
+      label: new Date(`${date}T00:00:00`).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      }),
+      earnings: Math.round(earnings * 100) / 100,
+    })
+  );
+  const chartEarningsTotal = earningsChartData.reduce(
+    (sum, item) => sum + item.earnings,
+    0
+  );
   const payoutStatusLabel = checkingStripe
     ? "Checking"
     : !stripeAccountStatus?.hasAccount
@@ -887,6 +1028,8 @@ export default function OwnerDashboard() {
         : stripeAccountStatus.status === "pending"
           ? "Setup incomplete"
           : "Restricted";
+  const payoutSetupIncomplete =
+    !checkingStripe && payoutStatusLabel !== "Active";
   const payoutStatusTone =
     payoutStatusLabel === "Active"
       ? "border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -919,121 +1062,294 @@ export default function OwnerDashboard() {
             } before payouts are active.`
           : "You started setup, but Stripe has not marked payouts active yet.";
 
+  const upcomingReservations = [...pendingBookings, ...upcomingBookings].sort(
+    sortBookingsAscending
+  );
+  const completedReservations = pastBookings.filter((booking) =>
+    ["confirmed", "completed"].includes(booking.status)
+  );
+  const cancelledReservations = bookings
+    .filter((booking) =>
+      ["cancelled", "expired", "rejected"].includes(booking.status)
+    )
+    .sort(sortBookingsDescending);
+  const reviewReservations = completedReservations.filter(
+    (booking) => canReviewBooking(booking) || reviewedBookingIds.has(booking.id)
+  );
+  const hostTabs = [
+    {
+      id: "upcoming" as const,
+      label: "Upcoming Reservations",
+      count: upcomingReservations.length,
+      Icon: Calendar,
+    },
+    {
+      id: "courts" as const,
+      label: "Your Courts",
+      count: courts.length,
+      Icon: Building2,
+    },
+    {
+      id: "earnings" as const,
+      label: "Earnings",
+      count: `$${estimatedEarnings.toFixed(0)}`,
+      Icon: Banknote,
+    },
+    {
+      id: "reviews" as const,
+      label: "Reviews",
+      count: receivedReviews.length,
+      Icon: Star,
+    },
+    {
+      id: "completed" as const,
+      label: "Completed Reservations",
+      count: completedReservations.length,
+      Icon: ListChecks,
+    },
+    {
+      id: "cancelled" as const,
+      label: "Cancelled Reservations",
+      count: cancelledReservations.length,
+      Icon: X,
+    },
+  ];
+
+  const renderReservationList = (
+    reservations: Booking[],
+    emptyMessage: string,
+    options: { pendingActions?: boolean; reviewActions?: boolean } = {}
+  ) => {
+    if (reservations.length === 0) {
+      return (
+        <Card className="rounded-[32px] border-slate-200 bg-white shadow-sm">
+          <CardContent className="p-8 text-slate-600">{emptyMessage}</CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {reservations.map((booking) => {
+          const court = courtsById[booking.courtId];
+          const courtName = getBookingCourtName(booking);
+          const amount =
+            typeof booking.ownerAmountCents === "number"
+              ? booking.ownerAmountCents / 100
+              : (court?.price || 0) * booking.duration;
+
+          return (
+            <div
+              key={booking.id}
+              className="grid gap-5 rounded-[32px] border border-slate-200 bg-white p-5 text-left shadow-sm sm:grid-cols-[144px_minmax(0,1fr)]"
+            >
+              <div className="relative h-28 overflow-hidden rounded-[24px] bg-slate-100">
+                {court?.imageUrl ? (
+                  <Image
+                    src={court.imageUrl}
+                    alt={courtName}
+                    fill
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-sm text-slate-400">
+                    Court
+                  </div>
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="truncate text-xl font-black text-slate-950">
+                    {courtName}
+                  </h3>
+                  <Badge variant="outline" className="rounded-md">
+                    Court {booking.courtNumber || 1}
+                  </Badge>
+                  {getStatusBadge(booking.status)}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-slate-600">
+                  <span className="inline-flex items-center">
+                    <Calendar className="mr-2 h-4 w-4 text-slate-400" />
+                    {formatBookingDateWithDay(booking.date)}
+                  </span>
+                  <span className="inline-flex items-center">
+                    <Clock className="mr-2 h-4 w-4 text-slate-400" />
+                    {booking.time} for {booking.duration}h
+                  </span>
+                  <span className="inline-flex items-center">
+                    <User className="mr-2 h-4 w-4 text-slate-400" />
+                    {getBookingPlayerName(booking)}
+                  </span>
+                  <span className="inline-flex items-center font-semibold text-emerald-700">
+                    <Banknote className="mr-2 h-4 w-4" />${amount.toFixed(2)}
+                  </span>
+                </div>
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-lg border-slate-300"
+                    onClick={() => router.push(`/booking/${booking.id}`)}
+                  >
+                    <ListChecks className="mr-2 h-4 w-4" />
+                    Details
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-lg border-slate-300"
+                    onClick={() => openBookingConversation(booking)}
+                  >
+                    <MessageCircle className="mr-2 h-4 w-4" />
+                    Message
+                  </Button>
+                  {options.pendingActions && booking.status === "pending" && (
+                    <>
+                      <Button
+                        size="sm"
+                        className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                        onClick={() =>
+                          court && setAcceptBookingConfirm({ booking, court })
+                        }
+                        disabled={updatingBookingId === booking.id || !court}
+                      >
+                        <Check className="mr-2 h-4 w-4" />
+                        Accept
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-lg border-black text-black hover:bg-slate-100 hover:text-black"
+                        onClick={() => handleRejectBooking(booking.id)}
+                        disabled={updatingBookingId === booking.id}
+                      >
+                        <X className="mr-2 h-4 w-4" />
+                        Decline
+                      </Button>
+                    </>
+                  )}
+                  {options.reviewActions && canReviewBooking(booking) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-lg border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                      onClick={() => setReviewingBooking(booking)}
+                    >
+                      <Star className="mr-2 h-4 w-4 fill-amber-400 text-amber-400" />
+                      Review player
+                    </Button>
+                  )}
+                  {options.reviewActions && reviewedBookingIds.has(booking.id) && (
+                    <Badge
+                      variant="outline"
+                      className="rounded-lg border-slate-200 bg-slate-50 px-3 py-2 text-slate-600"
+                    >
+                      Reviewed
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 w-full">
       <AppHeader />
 
-      <main className="w-full">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="flex flex-col gap-4 border-b border-slate-200 pb-6 xl:flex-row xl:items-center xl:justify-between">
-            <h1 className="text-3xl font-bold text-slate-950">
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-center">
+            <h1 className="shrink-0 text-4xl font-black tracking-tight text-slate-950">
               Host Dashboard
             </h1>
-            <section className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-              {[
-                { label: "Upcoming bookings", value: upcomingBookings.length },
-                { label: "Pending requests", value: pendingBookings.length },
-                { label: "Past bookings", value: pastBookings.length },
-                { label: "Host revenue", value: `$${estimatedRevenue.toFixed(0)}` },
-                { label: "Authorized requests", value: `$${pendingPayments.toFixed(0)}` },
-              ].map(({ label, value }) => (
-                <Card
-                  key={label}
-                  className="min-w-28 rounded-[32px] border-slate-200 bg-white shadow-sm"
-                >
-                  <CardContent className="p-3">
-                    <p className="text-xs font-medium text-slate-500">{label}</p>
-                    <p className="mt-1 text-xl font-semibold text-slate-950">
-                      {value}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </section>
+            {payoutSetupIncomplete && (
+              <button
+                type="button"
+                onClick={() => setActiveTab("earnings")}
+                className="inline-flex w-full items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm transition-colors hover:bg-amber-100 sm:ml-auto sm:w-auto sm:min-w-[28rem] sm:max-w-2xl"
+              >
+                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                <div className="min-w-0">
+                  <p className="font-bold text-amber-900">
+                    Payout setup incomplete
+                  </p>
+                  <p className="mt-0.5 leading-5 text-amber-700">
+                    Complete the Stripe setup in the Earnings tab to start
+                    accepting reservations.
+                  </p>
+                </div>
+              </button>
+            )}
           </div>
 
-          <Card className="mt-6 rounded-[32px] border-slate-200 bg-white shadow-sm">
-            <CardContent className="grid gap-4 p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-              <div className="flex gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-                  <CreditCard className="h-6 w-6" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-lg font-semibold text-slate-950">
-                      Payout settings
-                    </h2>
-                    <Badge variant="outline" className={`rounded-md ${payoutStatusTone}`}>
-                      {payoutStatusLabel}
-                    </Badge>
-                  </div>
-                  <p className="mt-1 text-sm text-slate-600">
-                    Manage payout details, balances, and timing in Stripe Express.
-                  </p>
-                  {stripeAccountStatus?.hasAccount && (
-                    <p className="mt-1 text-sm text-slate-600">
-                      {stripeAccountStatus.payoutsEnabled
-                        ? `Stripe Express is connected${
-                            stripeAccountStatus.mode === "test"
-                              ? " in test mode"
-                              : ""
-                          } and can receive payouts.`
-                        : `Stripe Express is connected${
-                            stripeAccountStatus.mode === "test"
-                              ? " in test mode"
-                              : ""
-                          }, but still needs payout setup.`}
-                    </p>
-                  )}
-                  {(!stripeAccountStatus?.hasAccount ||
-                    !stripeAccountStatus.payoutsEnabled) && (
-                    <p className="mt-1 text-sm text-slate-600">
-                      {payoutStatusDescription}
-                    </p>
-                  )}
-                  {stripeAccountStatus?.disabledReason && (
-                    <p className="mt-1 text-xs text-amber-700">
-                      Stripe status: {stripeAccountStatus.disabledReason}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row md:justify-end">
-                <Button
-                  size="sm"
-                  className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
-                  onClick={payoutAction}
-                  disabled={checkingStripe || connectingStripe}
+          <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[360px_minmax(0,1fr)]">
+            <aside className="space-y-3">
+              {hostTabs.map(({ Icon, ...tab }) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex w-full items-center justify-between rounded-[32px] px-6 py-5 text-left text-base font-bold transition ${
+                    activeTab === tab.id
+                      ? "bg-white text-slate-950 shadow-sm ring-1 ring-slate-100"
+                      : "text-slate-600 hover:bg-white/70"
+                  }`}
                 >
-                  {payoutStatusLabel === "Active" ? (
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                  ) : (
-                    <Settings className="mr-2 h-4 w-4" />
-                  )}
-                  {connectingStripe ? "Opening..." : payoutActionLabel}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                  <span className="flex items-center gap-5">
+                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-pink-50 text-pink-700">
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    {tab.label}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-bold text-slate-600">
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </aside>
 
-          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <aside>
-              <Card className="rounded-[32px] border-slate-200 bg-white shadow-sm">
-                <CardHeader className="flex flex-row items-center justify-between border-b border-slate-200 p-5">
-                  <h2 className="text-lg font-semibold text-slate-950">
-                    Your courts
-                  </h2>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-lg border-black bg-white text-black hover:bg-slate-100 hover:text-black"
-                    onClick={() => router.push("/create-listing")}
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Listing
-                  </Button>
-                </CardHeader>
-                <CardContent className="space-y-4 p-5">
+            <section className="space-y-6">
+              {activeTab === "upcoming" && (
+                <>
+                  <div>
+                    <h2 className="text-3xl font-black tracking-tight text-slate-950">
+                      Upcoming Reservations
+                    </h2>
+                    <p className="mt-2 text-slate-500">
+                      Pending requests and confirmed reservations that still need attention.
+                    </p>
+                  </div>
+                  {renderReservationList(
+                    upcomingReservations,
+                    "No upcoming reservations right now.",
+                    { pendingActions: true }
+                  )}
+                </>
+              )}
+
+              {activeTab === "courts" && (
+                <>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h2 className="text-3xl font-black tracking-tight text-slate-950">
+                        Your Courts
+                      </h2>
+                      <p className="mt-2 text-slate-500">
+                        Manage listings and edit calendar availability.
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="w-fit rounded-2xl border-black bg-white text-black hover:bg-slate-100 hover:text-black"
+                      onClick={openAddCourtDialog}
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Listing
+                    </Button>
+                  </div>
 
               {courts.length === 0 ? (
                 <div className="rounded-[32px] border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
@@ -1104,7 +1420,7 @@ export default function OwnerDashboard() {
                               }
                             >
                               <Edit3 className="mr-2 h-4 w-4" />
-                              Edit listing
+                              Edit Listing
                             </Button>
                             <Button
                               variant="outline"
@@ -1121,7 +1437,7 @@ export default function OwnerDashboard() {
                               ) : (
                                 <ChevronDown className="mr-2 h-4 w-4" />
                               )}
-                              Availability
+                              Weekly Availability
                             </Button>
                           </div>
 
@@ -1251,290 +1567,282 @@ export default function OwnerDashboard() {
                   })}
                 </div>
               )}
-                </CardContent>
-              </Card>
-            </aside>
+                </>
+              )}
 
-            <section>
-              <Card className="rounded-[32px] border-slate-200 bg-white shadow-sm">
-                <CardHeader className="border-b border-slate-200 p-5">
-                  <h2 className="text-lg font-semibold text-slate-950">
-                    Bookings
-                  </h2>
-                </CardHeader>
-                <CardContent className="space-y-3 p-5">
-
-          <details open className="group overflow-hidden rounded-[32px] border border-slate-200 bg-white">
-            <summary className="flex cursor-pointer list-none items-center justify-between border-b border-slate-200 p-5">
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold text-slate-950">
-                  Pending Requests
-                </h2>
-                <Badge
-                  variant="outline"
-                  className="rounded-md border-amber-200 bg-amber-50 text-amber-700"
-                >
-                  {pendingBookings.length}
-                </Badge>
-              </div>
-              <ChevronDown className="h-5 w-5 text-slate-500 group-open:hidden" />
-              <ChevronUp className="hidden h-5 w-5 text-slate-500 group-open:block" />
-            </summary>
-
-            {pendingBookings.length === 0 ? (
-              <div className="p-8 text-center text-sm text-slate-500">
-                No pending booking requests right now.
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-200">
-                {pendingBookings.map((booking) => {
-                  const court = courtsById[booking.courtId];
-                  const courtName = getBookingCourtName(booking);
-                  const timeRemaining = formatPendingBookingTimeRemaining(
-                    booking,
-                    clockNow
-                  );
-                  const netAmount =
-                    typeof booking.ownerAmountCents === "number"
-                      ? booking.ownerAmountCents / 100
-                      : (court?.price || 0) * booking.duration;
-                  return (
-                    <div
-                      key={booking.id}
-                      className="grid gap-4 bg-gradient-to-r from-amber-50/70 via-white to-emerald-50/50 p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end"
-                    >
-                      <div className="flex min-w-0 gap-4">
-                        <Avatar className="h-12 w-12 border border-white shadow-sm">
-                          <AvatarImage
-                            src={getBookingPlayerImage(booking)}
-                            alt={getBookingPlayerName(booking)}
-                          />
-                          <AvatarFallback className="bg-emerald-100 font-semibold text-emerald-800">
-                            {getBookingPlayerInitial(booking)}
-                          </AvatarFallback>
-                        </Avatar>
+              {activeTab === "earnings" && (
+                <>
+                  <div>
+                    <h2 className="text-3xl font-black tracking-tight text-slate-950">
+                      Earnings
+                    </h2>
+                    <p className="mt-2 text-slate-500">
+                      Track estimated host earnings and manage payout setup.
+                    </p>
+                  </div>
+                  <Card className="rounded-[32px] border-slate-200 bg-white shadow-sm">
+                    <CardContent className="grid gap-4 p-6 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                      <div className="flex gap-4">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
+                          <CreditCard className="h-6 w-6" />
+                        </div>
                         <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-semibold text-slate-950">{courtName}</h3>
-                          <span className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700">
-                            Court {booking.courtNumber || 1}
-                          </span>
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
-                          <span className="inline-flex items-center">
-                            <Calendar className="mr-1.5 h-4 w-4 text-slate-400" />
-                            {formatBookingDateWithDay(booking.date)}
-                          </span>
-                          <span className="inline-flex items-center">
-                            <Clock className="mr-1.5 h-4 w-4 text-slate-400" />
-                            {booking.time} for {booking.duration}h
-                          </span>
-                        </div>
-                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
-                          <span className="font-medium text-slate-700">
-                            {getBookingPlayerName(booking)}
-                          </span>
-                          {timeRemaining && (
-                            <span className="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-                              {timeRemaining}
-                            </span>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-lg font-semibold text-slate-950">
+                              Payout settings
+                            </h3>
+                            <Badge
+                              variant="outline"
+                              className={`rounded-md ${payoutStatusTone}`}
+                            >
+                              {payoutStatusLabel}
+                            </Badge>
+                          </div>
+                          <p className="mt-1 text-sm text-slate-600">
+                            Manage payout details, balances, and timing in Stripe Express.
+                          </p>
+                          {stripeAccountStatus?.hasAccount && (
+                            <p className="mt-1 text-sm text-slate-600">
+                              {stripeAccountStatus.payoutsEnabled
+                                ? `Stripe Express is connected${
+                                    stripeAccountStatus.mode === "test"
+                                      ? " in test mode"
+                                      : ""
+                                  } and can receive payouts.`
+                                : `Stripe Express is connected${
+                                    stripeAccountStatus.mode === "test"
+                                      ? " in test mode"
+                                      : ""
+                                  }, but still needs payout setup.`}
+                            </p>
                           )}
-                          <span className="inline-flex items-center font-semibold text-emerald-700">
-                            <Banknote className="mr-1.5 h-4 w-4" />
-                            ${netAmount.toFixed(2)} net
-                          </span>
-                        </div>
+                          {(!stripeAccountStatus?.hasAccount ||
+                            !stripeAccountStatus.payoutsEnabled) && (
+                            <p className="mt-1 text-sm text-slate-600">
+                              {payoutStatusDescription}
+                            </p>
+                          )}
+                          {stripeAccountStatus?.disabledReason && (
+                            <p className="mt-1 text-xs text-amber-700">
+                              Stripe status: {stripeAccountStatus.disabledReason}
+                            </p>
+                          )}
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 lg:justify-end lg:self-end">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="rounded-lg border-slate-300"
-                          onClick={() => openBookingConversation(booking)}
-                        >
-                          <MessageCircle className="mr-2 h-4 w-4" />
-                          Message
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
-                          onClick={() =>
-                            court && setAcceptBookingConfirm({ booking, court })
-                          }
-                          disabled={updatingBookingId === booking.id || !court}
-                        >
-                          <Check className="mr-2 h-4 w-4" />
-                          Accept
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="rounded-lg border-black text-black hover:bg-slate-100 hover:text-black"
-                          onClick={() => handleRejectBooking(booking.id)}
-                          disabled={updatingBookingId === booking.id}
-                        >
-                          <X className="mr-2 h-4 w-4" />
-                          Decline
-                        </Button>
+                      <Button
+                        size="sm"
+                        className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                        onClick={payoutAction}
+                        disabled={checkingStripe || connectingStripe}
+                      >
+                        {payoutStatusLabel === "Active" ? (
+                          <ExternalLink className="mr-2 h-4 w-4" />
+                        ) : (
+                          <Settings className="mr-2 h-4 w-4" />
+                        )}
+                        {connectingStripe ? "Opening..." : payoutActionLabel}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Card className="rounded-[32px] border-slate-200 bg-white shadow-sm">
+                      <CardContent className="p-6">
+                        <p className="text-sm font-semibold text-slate-500">
+                          Host earnings
+                        </p>
+                        <p className="mt-2 text-3xl font-black text-slate-950">
+                          ${estimatedEarnings.toFixed(0)}
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card className="rounded-[32px] border-slate-200 bg-white shadow-sm">
+                      <CardContent className="p-6">
+                        <p className="text-sm font-semibold text-slate-500">
+                          Authorized requests
+                        </p>
+                        <p className="mt-2 text-3xl font-black text-slate-950">
+                          ${pendingPayments.toFixed(0)}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                  <Card className="rounded-[32px] border-slate-200 bg-white shadow-sm">
+                    <CardContent className="p-6">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <h3 className="text-xl font-black text-slate-950">
+                            Earnings over time
+                          </h3>
+                          <p className="mt-1 text-sm text-slate-500">
+                            ${chartEarningsTotal.toFixed(0)} in selected range
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {(Object.keys(earningsRangeLabels) as EarningsRange[]).map(
+                            (range) => (
+                              <button
+                                key={range}
+                                type="button"
+                                onClick={() => setEarningsRange(range)}
+                                className={`rounded-full px-3 py-1.5 text-sm font-bold transition ${
+                                  earningsRange === range
+                                    ? "bg-[var(--site-accent)] text-white"
+                                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                }`}
+                              >
+                                {earningsRangeLabels[range]}
+                              </button>
+                            )
+                          )}
+                        </div>
                       </div>
+                      <div className="mt-6 h-72">
+                        {earningsChartData.length === 0 ? (
+                          <div className="flex h-full items-center justify-center rounded-[24px] border border-dashed border-slate-200 text-sm text-slate-500">
+                            No earnings in this range yet.
+                          </div>
+                        ) : (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart
+                              data={earningsChartData}
+                              margin={{ top: 10, right: 12, left: 0, bottom: 0 }}
+                            >
+                              <CartesianGrid
+                                strokeDasharray="3 3"
+                                stroke="#e2e8f0"
+                              />
+                              <XAxis
+                                dataKey="label"
+                                tickLine={false}
+                                axisLine={false}
+                                tick={{ fill: "#64748b", fontSize: 12 }}
+                              />
+                              <YAxis
+                                tickLine={false}
+                                axisLine={false}
+                                tick={{ fill: "#64748b", fontSize: 12 }}
+                                tickFormatter={(value) => `$${value}`}
+                              />
+                              <Tooltip
+                                formatter={(value) => [
+                                  `$${Number(value).toFixed(2)}`,
+                                  "Earnings",
+                                ]}
+                                labelFormatter={(_, payload) =>
+                                  payload?.[0]?.payload?.date || ""
+                                }
+                              />
+                              <Line
+                                type="monotone"
+                                dataKey="earnings"
+                                stroke="var(--site-accent)"
+                                strokeWidth={3}
+                                dot={{ r: 4, fill: "var(--site-accent)" }}
+                                activeDot={{ r: 6 }}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+
+              {activeTab === "reviews" && (
+                <>
+                  <div>
+                    <h2 className="text-3xl font-black tracking-tight text-slate-950">
+                      Reviews
+                    </h2>
+                    <p className="mt-2 text-slate-500">
+                      Reviews from players about you as a host and your courts.
+                    </p>
+                  </div>
+                  {receivedReviews.length === 0 ? (
+                    <Card className="rounded-[32px] border-slate-200 bg-white shadow-sm">
+                      <CardContent className="p-8 text-slate-600">
+                        Player reviews for you and your courts will appear here after completed reservations.
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="grid gap-8 md:grid-cols-2">
+                      {receivedReviews.map((review) => {
+                        const court = courtsById[review.courtId];
+                        return (
+                          <article
+                            key={review.id}
+                            className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm"
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div>
+                                <p className="text-lg font-black text-slate-950">
+                                  {court?.name || "Court review"}
+                                </p>
+                                <p className="mt-1 text-sm text-slate-500">
+                                  {formatReviewDate(review.createdAt)}
+                                </p>
+                              </div>
+                              <div className="flex gap-0.5 text-amber-400">
+                                {Array.from({ length: 5 }).map((_, star) => (
+                                  <Star
+                                    key={star}
+                                    className={`h-4 w-4 ${
+                                      star < review.rating
+                                        ? "fill-amber-400"
+                                        : "text-slate-300"
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                            <p className="mt-5 text-lg leading-8 text-slate-900">
+                              {review.comment || "No written review provided."}
+                            </p>
+                          </article>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </details>
+                  )}
+                </>
+              )}
 
-              <details open className="group overflow-hidden rounded-[32px] border border-slate-200 bg-white">
-                <summary className="flex cursor-pointer list-none items-center justify-between border-b border-slate-200 p-5">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-semibold text-slate-950">
-                      Upcoming
+              {activeTab === "completed" && (
+                <>
+                  <div>
+                    <h2 className="text-3xl font-black tracking-tight text-slate-950">
+                      Completed Reservations
                     </h2>
-                    <Badge variant="outline" className="rounded-md">
-                      {upcomingBookings.length} upcoming
-                    </Badge>
+                    <p className="mt-2 text-slate-500">
+                      Completed and past confirmed reservations.
+                    </p>
                   </div>
-                  <ChevronDown className="h-5 w-5 text-slate-500 group-open:hidden" />
-                  <ChevronUp className="hidden h-5 w-5 text-slate-500 group-open:block" />
-                </summary>
-                {upcomingBookings.length === 0 ? (
-                  <div className="p-8 text-center text-sm text-slate-500">
-                    No upcoming bookings.
-                  </div>
-                ) : (
-                  <div className="divide-y divide-slate-200">
-                    {upcomingBookings.map((booking) => {
-                      const court = courtsById[booking.courtId];
-                      const courtName = getBookingCourtName(booking);
-                      return (
-                        <div
-                          key={booking.id}
-                          className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between"
-                        >
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="font-semibold text-slate-950">
-                                {courtName}
-                              </h3>
-                              {getStatusBadge(booking.status)}
-                            </div>
-                            <p className="mt-1 text-sm text-slate-600">
-                              {formatBookingDateWithDay(booking.date)} at {booking.time} for{" "}
-                              {booking.duration}h
-                            </p>
-                            <p className="mt-1 flex items-center text-sm text-slate-500">
-                              <User className="mr-1.5 h-4 w-4 text-slate-400" />
-                              {getBookingPlayerName(booking)}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-                            <span className="text-sm font-semibold text-emerald-700">
-                              ${((court?.price || 0) * booking.duration).toFixed(2)}
-                            </span>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="rounded-lg border-slate-300"
-                              onClick={() => openBookingConversation(booking)}
-                            >
-                              <MessageCircle className="mr-2 h-4 w-4" />
-                              Message
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </details>
+                  {renderReservationList(
+                    completedReservations,
+                    "No completed reservations yet.",
+                    { reviewActions: true }
+                  )}
+                </>
+              )}
 
-              <details className="group overflow-hidden rounded-[32px] border border-slate-200 bg-white">
-                <summary className="flex cursor-pointer list-none items-center justify-between border-b border-slate-200 p-5">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-semibold text-slate-950">
-                      Past
+              {activeTab === "cancelled" && (
+                <>
+                  <div>
+                    <h2 className="text-3xl font-black tracking-tight text-slate-950">
+                      Cancelled Reservations
                     </h2>
-                    <Badge variant="outline" className="rounded-md">
-                      {pastBookings.length} past
-                    </Badge>
+                    <p className="mt-2 text-slate-500">
+                      Expired, rejected, and cancelled reservations.
+                    </p>
                   </div>
-                  <ChevronDown className="h-5 w-5 text-slate-500 group-open:hidden" />
-                  <ChevronUp className="hidden h-5 w-5 text-slate-500 group-open:block" />
-                </summary>
-                {pastBookings.length === 0 ? (
-                  <div className="p-8 text-center text-sm text-slate-500">
-                    No past bookings yet.
-                  </div>
-                ) : (
-                  <div className="divide-y divide-slate-200">
-                    {pastBookings.map((booking) => {
-                      const court = courtsById[booking.courtId];
-                      const courtName = getBookingCourtName(booking);
-                      return (
-                        <div
-                          key={booking.id}
-                          className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between"
-                        >
-                          <div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <h3 className="font-semibold text-slate-950">
-                                {courtName}
-                              </h3>
-                              {getStatusBadge(booking.status)}
-                            </div>
-                            <p className="mt-1 text-sm text-slate-600">
-                              {formatBookingDateWithDay(booking.date)} at {booking.time}
-                            </p>
-                            <p className="mt-1 flex items-center text-sm text-slate-500">
-                              <User className="mr-1.5 h-4 w-4 text-slate-400" />
-                              {getBookingPlayerName(booking)}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-                            {canReviewBooking(booking) && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="rounded-lg border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"
-                                onClick={() => setReviewingBooking(booking)}
-                              >
-                                <Star className="mr-2 h-4 w-4 fill-amber-400 text-amber-400" />
-                                Review player
-                              </Button>
-                            )}
-                            {reviewedBookingIds.has(booking.id) && (
-                              <Badge
-                                variant="outline"
-                                className="rounded-lg border-slate-200 bg-slate-50 px-3 py-2 text-slate-600"
-                              >
-                                Reviewed
-                              </Badge>
-                            )}
-                            <span className="text-sm text-slate-500">
-                              {booking.duration}h
-                            </span>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="rounded-lg border-slate-300"
-                              onClick={() => openBookingConversation(booking)}
-                            >
-                              <MessageCircle className="mr-2 h-4 w-4" />
-                              Message
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </details>
-                </CardContent>
-              </Card>
+                  {renderReservationList(
+                    cancelledReservations,
+                    "No cancelled reservations yet."
+                  )}
+                </>
+              )}
             </section>
           </div>
-        </div>
       </main>
 
       {/* Accept Booking Confirmation Modal */}
@@ -1606,6 +1914,49 @@ export default function OwnerDashboard() {
                   Confirm Accept
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={showAddCourtDialog}
+        onOpenChange={(open) => {
+          if (!open) closeAddCourtDialog();
+        }}
+      >
+        <DialogContent className="rounded-[32px] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black tracking-tight">
+              Create a court listing
+            </DialogTitle>
+            <DialogDescription className="text-base leading-7">
+              Add your court details, photos, pricing, access instructions, and availability. You can save the listing first, then connect Stripe before it becomes bookable.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-[24px] bg-slate-50 p-5 text-sm leading-6 text-slate-600">
+            <p className="font-bold text-slate-950">
+              Before publishing, you will need:
+            </p>
+            <p className="mt-2">
+              Court details, at least one clear photo, availability rules,
+              booking access instructions, and a ready Stripe payout account.
+            </p>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-2xl"
+              onClick={closeAddCourtDialog}
+            >
+              Maybe later
+            </Button>
+            <Button
+              type="button"
+              className="rounded-2xl bg-[var(--site-accent)] text-white hover:bg-[var(--site-accent-hover)]"
+              onClick={() => router.push("/create-listing")}
+            >
+              Start Listing
             </Button>
           </DialogFooter>
         </DialogContent>
