@@ -501,7 +501,7 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <LoadingScreen
-        message="Loading your profile"
+        message="Loading Your Profile"
         detail="Pulling together your bookings, reviews, and profile details."
       />
     );

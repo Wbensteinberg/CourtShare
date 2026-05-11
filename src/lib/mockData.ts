@@ -14,6 +14,8 @@ export type MockUserProfile = {
   playerReviewCount?: number;
   ownerRating?: number;
   ownerReviewCount?: number;
+  /** ISO string — used for “months on CourtShare” in profile-style UIs */
+  createdAt?: string;
 };
 
 export type MockCourt = {
@@ -247,6 +249,12 @@ const createImageDataUrl = (title: string, accent: string) => {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 };
 
+const mockMemberSinceMonthsAgo = (monthsAgo: number) => {
+  const d = new Date();
+  d.setMonth(d.getMonth() - monthsAgo);
+  return d.toISOString();
+};
+
 const createSeedDb = (): MockDb => {
   const activeUser: MockUserProfile = {
     uid: ACTIVE_USER_ID,
@@ -255,6 +263,7 @@ const createSeedDb = (): MockDb => {
     bio: "League player, early-morning hitter, and part-time court host.",
     profileImageUrl: "",
     isOwner: false,
+    createdAt: mockMemberSinceMonthsAgo(10),
   };
 
   const guestUser: MockUserProfile = {
@@ -264,6 +273,7 @@ const createSeedDb = (): MockDb => {
     bio: "Weekend doubles player.",
     profileImageUrl: "",
     isOwner: false,
+    createdAt: mockMemberSinceMonthsAgo(14),
   };
 
   const guestUserTwo: MockUserProfile = {
@@ -273,6 +283,7 @@ const createSeedDb = (): MockDb => {
     bio: "Competitive USTA player.",
     profileImageUrl: "",
     isOwner: false,
+    createdAt: mockMemberSinceMonthsAgo(5),
   };
 
   const courts: MockCourt[] = [

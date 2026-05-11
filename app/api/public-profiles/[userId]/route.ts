@@ -1,6 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 
+const serializeMemberSince = (value: unknown): string | null => {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  if (typeof (value as { toDate?: () => Date }).toDate === "function") {
+    const d = (value as { toDate: () => Date }).toDate();
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  }
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { seconds?: number }).seconds === "number"
+  ) {
+    const d = new Date(
+      (value as { seconds: number }).seconds * 1000 +
+        Math.floor(((value as { nanoseconds?: number }).nanoseconds || 0) / 1_000_000)
+    );
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+  return null;
+};
+
 const getPublicProfile = (id: string, data: Record<string, any>) => ({
   uid: id,
   displayName:
@@ -18,6 +42,8 @@ const getPublicProfile = (id: string, data: Record<string, any>) => ({
   ownerRating: typeof data.ownerRating === "number" ? data.ownerRating : null,
   ownerReviewCount:
     typeof data.ownerReviewCount === "number" ? data.ownerReviewCount : 0,
+  /** ISO timestamp for account age (same sources as private profile). */
+  memberSince: serializeMemberSince(data.createdAt ?? data.memberSince),
 });
 
 export async function GET(
@@ -42,8 +68,29 @@ export async function GET(
       return NextResponse.json({ error: "Profile not found" }, { status: 404 });
     }
 
+    const raw = profileDoc.data() || {};
+    const profile = getPublicProfile(profileDoc.id, raw);
+
+    const bookingsSnap = await adminDb
+      .collection("bookings")
+      .where("userId", "==", userId)
+      .get();
+    const confirmedBookingsCount = bookingsSnap.docs.filter(
+      (d) => d.data()?.status === "confirmed"
+    ).length;
+
+    const listingsSnap = await adminDb
+      .collection("courts")
+      .where("ownerId", "==", userId)
+      .get();
+    const listingsCount = listingsSnap.size;
+
     return NextResponse.json({
-      profile: getPublicProfile(profileDoc.id, profileDoc.data() || {}),
+      profile: {
+        ...profile,
+        confirmedBookingsCount,
+        listingsCount,
+      },
     });
   } catch (err: any) {
     return NextResponse.json(

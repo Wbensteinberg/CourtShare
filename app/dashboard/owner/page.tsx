@@ -908,7 +908,7 @@ export default function OwnerDashboard() {
   if (loading) {
     return (
       <LoadingScreen
-        message="Loading host dashboard"
+        message="Loading Host Dashboard"
         detail="Syncing your courts, reservations, payouts, and reviews."
       />
     );

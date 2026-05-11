@@ -4,7 +4,6 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { db, auth, isMockMode } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
-import Image from "next/image";
 import {
   collection,
   query,
@@ -14,10 +13,9 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { useAuth } from "@/lib/AuthContext";
-import { ArrowLeft, MapPin, Star, Clock, Calendar, Users, UserRound } from "lucide-react";
+import { ArrowLeft, Clock, Calendar, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -27,11 +25,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
 import { calculateBookingPriceBreakdown, formatCents } from "@/lib/pricing";
 import { WaiverAcknowledgmentDialog } from "@/components/WaiverAcknowledgmentDialog";
 import LoadingScreen from "@/components/LoadingScreen";
+import CourtBookingDetailUnified from "@/components/CourtBookingDetailUnified";
+import CourtListingGalleryCard from "@/components/CourtListingGalleryCard";
+import CourtListingHostCard from "@/components/CourtListingHostCard";
+import ReviewsListDialog from "@/components/ReviewsListDialog";
 import {
   PLAYER_BOOKING_WAIVER_INTRO,
   PLAYER_BOOKING_WAIVER_BODY,
@@ -45,8 +45,10 @@ import {
   getMockAuthUser,
   getMockBookingsForCourtAndDate,
   getMockCourtById,
+  getMockCourts,
   getMockProfile,
   getMockReviewsForCourt,
+  getMockReviewsForTarget,
 } from "@/lib/mockData";
 
 interface Court {
@@ -79,8 +81,13 @@ type PublicProfile = {
   displayName: string;
   bio?: string;
   profileImageUrl?: string;
+  isOwner?: boolean;
+  playerRating?: number | null;
+  playerReviewCount?: number;
   ownerRating?: number | null;
   ownerReviewCount?: number;
+  memberSince?: string | null;
+  listingsCount?: number;
 };
 
 type PublicReview = {
@@ -88,13 +95,16 @@ type PublicReview = {
   rating: number;
   comment?: string;
   createdAt?: string | null;
+  targetType?: string;
 };
 
-export default function CourtDetailPage() {
+function CourtDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [court, setCourt] = useState<Court | null>(null);
   const [hostProfile, setHostProfile] = useState<PublicProfile | null>(null);
   const [courtReviews, setCourtReviews] = useState<PublicReview[]>([]);
+  const [hostReviews, setHostReviews] = useState<PublicReview[]>([]);
+  const [courtReviewsDialogOpen, setCourtReviewsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const router = useRouter();
@@ -109,9 +119,7 @@ export default function CourtDetailPage() {
   >("idle");
   const [bookingsForDate, setBookingsForDate] = useState<any[]>([]);
   const [fetchingBookings, setFetchingBookings] = useState(false);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [selectedCourtNumber, setSelectedCourtNumber] = useState<number>(1);
-  const [showImageModal, setShowImageModal] = useState(false);
   const [playerWaiverOpen, setPlayerWaiverOpen] = useState(false);
   const [playerWaiverChecked, setPlayerWaiverChecked] = useState(false);
 
@@ -344,15 +352,38 @@ export default function CourtDetailPage() {
       if (!id || !court) {
         setHostProfile(null);
         setCourtReviews([]);
+        setHostReviews([]);
         return;
       }
 
       try {
         if (isMockMode) {
+          const mockHostRow = court.ownerId ? getMockProfile(court.ownerId) : null;
           setHostProfile(
-            court.ownerId ? (getMockProfile(court.ownerId) as PublicProfile | null) : null
+            mockHostRow
+              ? ({
+                  uid: mockHostRow.uid,
+                  displayName: mockHostRow.displayName,
+                  bio: mockHostRow.bio || "",
+                  profileImageUrl: mockHostRow.profileImageUrl || "",
+                  isOwner: mockHostRow.isOwner,
+                  playerRating: mockHostRow.playerRating ?? null,
+                  playerReviewCount: mockHostRow.playerReviewCount ?? 0,
+                  ownerRating: mockHostRow.ownerRating ?? null,
+                  ownerReviewCount: mockHostRow.ownerReviewCount ?? 0,
+                  memberSince: mockHostRow.createdAt ?? null,
+                  listingsCount: getMockCourts().filter((c) => c.ownerId === court.ownerId).length,
+                } as PublicProfile)
+              : null
           );
           setCourtReviews(getMockReviewsForCourt(id));
+          const mockHostReviews =
+            court.ownerId
+              ? getMockReviewsForTarget(court.ownerId).filter(
+                  (r: any) => r.targetType === "court_owner"
+                )
+              : [];
+          setHostReviews(mockHostReviews);
           return;
         }
 
@@ -376,16 +407,32 @@ export default function CourtDetailPage() {
             )
           : Promise.resolve(null);
 
-        const [profileData, reviewData] = await Promise.all([
+        const hostReviewsPromise = court.ownerId
+          ? fetch(`/api/reviews?targetUserId=${encodeURIComponent(court.ownerId)}`).then(
+              async (res) => {
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                  throw new Error(data.error || "Failed to load host reviews");
+                }
+                const allReviews: PublicReview[] = data.reviews || [];
+                return allReviews.filter((r) => r.targetType === "court_owner");
+              }
+            )
+          : Promise.resolve([]);
+
+        const [profileData, reviewData, hostReviewsData] = await Promise.all([
           hostPromise,
           reviewsPromise,
+          hostReviewsPromise,
         ]);
         setHostProfile(profileData);
         setCourtReviews(reviewData);
+        setHostReviews(hostReviewsData);
       } catch (err) {
         console.warn("[COURT] Unable to load host profile or reviews:", err);
         setHostProfile(null);
         setCourtReviews([]);
+        setHostReviews([]);
       }
     };
 
@@ -621,14 +668,12 @@ export default function CourtDetailPage() {
     ? calculateBookingPriceBreakdown(court.price || 0, durationMinutesForPrice)
     : null;
   const isOwnCourt = !!user && court?.ownerId === user.uid;
-  const hostInitial =
-    hostProfile?.displayName?.trim().charAt(0).toUpperCase() || "H";
   const latestCourtReview = courtReviews[0];
 
   if (loading) {
     return (
       <LoadingScreen
-        message="Loading court"
+        message="Loading Court Details"
         detail="Checking court details, availability, host info, and reviews."
       />
     );
@@ -673,215 +718,19 @@ export default function CourtDetailPage() {
 
       <div className="container py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
-          {/* Court Details */}
           <div className="space-y-6">
-            {/* Court Image - Modernized */}
-            <Card className="overflow-hidden shadow-elegant border-0 rounded-3xl">
-              <div className="relative h-72 md:h-96 group">
-                <Image
-                  src={
-                    court.imageUrls && court.imageUrls.length > 0
-                      ? court.imageUrls[currentImageIndex]
-                      : court.imageUrl
-                  }
-                  alt={court.name}
-                  fill
-                  className="object-cover cursor-pointer transition-transform duration-200 group-hover:scale-105"
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                  priority
-                  onClick={() => setShowImageModal(true)}
-                />
-                <div className="absolute top-4 right-4">
-                  <Badge
-                    variant="secondary"
-                    className="bg-background/90 backdrop-blur-sm"
-                  >
-                    {court.indoor ? "Indoor" : "Outdoor"}
-                  </Badge>
-                </div>
-                {court.imageUrls && court.imageUrls.length > 1 && (
-                  <>
-                    <button
-                      onClick={() =>
-                        setCurrentImageIndex((prev) =>
-                          prev > 0 ? prev - 1 : court.imageUrls!.length - 1
-                        )
-                      }
-                      className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-black/70 transition"
-                    >
-                      ‹
-                    </button>
-                    <button
-                      onClick={() =>
-                        setCurrentImageIndex((prev) =>
-                          prev < court.imageUrls!.length - 1 ? prev + 1 : 0
-                        )
-                      }
-                      className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full w-10 h-10 flex items-center justify-center hover:bg-black/70 transition"
-                    >
-                      ›
-                    </button>
-                    <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex space-x-1">
-                      {court.imageUrls.map((_, index) => (
-                        <button
-                          key={index}
-                          onClick={() => setCurrentImageIndex(index)}
-                          className={`w-2 h-2 rounded-full transition ${
-                            index === currentImageIndex
-                              ? "bg-white"
-                              : "bg-white/50"
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            </Card>
-
-            {/* Court Info - Modernized */}
-            <Card className="shadow-elegant border-0 hover:shadow-glow-hover transition-all duration-500 rounded-3xl">
-              <CardContent className="p-8 pt-10">
-                <div className="space-y-6">
-                  <div>
-                    <h1 className="text-3xl md:text-4xl font-black text-gray-900 mb-4 tracking-tight">
-                      {court.name}
-                    </h1>
-                    <div className="flex items-center gap-2 text-gray-500 mb-3">
-                      <MapPin className="w-4 h-4" />
-                      <span>{court.location}</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-1">
-                        <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                        <span className="font-medium">
-                          {court.reviewCount ? court.rating?.toFixed(1) || "New" : "New"}
-                        </span>
-                        <span className="text-gray-500">
-                          ({court.reviewCount || 0} reviews)
-                        </span>
-                      </div>
-                      <Badge
-                        variant="outline"
-                        className="text-gray-600 border-gray-300"
-                      >
-                        {court.surface || "Hard Court"}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-gray-200 pt-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-2xl font-bold text-green-600">
-                        ${court.price}
-                      </span>
-                      <span className="text-gray-500">per hour</span>
-                    </div>
-                    <p className="text-gray-600">{court.description}</p>
-                  </div>
-
-                  {/* Amenities */}
-                  {court.amenities && court.amenities.length > 0 && (
-                    <div className="border-t border-gray-200 pt-4">
-                      <h3 className="font-semibold mb-3">Amenities</h3>
-                      <div className="flex flex-wrap gap-2">
-                        {court.amenities.map((amenity) => (
-                          <Badge
-                            key={amenity}
-                            variant="secondary"
-                            className="bg-gray-100 text-gray-700"
-                          >
-                            {amenity}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Host Card */}
-            <Card className="border-0 shadow-elegant rounded-3xl">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-14 w-14">
-                      <AvatarImage
-                        src={hostProfile?.profileImageUrl || undefined}
-                        alt={hostProfile?.displayName || "Court host"}
-                      />
-                      <AvatarFallback className="bg-emerald-100 font-semibold text-emerald-800">
-                        {hostInitial}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Hosted by
-                      </p>
-                      <h2 className="text-lg font-bold text-slate-950">
-                        {hostProfile?.displayName || "Court host"}
-                      </h2>
-                    </div>
-                  </div>
-                  {court.ownerId && (
-                    <Button
-                      variant="outline"
-                      className="rounded-xl"
-                      onClick={() => router.push(`/profile/${court.ownerId}`)}
-                    >
-                      <UserRound className="mr-2 h-4 w-4" />
-                      Profile
-                    </Button>
-                  )}
-                </div>
-
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl border border-slate-200 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Court reviews
-                    </p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      <span className="font-semibold">
-                        {court.rating ? court.rating.toFixed(1) : "New"}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {court.reviewCount || 0} reviews
-                    </p>
-                  </div>
-                  <div className="rounded-2xl border border-slate-200 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Host reviews
-                    </p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      <span className="font-semibold">
-                        {hostProfile?.ownerRating
-                          ? hostProfile.ownerRating.toFixed(1)
-                          : "New"}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {hostProfile?.ownerReviewCount || 0} reviews
-                    </p>
-                  </div>
-                </div>
-
-                {latestCourtReview?.comment && (
-                  <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-                    <div className="flex items-center gap-1 text-sm font-semibold text-slate-950">
-                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      {latestCourtReview.rating}/5
-                    </div>
-                    <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">
-                      {latestCourtReview.comment}
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <CourtListingGalleryCard
+              listingKey={id || ""}
+              court={court}
+              latestCourtReview={latestCourtReview}
+              onOpenCourtReviews={() => setCourtReviewsDialogOpen(true)}
+              hourlyPriceDollars={court.price}
+            />
+            <CourtListingHostCard
+              hostProfile={hostProfile}
+              hostReviews={hostReviews}
+              ownerId={court.ownerId}
+            />
           </div>
 
           {/* Booking Form */}
@@ -1085,44 +934,20 @@ export default function CourtDetailPage() {
         confirmDisabled={bookingStatus === "loading"}
       />
 
-      {/* Image Modal */}
-      {showImageModal && (
-        <div
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowImageModal(false)}
-        >
-          <div className="relative max-w-4xl max-h-full">
-            <Image
-              src={
-                court.imageUrls && court.imageUrls.length > 0
-                  ? court.imageUrls[currentImageIndex]
-                  : court.imageUrl
-              }
-              alt={court.name}
-              width={800}
-              height={600}
-              className="max-w-full max-h-full object-contain rounded-lg"
-              onClick={(e) => e.stopPropagation()}
-            />
-            {court.imageUrls && court.imageUrls.length > 1 && (
-              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
-                {court.imageUrls.map((_, index) => (
-                  <button
-                    key={index}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCurrentImageIndex(index);
-                    }}
-                    className={`w-3 h-3 rounded-full transition ${
-                      index === currentImageIndex ? "bg-white" : "bg-white/50"
-                    }`}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <ReviewsListDialog
+        open={courtReviewsDialogOpen}
+        onOpenChange={setCourtReviewsDialogOpen}
+        title="All court reviews"
+        reviews={courtReviews}
+      />
     </div>
+  );
+}
+
+export default function CourtRoutePage() {
+  return (
+    <CourtBookingDetailUnified>
+      <CourtDetailPage />
+    </CourtBookingDetailUnified>
   );
 }

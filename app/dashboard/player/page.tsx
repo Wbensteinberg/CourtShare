@@ -449,7 +449,7 @@ export default function PlayerDashboard() {
   if (loading) {
     return (
       <LoadingScreen
-        message="Loading your bookings"
+        message="Loading Your Bookings"
         detail="Checking your reservations, requests, and messages."
       />
     );
