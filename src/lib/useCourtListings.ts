@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db, isMockMode } from "@/lib/firebase";
-import { getMockCourts } from "@/lib/mockData";
+import { getMockBookings, getMockCourts } from "@/lib/mockData";
 import { calculateDistance, type Coordinates } from "@/lib/geolocation";
 
 export interface CourtListing {
   id: string;
   name: string;
   location: string;
+  address?: string;
   price: number;
   description: string;
   imageUrl: string;
@@ -18,6 +19,22 @@ export interface CourtListing {
   distance?: number;
   rating?: number;
   reviewCount?: number;
+  numberOfCourts?: number;
+  blockedDates?: string[];
+  blockedTimes?: Record<string, string[]>;
+  alwaysBlockedTimes?: string[];
+  alwaysBlockedTimesByDay?: Record<number, string[]>;
+}
+
+export interface CourtBooking {
+  id: string;
+  courtId: string;
+  date: string;
+  time: string;
+  duration?: number;
+  durationMinutes?: number;
+  status: string;
+  courtNumber?: number;
 }
 
 export function useCourtListings(authLoading = false) {
@@ -51,6 +68,36 @@ export function useCourtListings(authLoading = false) {
   }, [authLoading]);
 
   return { courts, loading, error };
+}
+
+export function useCourtBookings(authLoading = false) {
+  const [bookings, setBookings] = useState<CourtBooking[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchBookings = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const bookingsData: CourtBooking[] = isMockMode
+          ? (getMockBookings() as CourtBooking[])
+          : [];
+        setBookings(bookingsData);
+      } catch (err) {
+        console.error("Error fetching bookings:", err);
+        setError("Failed to fetch bookings. Please try again later.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (!authLoading) {
+      fetchBookings();
+    }
+  }, [authLoading]);
+
+  return { bookings, loading, error };
 }
 
 export function filterCourtListings(

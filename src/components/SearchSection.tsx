@@ -43,6 +43,8 @@ interface SearchSectionProps {
   initialDistance?: string;
   initialTime?: string;
   initialDate?: string;
+  initialLatitude?: string;
+  initialLongitude?: string;
   overlapHero?: boolean;
 }
 
@@ -53,10 +55,20 @@ const SearchSection = ({
   initialDistance = "10",
   initialTime = "anytime",
   initialDate,
+  initialLatitude,
+  initialLongitude,
   overlapHero = true,
 }: SearchSectionProps) => {
   const router = useRouter();
   const [location, setLocation] = useState(initialLocation);
+  const [selectedCoordinates, setSelectedCoordinates] =
+    useState<Coordinates | null>(() => {
+      const latitude = Number(initialLatitude);
+      const longitude = Number(initialLongitude);
+      return Number.isFinite(latitude) && Number.isFinite(longitude)
+        ? { latitude, longitude }
+        : null;
+    });
   const [date, setDate] = useState<Date | null>(() => {
     if (initialDate) {
       const parsedDate = new Date(`${initialDate}T00:00:00`);
@@ -122,18 +134,32 @@ const SearchSection = ({
     onDistanceChange?.(distance);
   }, [distanceFilter, onDistanceChange]);
 
+  useEffect(() => {
+    const latitude = Number(initialLatitude);
+    const longitude = Number(initialLongitude);
+    setSelectedCoordinates(
+      Number.isFinite(latitude) && Number.isFinite(longitude)
+        ? { latitude, longitude }
+        : null
+    );
+  }, [initialLatitude, initialLongitude]);
+
   const handleSearch = () => {
     const params = new URLSearchParams();
     if (location) params.set("location", location);
     if (distanceFilter) params.set("distance", distanceFilter);
     if (date) params.set("date", date.toISOString().slice(0, 10));
     if (time) params.set("time", time);
+    if (selectedCoordinates) {
+      params.set("lat", String(selectedCoordinates.latitude));
+      params.set("lng", String(selectedCoordinates.longitude));
+    }
     router.push(`/search?${params.toString()}`);
   };
 
   return (
     <div
-      className={`relative z-20 mx-auto flex w-full flex-col items-center space-y-5 ${
+      className={`relative z-[100] mx-auto flex w-full flex-col items-center space-y-5 ${
         overlapHero ? "-mt-24 md:-mt-28" : "mt-0"
       }`}
       data-search-section
@@ -147,19 +173,19 @@ const SearchSection = ({
             <AddressAutocomplete
               value={location}
               onChange={(address, coordinates) => {
+                const normalizedCoordinates = coordinates
+                  ? {
+                      latitude: coordinates.latitude,
+                      longitude: coordinates.longitude,
+                    }
+                  : null;
                 setLocation(address);
-                onLocationChange?.(
-                  address,
-                  coordinates
-                    ? {
-                        latitude: coordinates.latitude,
-                        longitude: coordinates.longitude,
-                      }
-                    : null
-                );
+                setSelectedCoordinates(normalizedCoordinates);
+                onLocationChange?.(address, normalizedCoordinates);
               }}
               placeholder="Enter city or zip code"
               showMapPin={false}
+              showCurrentLocationOption
               className="h-auto min-h-[1.25rem] border-0 bg-transparent px-0 py-0 text-sm font-medium text-slate-600 shadow-none placeholder:text-slate-400 focus-visible:ring-0 focus-visible:ring-offset-0"
               label=""
               active={activeDropdown === "where"}

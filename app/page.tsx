@@ -7,13 +7,8 @@ import HeroSection from "@/components/HeroSection";
 import SearchSection from "@/components/SearchSection";
 import CourtCard from "@/components/CourtCard";
 import { CalendarCheck, ChevronLeft, ChevronRight, Search } from "lucide-react";
-import { type Coordinates } from "@/lib/geolocation";
 import { useAuth } from "@/lib/AuthContext";
-import {
-  toCourtCardModel,
-  useCourtListings,
-  useFilteredCourtListings,
-} from "@/lib/useCourtListings";
+import { toCourtCardModel, useCourtListings } from "@/lib/useCourtListings";
 
 function TennisRacketIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -35,13 +30,10 @@ export default function HomePage() {
   const router = useRouter();
   const searchRef = useRef<HTMLDivElement>(null);
   const galleryRef = useRef<HTMLDivElement>(null);
-  const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
-  const [maxDistance, setMaxDistance] = useState<number | null>(null);
   const [activeCourtIndex, setActiveCourtIndex] = useState(0);
-  const filteredCourts = useFilteredCourtListings(courts, userLocation, maxDistance);
 
   const scrollGalleryTo = (index: number) => {
-    const boundedIndex = Math.max(0, Math.min(index, filteredCourts.length - 1));
+    const boundedIndex = Math.max(0, Math.min(index, courts.length - 1));
     const gallery = galleryRef.current;
     const target = gallery?.children.item(boundedIndex) as HTMLElement | null;
 
@@ -77,10 +69,7 @@ export default function HomePage() {
       </div>
       <main className="w-full bg-white">
         <div ref={searchRef} className="mx-auto w-full max-w-7xl px-4 py-8">
-          <SearchSection
-            onLocationChange={(_, coords) => setUserLocation(coords)}
-            onDistanceChange={setMaxDistance}
-          />
+          <SearchSection />
         </div>
         <div className="mx-auto w-full max-w-7xl px-4 pb-0">
           {loading && (
@@ -95,7 +84,7 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => scrollGalleryTo(activeCourtIndex - 1)}
-                disabled={activeCourtIndex === 0 || filteredCourts.length === 0}
+                disabled={activeCourtIndex === 0 || courts.length === 0}
                 className="absolute left-2 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-700 shadow-lg backdrop-blur transition hover:border-[var(--site-accent)] hover:text-[var(--site-accent)] disabled:cursor-not-allowed disabled:opacity-40 md:-left-4"
                 aria-label="Previous featured court"
               >
@@ -105,8 +94,8 @@ export default function HomePage() {
                 type="button"
                 onClick={() => scrollGalleryTo(activeCourtIndex + 1)}
                 disabled={
-                  filteredCourts.length === 0 ||
-                  activeCourtIndex >= filteredCourts.length - 1
+                  courts.length === 0 ||
+                  activeCourtIndex >= courts.length - 1
                 }
                 className="absolute right-2 top-1/2 z-20 flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-700 shadow-lg backdrop-blur transition hover:border-[var(--site-accent)] hover:text-[var(--site-accent)] disabled:cursor-not-allowed disabled:opacity-40 md:-right-4"
                 aria-label="Next featured court"
@@ -118,20 +107,20 @@ export default function HomePage() {
                 onScroll={updateActiveGalleryDot}
                 className="flex snap-x snap-mandatory gap-8 overflow-x-auto scroll-smooth pb-4"
               >
-                {filteredCourts.map((court, index) => (
+                {courts.map((court, index) => (
                   <div
                     key={court.id}
                     className="w-[min(86vw,360px)] shrink-0 snap-start md:w-[380px]"
-                    aria-label={`Featured court ${index + 1} of ${filteredCourts.length}`}
+                    aria-label={`Featured court ${index + 1} of ${courts.length}`}
                   >
                     <CourtCard court={toCourtCardModel(court)} />
                   </div>
                 ))}
               </div>
             </div>
-            {filteredCourts.length > 0 && (
+            {courts.length > 0 && (
               <div className="mt-4 flex justify-center gap-2">
-                {filteredCourts.map((court, index) => (
+                {courts.map((court, index) => (
                   <button
                     key={court.id}
                     type="button"
@@ -148,7 +137,7 @@ export default function HomePage() {
               </div>
             )}
           </section>
-          {!loading && filteredCourts.length === 0 && !error && (
+          {!loading && courts.length === 0 && !error && (
             <p className="text-center text-gray-500 mt-12">No courts found.</p>
           )}
         </div>

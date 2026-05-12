@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Input } from "@/components/ui/input";
-import { MapPin } from "lucide-react";
+import { LocateFixed, MapPin } from "lucide-react";
+import { getCurrentLocation } from "@/lib/geolocation";
 
 declare global {
   interface Window {
@@ -35,6 +36,8 @@ interface AddressAutocompleteProps {
   active?: boolean;
   /** Notify parent that this field wants to be the active (open) dropdown */
   onActiveChange?: (active: boolean) => void;
+  /** Search bars can offer device location without affecting listing address forms */
+  showCurrentLocationOption?: boolean;
 }
 
 const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
@@ -47,10 +50,13 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
   showMapPin = true,
   active,
   onActiveChange,
+  showCurrentLocationOption = false,
 }) => {
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentLocationLoading, setCurrentLocationLoading] = useState(false);
+  const [currentLocationError, setCurrentLocationError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -108,10 +114,12 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       clearTimeout(timeoutRef.current);
     }
 
-    // If input is empty, clear suggestions
+    setCurrentLocationError("");
+
+    // If input is empty, clear suggestions but keep the dropdown open for Current Location.
     if (!inputValue.trim()) {
       setSuggestions([]);
-      setShowSuggestions(false);
+      setShowSuggestions(showCurrentLocationOption);
       return;
     }
 
@@ -146,8 +154,8 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     const service = new window.google.maps.places.AutocompleteService();
     const request = {
       input: query,
-      types: ["address"],
-      componentRestrictions: { country: "us" }, // Restrict to US addresses
+      types: ["geocode"],
+      componentRestrictions: { country: "us" }, // Addresses, cities, and ZIP codes in the US
     };
 
     service.getPlacePredictions(request, (predictions: any, status: any) => {
@@ -197,11 +205,31 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
     }
   };
 
+  const handleCurrentLocationClick = async () => {
+    setCurrentLocationLoading(true);
+    setCurrentLocationError("");
+
+    try {
+      const coords = await getCurrentLocation();
+      onChange("Current Location", coords);
+      setShowSuggestions(false);
+      setSuggestions([]);
+      onActiveChange?.(false);
+    } catch (error: any) {
+      const message = String(error?.message || "");
+      setCurrentLocationError(
+        message.toLowerCase().includes("denied")
+          ? "Location is blocked in your browser. Allow location for this site, or type a city or ZIP code."
+          : message || "Could not get current location. Type a city or ZIP code instead."
+      );
+    } finally {
+      setCurrentLocationLoading(false);
+    }
+  };
+
   const handleInputFocus = () => {
     onActiveChange?.(true);
-    if (suggestions.length > 0) {
-      setShowSuggestions(true);
-    }
+    setShowSuggestions(showCurrentLocationOption || suggestions.length > 0);
   };
 
   const handleInputBlur = () => {
@@ -257,15 +285,52 @@ const AddressAutocomplete: React.FC<AddressAutocompleteProps> = ({
       </div>
 
       {/* Suggestions Dropdown */}
-      {active !== false && showSuggestions && suggestions.length > 0 && (
-        <div className="absolute left-0 right-0 z-[70] mt-3 max-h-72 overflow-y-auto rounded-3xl border border-slate-100 bg-white p-2 shadow-[0_24px_60px_-15px_rgba(15,23,42,0.28)]">
+      {active !== false &&
+        showSuggestions &&
+        (showCurrentLocationOption || suggestions.length > 0) && (
+        <div
+          className={`absolute z-[120] mt-3 max-h-[28rem] overflow-y-auto rounded-[32px] border border-slate-100 bg-white shadow-[0_30px_90px_-18px_rgba(15,23,42,0.35)] ${
+            showCurrentLocationOption
+              ? "left-0 w-[min(92vw,20rem)] p-3 md:w-[min(33.333vw,20rem)]"
+              : "left-0 right-0 p-2"
+          }`}
+        >
+          {showCurrentLocationOption && (
+            <>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={handleCurrentLocationClick}
+                className="flex w-full cursor-pointer items-center gap-4 rounded-3xl px-5 py-4 text-left transition-colors hover:bg-slate-50"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-[var(--site-accent)]">
+                  <LocateFixed className="h-4 w-4" />
+                </span>
+                <span>
+                  <span className="block font-semibold text-slate-900">
+                    Current Location
+                  </span>
+                  <span className="block text-sm text-slate-500">
+                    {currentLocationLoading
+                      ? "Getting your location..."
+                      : "Use your device location"}
+                  </span>
+                </span>
+              </button>
+              {currentLocationError && (
+                <p className="px-5 pb-3 text-sm font-medium leading-5 text-red-500">
+                  {currentLocationError}
+                </p>
+              )}
+            </>
+          )}
           {suggestions.map((suggestion) => (
             <button
               type="button"
               key={suggestion.place_id}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleSuggestionClick(suggestion)}
-              className="block w-full cursor-pointer rounded-2xl px-4 py-3 text-left transition-colors hover:bg-slate-50"
+              className="block w-full cursor-pointer rounded-3xl px-5 py-4 text-left transition-colors hover:bg-slate-50"
             >
               <div className="font-semibold text-slate-900">
                 {suggestion.structured_formatting.main_text}

@@ -578,6 +578,7 @@ function CourtDetailPage() {
 
   /** Runs Stripe checkout after waiver is accepted. */
   const performCheckout = async () => {
+    if (!id) return;
     const currentUser = isMockMode ? getMockAuthUser() : auth.currentUser;
     const activeUser = user || currentUser;
     if (!activeUser) {
