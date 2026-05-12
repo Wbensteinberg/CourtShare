@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
+import { isMockApiMode } from "@/lib/mockApiMode";
+import { mockPublicProfileGET } from "@/lib/mockApiServer";
 
 const serializeMemberSince = (value: unknown): string | null => {
   if (!value) return null;
@@ -51,16 +53,20 @@ export async function GET(
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
+    const { userId } = await params;
+    if (!userId) {
+      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+    }
+
+    if (isMockApiMode()) {
+      return mockPublicProfileGET(userId);
+    }
+
     if (!adminDb) {
       return NextResponse.json(
         { error: "Database not initialized" },
         { status: 500 }
       );
-    }
-
-    const { userId } = await params;
-    if (!userId) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
     }
 
     const profileDoc = await adminDb.collection("users").doc(userId).get();

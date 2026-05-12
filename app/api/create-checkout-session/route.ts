@@ -8,6 +8,8 @@ import {
   getStripeMode,
 } from "@/lib/stripeConnectAccounts";
 import { checkRateLimit } from "../rate-limit";
+import { isMockApiMode } from "@/lib/mockApiMode";
+import { mockCreateCheckoutSessionPOST } from "@/lib/mockApiServer";
 
 type BookingStatusParts = Parameters<typeof isActionablePendingBooking>[0];
 
@@ -17,6 +19,10 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(req: NextRequest) {
   console.log("[CHECKOUT] Request received");
+
+  if (isMockApiMode()) {
+    return mockCreateCheckoutSessionPOST(req);
+  }
 
   // Check for required environment variables
   if (!process.env.STRIPE_SECRET_KEY) {

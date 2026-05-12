@@ -4,6 +4,8 @@ import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { isActionablePendingBooking } from "@/lib/bookingDates";
 import { sendPlayerBookingConfirmation } from "@/lib/email";
 import { transferPlatformHeldBookingToHost } from "@/lib/stripeHostPayouts";
+import { isMockApiMode } from "@/lib/mockApiMode";
+import { mockAcceptBookingPOST } from "@/lib/mockApiServer";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
@@ -11,6 +13,10 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(req: NextRequest) {
   try {
+    if (isMockApiMode()) {
+      return mockAcceptBookingPOST(req);
+    }
+
     const authHeader = req.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json(

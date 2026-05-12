@@ -6,6 +6,8 @@ import { createBookingRequestConversation } from "@/lib/conversations";
 import { sendOwnerBookingNotification } from "@/lib/email";
 import { calculateBookingPriceBreakdown } from "@/lib/pricing";
 import { releaseBookingPayment } from "@/lib/stripeBookingPayments";
+import { isMockApiMode } from "@/lib/mockApiMode";
+import { mockStripeWebhookPOST } from "@/lib/mockApiServer";
 
 type BookingStatusParts = Parameters<typeof isActionablePendingBooking>[0];
 
@@ -47,6 +49,10 @@ async function sendWebhookAlert(title: string, details: string) {
 }
 
 export async function POST(req: NextRequest) {
+  if (isMockApiMode()) {
+    return mockStripeWebhookPOST();
+  }
+
   console.log(
     "[WEBHOOK] Stripe webhook POST handler called at",
     new Date().toISOString()

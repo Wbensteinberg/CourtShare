@@ -2,12 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { createBookingFromPaidCheckoutSession } from "@/lib/bookingCreation";
+import { isMockApiMode } from "@/lib/mockApiMode";
+import { mockFinalizeCheckoutSessionPOST } from "@/lib/mockApiServer";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: "2023-10-16",
 });
 
 export async function POST(req: NextRequest) {
+  if (isMockApiMode()) {
+    return mockFinalizeCheckoutSessionPOST(req);
+  }
+
   if (!adminAuth || !adminDb) {
     return NextResponse.json(
       { error: "Server configuration error" },

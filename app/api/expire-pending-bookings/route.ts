@@ -3,6 +3,8 @@ import Stripe from "stripe";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { isPendingBookingExpired } from "@/lib/bookingDates";
 import { releaseBookingPayment } from "@/lib/stripeBookingPayments";
+import { isMockApiMode } from "@/lib/mockApiMode";
+import { mockExpirePendingBookingsPOST } from "@/lib/mockApiServer";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
@@ -10,6 +12,10 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 export async function POST(req: NextRequest) {
   try {
+    if (isMockApiMode()) {
+      return mockExpirePendingBookingsPOST(req);
+    }
+
     const authHeader = req.headers.get("authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
       return NextResponse.json(

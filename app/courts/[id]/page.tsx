@@ -99,7 +99,10 @@ type PublicReview = {
 };
 
 function CourtDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const params = useParams();
+  const rawId = params?.id;
+  const id =
+    typeof rawId === "string" ? rawId : Array.isArray(rawId) ? rawId[0] : undefined;
   const [court, setCourt] = useState<Court | null>(null);
   const [hostProfile, setHostProfile] = useState<PublicProfile | null>(null);
   const [courtReviews, setCourtReviews] = useState<PublicReview[]>([]);

@@ -539,10 +539,11 @@ export default function ProfilePage() {
     user?.email?.split("@")[0] ||
     "CourtShare player";
   const profileInitial = profileName.charAt(0).toUpperCase();
-  const pastBookings = bookings
+  const bookingList = bookings ?? [];
+  const pastBookings = bookingList
     .filter((booking) => isPastOrInactiveBooking(booking))
     .sort(sortBookingsAscending);
-  const confirmedTrips = bookings.filter(
+  const confirmedTrips = bookingList.filter(
     (booking) => booking.status === "confirmed"
   ).length;
   const reviewCount =

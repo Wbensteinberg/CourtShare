@@ -8,6 +8,8 @@ import {
   getStripeMode,
 } from "@/lib/stripeConnectAccounts";
 import { checkRateLimit } from "../../rate-limit";
+import { isMockApiMode } from "@/lib/mockApiMode";
+import { mockCreateConnectAccountPOST } from "@/lib/mockApiServer";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
@@ -39,6 +41,10 @@ function isStripeConnectAccountMissing(err: unknown): boolean {
 }
 
 export async function POST(req: NextRequest) {
+  if (isMockApiMode()) {
+    return mockCreateConnectAccountPOST(req);
+  }
+
   // SECURITY: Rate limiting to prevent abuse
   const ip =
     req.headers.get("x-forwarded-for") ||

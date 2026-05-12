@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { isBookingReviewable } from "@/lib/bookingDates";
+import { isMockApiMode } from "@/lib/mockApiMode";
+import { mockReviewsGET, mockReviewsPOST } from "@/lib/mockApiServer";
 
 const getAuthUserId = async (req: NextRequest) => {
   const authHeader = req.headers.get("authorization");
@@ -58,6 +60,10 @@ const toPublicReview = (reviewDoc: any) => {
 
 export async function GET(req: NextRequest) {
   try {
+    if (isMockApiMode()) {
+      return mockReviewsGET(req);
+    }
+
     if (!adminDb) {
       return NextResponse.json(
         { error: "Database not initialized" },
@@ -131,6 +137,10 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    if (isMockApiMode()) {
+      return mockReviewsPOST(req);
+    }
+
     if (!adminDb) {
       return NextResponse.json(
         { error: "Database not initialized" },

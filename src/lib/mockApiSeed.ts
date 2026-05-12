@@ -1,9 +1,8 @@
-"use client";
+import { theme } from "@/lib/theme";
 
-import type { User } from "firebase/auth";
-import { theme } from "./theme";
+export const MOCK_ACTIVE_USER_ID = "mock-user-1";
 
-export type MockUserProfile = {
+export type MockApiUserRow = {
   uid: string;
   email: string;
   displayName: string;
@@ -14,11 +13,10 @@ export type MockUserProfile = {
   playerReviewCount?: number;
   ownerRating?: number;
   ownerReviewCount?: number;
-  /** ISO string — used for “months on CourtShare” in profile-style UIs */
   createdAt?: string;
 };
 
-export type MockCourt = {
+export type MockApiCourtRow = {
   id: string;
   name: string;
   location: string;
@@ -46,56 +44,31 @@ export type MockCourt = {
   reviewCount?: number;
 };
 
-export type MockBooking = {
+export type MockApiBookingRow = {
   id: string;
   courtId: string;
   userId: string;
   date: string;
   time: string;
   duration: number;
+  durationMinutes?: number;
   status: string;
   cancelReason?: string;
   courtNumber?: number;
   createdAt?: string;
+  expiresAt?: string;
   sessionId?: string;
+  paymentIntentId?: string | null;
+  paymentStatus?: string;
+  totalAmountCents?: number;
   conversationId?: string;
+  confirmedAt?: string;
+  rejectedAt?: string;
+  cancelledAt?: string;
+  expiredAt?: string;
 };
 
-export type MockConversation = {
-  id: string;
-  participantIds: string[];
-  playerId: string;
-  playerName?: string;
-  ownerId: string;
-  ownerName?: string;
-  courtId: string;
-  courtName?: string;
-  bookingId?: string;
-  bookingDate?: string;
-  bookingTime?: string;
-  bookingDurationMinutes?: number;
-  bookingCourtNumber?: number;
-  status: "inquiry" | "booking_pending" | "confirmed" | "closed";
-  lastMessageText: string;
-  lastMessageAt: string;
-  lastMessageSenderId: string;
-  unreadBy: string[];
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type MockMessage = {
-  id: string;
-  conversationId: string;
-  senderId: string;
-  body: string;
-  createdAt: string;
-  type: "text" | "booking_request" | "booking_status" | "system";
-  bookingId?: string;
-  courtId?: string;
-};
-
-export type MockReview = {
+export type MockApiReviewRow = {
   id: string;
   bookingId: string;
   courtId: string;
@@ -111,112 +84,11 @@ export type MockReview = {
   updatedAt: string;
 };
 
-type MockDb = {
-  users: Record<string, MockUserProfile>;
-  courts: MockCourt[];
-  bookings: MockBooking[];
-  conversations: MockConversation[];
-  messages: MockMessage[];
-  reviews: MockReview[];
-};
-
-type MockSession = {
-  loggedIn: boolean;
-  uid: string;
-};
-
-const DB_STORAGE_KEY = "courtshare.mock.db.v1";
-const SESSION_STORAGE_KEY = "courtshare.mock.session.v1";
-const ACTIVE_USER_ID = "mock-user-1";
-
-let memoryDb: MockDb | null = null;
-let memorySession: MockSession | null = null;
-
-const isClient = () => typeof window !== "undefined";
-const MOCK_AUTH_EVENT = "courtshare:mock-auth-changed";
-
-const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
-
-const formatBookingRequestMessage = (
-  courtName: string | undefined,
-  date: string,
-  time: string,
-  duration: number,
-  courtNumber?: number
-) => {
-  const durationLabel = Number.isInteger(duration)
-    ? String(duration)
-    : duration.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
-  const courtNumberText =
-    courtNumber && courtNumber > 1 ? `, Court ${courtNumber}` : "";
-  const formattedDate = new Intl.DateTimeFormat("en", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date(`${date}T12:00:00`));
-
-  return `New booking request for ${
-    courtName || "this court"
-  }${courtNumberText} on ${formattedDate} at ${time} for ${durationLabel} hour${
-    duration === 1 ? "" : "s"
-  }.`;
-};
-
-const buildMockConversationForBooking = (
-  db: MockDb,
-  booking: MockBooking,
-  now = new Date().toISOString()
-) => {
-  const court = db.courts.find((item) => item.id === booking.courtId);
-  const player = db.users[booking.userId];
-  const owner = court ? db.users[court.ownerId] : null;
-  const conversationId = `booking_${booking.id}`;
-  const lastMessageText = formatBookingRequestMessage(
-    court?.name,
-    booking.date,
-    booking.time,
-    booking.duration,
-    booking.courtNumber
-  );
-  const existingConversation = db.conversations.find(
-    (conversation) => conversation.id === conversationId
-  );
-
-  return {
-    conversation: {
-      id: conversationId,
-      participantIds: [booking.userId, court?.ownerId || ""].filter(Boolean),
-      playerId: booking.userId,
-      playerName: player?.displayName,
-      ownerId: court?.ownerId || "",
-      ownerName: owner?.displayName,
-      courtId: booking.courtId,
-      courtName: court?.name,
-      bookingId: booking.id,
-      bookingDate: booking.date,
-      bookingTime: booking.time,
-      bookingDurationMinutes: Math.round(booking.duration * 60),
-      bookingCourtNumber: booking.courtNumber || 1,
-      status: "booking_pending" as const,
-      lastMessageText,
-      lastMessageAt: existingConversation?.lastMessageAt || now,
-      lastMessageSenderId: booking.userId,
-      unreadBy: court?.ownerId ? [court.ownerId] : [],
-      createdAt: existingConversation?.createdAt || booking.createdAt || now,
-      updatedAt: existingConversation?.updatedAt || now,
-    },
-    message: {
-      id: "booking_request",
-      conversationId,
-      senderId: booking.userId,
-      body: lastMessageText,
-      createdAt: booking.createdAt || now,
-      type: "booking_request" as const,
-      bookingId: booking.id,
-      courtId: booking.courtId,
-    },
-  };
+export type MockApiData = {
+  users: Record<string, MockApiUserRow>;
+  courts: MockApiCourtRow[];
+  bookings: MockApiBookingRow[];
+  reviews: MockApiReviewRow[];
 };
 
 const formatDateOffset = (daysFromToday: number) => {
@@ -224,12 +96,6 @@ const formatDateOffset = (daysFromToday: number) => {
   date.setHours(12, 0, 0, 0);
   date.setDate(date.getDate() + daysFromToday);
   return date.toISOString().slice(0, 10);
-};
-
-const seedIsoDaysAgo = (daysAgo: number) => {
-  const d = new Date();
-  d.setDate(d.getDate() - daysAgo);
-  return d.toISOString();
 };
 
 const createImageDataUrl = (title: string, accent: string) => {
@@ -242,16 +108,10 @@ const createImageDataUrl = (title: string, accent: string) => {
         </linearGradient>
       </defs>
       <rect width="1200" height="800" fill="url(#bg)" />
-      <circle cx="980" cy="180" r="120" fill="rgba(255,255,255,0.08)" />
-      <circle cx="180" cy="660" r="180" fill="rgba(255,255,255,0.10)" />
-      <rect x="80" y="140" width="1040" height="520" rx="36" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.35)" />
-      <path d="M120 400 H1080" stroke="rgba(255,255,255,0.45)" stroke-width="8" stroke-dasharray="18 16" />
-      <path d="M600 160 V640" stroke="rgba(255,255,255,0.45)" stroke-width="8" />
       <text x="96" y="110" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700">CourtShare Demo</text>
       <text x="96" y="710" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="800">${title}</text>
     </svg>
   `;
-
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 };
 
@@ -261,9 +121,18 @@ const mockMemberSinceMonthsAgo = (monthsAgo: number) => {
   return d.toISOString();
 };
 
-const createSeedDb = (): MockDb => {
-  const activeUser: MockUserProfile = {
-    uid: ACTIVE_USER_ID,
+const expiresIn24h = () => new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+const seedIsoDaysAgo = (daysAgo: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - daysAgo);
+  return d.toISOString();
+};
+
+/** Deep-cloneable seed for the server mock API store (aligned with client mockData). */
+export const createMockApiSeedData = (): MockApiData => {
+  const activeUser: MockApiUserRow = {
+    uid: MOCK_ACTIVE_USER_ID,
     email: "demo@courtshare.co",
     displayName: "Riley Chen",
     bio: "League player, early-morning hitter, and part-time court host.",
@@ -272,7 +141,7 @@ const createSeedDb = (): MockDb => {
     createdAt: mockMemberSinceMonthsAgo(10),
   };
 
-  const guestUser: MockUserProfile = {
+  const guestUser: MockApiUserRow = {
     uid: "mock-user-2",
     email: "jamie@courtshare.co",
     displayName: "Jamie Brooks",
@@ -282,7 +151,7 @@ const createSeedDb = (): MockDb => {
     createdAt: mockMemberSinceMonthsAgo(14),
   };
 
-  const guestUserTwo: MockUserProfile = {
+  const guestUserTwo: MockApiUserRow = {
     uid: "mock-user-3",
     email: "taylor@courtshare.co",
     displayName: "Taylor Morgan",
@@ -292,7 +161,7 @@ const createSeedDb = (): MockDb => {
     createdAt: mockMemberSinceMonthsAgo(5),
   };
 
-  const courts: MockCourt[] = [
+  const courts: MockApiCourtRow[] = [
     {
       id: "mock-court-1",
       name: "Sunset Baseline Club",
@@ -300,7 +169,8 @@ const createSeedDb = (): MockDb => {
       address: "1432 Ocean Park Blvd, Santa Monica, CA",
       accessInstructions: "Check in with the front desk and use court gate code 4411.",
       price: 48,
-      description: "Bright outdoor hard courts with shade seating, water refill, and quick freeway access.",
+      description:
+        "Bright outdoor hard courts with shade seating, water refill, and quick freeway access.",
       imageUrl: createImageDataUrl("Sunset Baseline Club", theme.colors.brandGreen),
       imageUrls: [createImageDataUrl("Sunset Baseline Club", theme.colors.brandGreen)],
       ownerId: "mock-user-2",
@@ -325,7 +195,8 @@ const createSeedDb = (): MockDb => {
       address: "815 Arroyo Pkwy, Pasadena, CA",
       accessInstructions: "Parking lot entrance is on the south side of the building.",
       price: 36,
-      description: "Clean public-private hybrid facility with easy parking and a steady after-work crowd.",
+      description:
+        "Clean public-private hybrid facility with easy parking and a steady after-work crowd.",
       imageUrl: createImageDataUrl("Echo Valley Tennis", "#0ea5e9"),
       imageUrls: [createImageDataUrl("Echo Valley Tennis", "#0ea5e9")],
       ownerId: "mock-user-3",
@@ -350,10 +221,11 @@ const createSeedDb = (): MockDb => {
       address: "4114 Hayden Ave, Culver City, CA",
       accessInstructions: "Use the keypad at the side gate and keep noise low after 8 PM.",
       price: 62,
-      description: "Premium private courts with lounge seating, string lights, and polished owner-side amenities.",
+      description:
+        "Premium private courts with lounge seating, string lights, and polished owner-side amenities.",
       imageUrl: createImageDataUrl("Match Point Courts", "#f59e0b"),
       imageUrls: [createImageDataUrl("Match Point Courts", "#f59e0b")],
-      ownerId: ACTIVE_USER_ID,
+      ownerId: MOCK_ACTIVE_USER_ID,
       latitude: 34.0211,
       longitude: -118.3965,
       numberOfCourts: 2,
@@ -376,30 +248,35 @@ const createSeedDb = (): MockDb => {
 
   const nowIso = new Date().toISOString();
 
-  const bookings: MockBooking[] = [
+  const bookings: MockApiBookingRow[] = [
     {
       id: "mock-booking-1",
       courtId: "mock-court-1",
-      userId: ACTIVE_USER_ID,
+      userId: MOCK_ACTIVE_USER_ID,
       date: formatDateOffset(2),
       time: "7:00 PM",
       duration: 2,
+      durationMinutes: 120,
       status: "confirmed",
       courtNumber: 1,
       createdAt: nowIso,
       sessionId: "mock-session-1",
+      paymentStatus: "captured",
     },
     {
       id: "mock-booking-2",
       courtId: "mock-court-2",
-      userId: ACTIVE_USER_ID,
+      userId: MOCK_ACTIVE_USER_ID,
       date: formatDateOffset(5),
       time: "8:00 AM",
       duration: 1,
+      durationMinutes: 60,
       status: "pending",
       courtNumber: 1,
       createdAt: nowIso,
+      expiresAt: expiresIn24h(),
       sessionId: "mock-session-2",
+      paymentStatus: "authorized",
     },
     {
       id: "mock-booking-3",
@@ -408,10 +285,13 @@ const createSeedDb = (): MockDb => {
       date: formatDateOffset(3),
       time: "5:00 PM",
       duration: 1,
+      durationMinutes: 60,
       status: "pending",
       courtNumber: 1,
       createdAt: nowIso,
+      expiresAt: expiresIn24h(),
       sessionId: "mock-session-3",
+      paymentStatus: "authorized",
     },
     {
       id: "mock-booking-4",
@@ -420,118 +300,142 @@ const createSeedDb = (): MockDb => {
       date: formatDateOffset(-2),
       time: "10:00 AM",
       duration: 2,
+      durationMinutes: 120,
       status: "completed",
       courtNumber: 2,
       createdAt: seedIsoDaysAgo(4),
       sessionId: "mock-session-4",
+      paymentStatus: "captured",
     },
     {
       id: "mock-seed-p1",
       courtId: "mock-court-1",
-      userId: ACTIVE_USER_ID,
+      userId: MOCK_ACTIVE_USER_ID,
       date: formatDateOffset(-14),
       time: "10:00 AM",
       duration: 1,
+      durationMinutes: 60,
       status: "completed",
       courtNumber: 1,
       createdAt: seedIsoDaysAgo(15),
       sessionId: "mock-session-p1",
+      paymentStatus: "captured",
     },
     {
       id: "mock-seed-p2",
       courtId: "mock-court-2",
-      userId: ACTIVE_USER_ID,
+      userId: MOCK_ACTIVE_USER_ID,
       date: formatDateOffset(-21),
       time: "4:00 PM",
       duration: 2,
+      durationMinutes: 120,
       status: "completed",
       courtNumber: 1,
       createdAt: seedIsoDaysAgo(22),
       sessionId: "mock-session-p2",
+      paymentStatus: "captured",
     },
     {
       id: "mock-seed-p3",
       courtId: "mock-court-1",
-      userId: ACTIVE_USER_ID,
+      userId: MOCK_ACTIVE_USER_ID,
       date: formatDateOffset(-35),
       time: "9:00 AM",
       duration: 1,
+      durationMinutes: 60,
       status: "completed",
       courtNumber: 2,
       createdAt: seedIsoDaysAgo(36),
       sessionId: "mock-session-p3",
+      paymentStatus: "captured",
     },
     {
       id: "mock-seed-p4",
       courtId: "mock-court-2",
-      userId: ACTIVE_USER_ID,
+      userId: MOCK_ACTIVE_USER_ID,
       date: formatDateOffset(-7),
       time: "11:00 AM",
       duration: 1,
+      durationMinutes: 60,
       status: "cancelled",
       courtNumber: 1,
       createdAt: seedIsoDaysAgo(9),
       sessionId: "mock-session-p4",
+      paymentStatus: "authorized",
+      cancelledAt: seedIsoDaysAgo(8),
     },
     {
       id: "mock-seed-p5",
       courtId: "mock-court-1",
-      userId: ACTIVE_USER_ID,
+      userId: MOCK_ACTIVE_USER_ID,
       date: formatDateOffset(-10),
       time: "2:00 PM",
       duration: 1,
+      durationMinutes: 60,
       status: "rejected",
       courtNumber: 1,
       createdAt: seedIsoDaysAgo(11),
       sessionId: "mock-session-p5",
+      paymentStatus: "authorized",
+      rejectedAt: seedIsoDaysAgo(10),
     },
     {
       id: "mock-seed-p6",
       courtId: "mock-court-2",
-      userId: ACTIVE_USER_ID,
+      userId: MOCK_ACTIVE_USER_ID,
       date: formatDateOffset(-45),
       time: "8:00 AM",
       duration: 1,
+      durationMinutes: 60,
       status: "expired",
       courtNumber: 1,
       createdAt: seedIsoDaysAgo(50),
       sessionId: "mock-session-p6",
+      paymentStatus: "authorized",
+      expiredAt: seedIsoDaysAgo(46),
     },
     {
       id: "mock-seed-p7",
       courtId: "mock-court-1",
-      userId: ACTIVE_USER_ID,
+      userId: MOCK_ACTIVE_USER_ID,
       date: formatDateOffset(10),
       time: "6:30 PM",
       duration: 1,
+      durationMinutes: 60,
       status: "pending",
       courtNumber: 1,
       createdAt: nowIso,
+      expiresAt: expiresIn24h(),
       sessionId: "mock-session-p7",
+      paymentStatus: "authorized",
     },
     {
       id: "mock-seed-p8",
       courtId: "mock-court-1",
-      userId: ACTIVE_USER_ID,
+      userId: MOCK_ACTIVE_USER_ID,
       date: formatDateOffset(-8),
       time: "1:00 PM",
       duration: 1,
+      durationMinutes: 60,
       status: "completed",
       courtNumber: 1,
       createdAt: seedIsoDaysAgo(9),
       sessionId: "mock-session-p8",
+      paymentStatus: "captured",
     },
     {
       id: "mock-seed-p9",
       courtId: "mock-court-2",
-      userId: ACTIVE_USER_ID,
+      userId: MOCK_ACTIVE_USER_ID,
       date: formatDateOffset(-3),
       time: "3:00 PM",
       duration: 1,
+      durationMinutes: 60,
       status: "completed",
       courtNumber: 1,
       createdAt: seedIsoDaysAgo(4),
       sessionId: "mock-session-p9",
+      paymentStatus: "captured",
     },
     {
       id: "mock-host-past1",
@@ -540,10 +444,12 @@ const createSeedDb = (): MockDb => {
       date: formatDateOffset(-30),
       time: "3:00 PM",
       duration: 2,
+      durationMinutes: 120,
       status: "completed",
       courtNumber: 1,
       createdAt: seedIsoDaysAgo(31),
       sessionId: "mock-session-hp1",
+      paymentStatus: "captured",
     },
     {
       id: "mock-host-past2",
@@ -552,10 +458,12 @@ const createSeedDb = (): MockDb => {
       date: formatDateOffset(-18),
       time: "1:00 PM",
       duration: 2,
+      durationMinutes: 120,
       status: "completed",
       courtNumber: 2,
       createdAt: seedIsoDaysAgo(19),
       sessionId: "mock-session-hp2",
+      paymentStatus: "captured",
     },
     {
       id: "mock-host-past3",
@@ -564,10 +472,12 @@ const createSeedDb = (): MockDb => {
       date: formatDateOffset(-5),
       time: "7:00 PM",
       duration: 1,
+      durationMinutes: 60,
       status: "completed",
       courtNumber: 1,
       createdAt: seedIsoDaysAgo(6),
       sessionId: "mock-session-hp3",
+      paymentStatus: "captured",
     },
     {
       id: "mock-host-req2",
@@ -576,10 +486,13 @@ const createSeedDb = (): MockDb => {
       date: formatDateOffset(7),
       time: "9:00 AM",
       duration: 1,
+      durationMinutes: 60,
       status: "pending",
       courtNumber: 1,
       createdAt: nowIso,
+      expiresAt: expiresIn24h(),
       sessionId: "mock-session-hr2",
+      paymentStatus: "authorized",
     },
     {
       id: "mock-host-req3",
@@ -588,10 +501,13 @@ const createSeedDb = (): MockDb => {
       date: formatDateOffset(12),
       time: "4:00 PM",
       duration: 2,
+      durationMinutes: 120,
       status: "pending",
       courtNumber: 2,
       createdAt: nowIso,
+      expiresAt: expiresIn24h(),
       sessionId: "mock-session-hr3",
+      paymentStatus: "authorized",
     },
     {
       id: "mock-seed-j1",
@@ -600,10 +516,12 @@ const createSeedDb = (): MockDb => {
       date: formatDateOffset(-11),
       time: "5:00 PM",
       duration: 1,
+      durationMinutes: 60,
       status: "completed",
       courtNumber: 1,
       createdAt: seedIsoDaysAgo(12),
       sessionId: "mock-session-j1",
+      paymentStatus: "captured",
     },
     {
       id: "mock-seed-t1",
@@ -612,10 +530,12 @@ const createSeedDb = (): MockDb => {
       date: formatDateOffset(-12),
       time: "10:00 AM",
       duration: 2,
+      durationMinutes: 120,
       status: "completed",
       courtNumber: 1,
       createdAt: seedIsoDaysAgo(13),
       sessionId: "mock-session-t1",
+      paymentStatus: "captured",
     },
     {
       id: "mock-seed-t2",
@@ -624,33 +544,37 @@ const createSeedDb = (): MockDb => {
       date: formatDateOffset(-20),
       time: "2:00 PM",
       duration: 1,
+      durationMinutes: 60,
       status: "completed",
       courtNumber: 1,
       createdAt: seedIsoDaysAgo(21),
       sessionId: "mock-session-t2",
+      paymentStatus: "captured",
     },
     {
       id: "mock-booking-open-review",
       courtId: "mock-court-1",
-      userId: ACTIVE_USER_ID,
+      userId: MOCK_ACTIVE_USER_ID,
       date: formatDateOffset(-1),
       time: "6:00 PM",
       duration: 1,
+      durationMinutes: 60,
       status: "completed",
       courtNumber: 1,
       createdAt: seedIsoDaysAgo(2),
       sessionId: "mock-session-open-review",
+      paymentStatus: "captured",
     },
   ];
 
-  const reviews: MockReview[] = [
+  const reviews: MockApiReviewRow[] = [
     {
       id: "mock-seed-p1_player",
       bookingId: "mock-seed-p1",
       courtId: "mock-court-1",
-      playerId: ACTIVE_USER_ID,
+      playerId: MOCK_ACTIVE_USER_ID,
       ownerId: "mock-user-2",
-      reviewerId: ACTIVE_USER_ID,
+      reviewerId: MOCK_ACTIVE_USER_ID,
       reviewerRole: "player",
       revieweeId: "mock-user-2",
       targetType: "court_owner",
@@ -664,11 +588,11 @@ const createSeedDb = (): MockDb => {
       id: "mock-seed-p1_owner",
       bookingId: "mock-seed-p1",
       courtId: "mock-court-1",
-      playerId: ACTIVE_USER_ID,
+      playerId: MOCK_ACTIVE_USER_ID,
       ownerId: "mock-user-2",
       reviewerId: "mock-user-2",
       reviewerRole: "owner",
-      revieweeId: ACTIVE_USER_ID,
+      revieweeId: MOCK_ACTIVE_USER_ID,
       targetType: "player",
       rating: 5,
       comment: "Riley showed up on time, respected court rotation, and left the bench area tidy.",
@@ -679,9 +603,9 @@ const createSeedDb = (): MockDb => {
       id: "mock-seed-p2_player",
       bookingId: "mock-seed-p2",
       courtId: "mock-court-2",
-      playerId: ACTIVE_USER_ID,
+      playerId: MOCK_ACTIVE_USER_ID,
       ownerId: "mock-user-3",
-      reviewerId: ACTIVE_USER_ID,
+      reviewerId: MOCK_ACTIVE_USER_ID,
       reviewerRole: "player",
       revieweeId: "mock-user-3",
       targetType: "court_owner",
@@ -694,11 +618,11 @@ const createSeedDb = (): MockDb => {
       id: "mock-seed-p2_owner",
       bookingId: "mock-seed-p2",
       courtId: "mock-court-2",
-      playerId: ACTIVE_USER_ID,
+      playerId: MOCK_ACTIVE_USER_ID,
       ownerId: "mock-user-3",
       reviewerId: "mock-user-3",
       reviewerRole: "owner",
-      revieweeId: ACTIVE_USER_ID,
+      revieweeId: MOCK_ACTIVE_USER_ID,
       targetType: "player",
       rating: 5,
       comment: "Great energy and clear communication about arrival time.",
@@ -709,9 +633,9 @@ const createSeedDb = (): MockDb => {
       id: "mock-seed-p3_player",
       bookingId: "mock-seed-p3",
       courtId: "mock-court-1",
-      playerId: ACTIVE_USER_ID,
+      playerId: MOCK_ACTIVE_USER_ID,
       ownerId: "mock-user-2",
-      reviewerId: ACTIVE_USER_ID,
+      reviewerId: MOCK_ACTIVE_USER_ID,
       reviewerRole: "player",
       revieweeId: "mock-user-2",
       targetType: "court_owner",
@@ -724,11 +648,11 @@ const createSeedDb = (): MockDb => {
       id: "mock-seed-p3_owner",
       bookingId: "mock-seed-p3",
       courtId: "mock-court-1",
-      playerId: ACTIVE_USER_ID,
+      playerId: MOCK_ACTIVE_USER_ID,
       ownerId: "mock-user-2",
       reviewerId: "mock-user-2",
       reviewerRole: "owner",
-      revieweeId: ACTIVE_USER_ID,
+      revieweeId: MOCK_ACTIVE_USER_ID,
       targetType: "player",
       rating: 4,
       comment: "Easy guest to host—no issues with gate code or noise.",
@@ -739,9 +663,9 @@ const createSeedDb = (): MockDb => {
       id: "mock-seed-p8_player",
       bookingId: "mock-seed-p8",
       courtId: "mock-court-1",
-      playerId: ACTIVE_USER_ID,
+      playerId: MOCK_ACTIVE_USER_ID,
       ownerId: "mock-user-2",
-      reviewerId: ACTIVE_USER_ID,
+      reviewerId: MOCK_ACTIVE_USER_ID,
       reviewerRole: "player",
       revieweeId: "mock-user-2",
       targetType: "court_owner",
@@ -754,11 +678,11 @@ const createSeedDb = (): MockDb => {
       id: "mock-seed-p8_owner",
       bookingId: "mock-seed-p8",
       courtId: "mock-court-1",
-      playerId: ACTIVE_USER_ID,
+      playerId: MOCK_ACTIVE_USER_ID,
       ownerId: "mock-user-2",
       reviewerId: "mock-user-2",
       reviewerRole: "owner",
-      revieweeId: ACTIVE_USER_ID,
+      revieweeId: MOCK_ACTIVE_USER_ID,
       targetType: "player",
       rating: 5,
       comment: "Polite and punctual—exactly the kind of guest we want back.",
@@ -769,9 +693,9 @@ const createSeedDb = (): MockDb => {
       id: "mock-seed-p9_player",
       bookingId: "mock-seed-p9",
       courtId: "mock-court-2",
-      playerId: ACTIVE_USER_ID,
+      playerId: MOCK_ACTIVE_USER_ID,
       ownerId: "mock-user-3",
-      reviewerId: ACTIVE_USER_ID,
+      reviewerId: MOCK_ACTIVE_USER_ID,
       reviewerRole: "player",
       revieweeId: "mock-user-3",
       targetType: "court_owner",
@@ -784,11 +708,11 @@ const createSeedDb = (): MockDb => {
       id: "mock-seed-p9_owner",
       bookingId: "mock-seed-p9",
       courtId: "mock-court-2",
-      playerId: ACTIVE_USER_ID,
+      playerId: MOCK_ACTIVE_USER_ID,
       ownerId: "mock-user-3",
       reviewerId: "mock-user-3",
       reviewerRole: "owner",
-      revieweeId: ACTIVE_USER_ID,
+      revieweeId: MOCK_ACTIVE_USER_ID,
       targetType: "player",
       rating: 5,
       comment: "Riley left the court on schedule and locked the side gate as asked.",
@@ -800,10 +724,10 @@ const createSeedDb = (): MockDb => {
       bookingId: "mock-host-past1",
       courtId: "mock-court-3",
       playerId: "mock-user-2",
-      ownerId: ACTIVE_USER_ID,
+      ownerId: MOCK_ACTIVE_USER_ID,
       reviewerId: "mock-user-2",
       reviewerRole: "player",
-      revieweeId: ACTIVE_USER_ID,
+      revieweeId: MOCK_ACTIVE_USER_ID,
       targetType: "court_owner",
       rating: 5,
       comment: "Private courts felt resort-quality—great lighting and lounge area.",
@@ -815,8 +739,8 @@ const createSeedDb = (): MockDb => {
       bookingId: "mock-host-past1",
       courtId: "mock-court-3",
       playerId: "mock-user-2",
-      ownerId: ACTIVE_USER_ID,
-      reviewerId: ACTIVE_USER_ID,
+      ownerId: MOCK_ACTIVE_USER_ID,
+      reviewerId: MOCK_ACTIVE_USER_ID,
       reviewerRole: "owner",
       revieweeId: "mock-user-2",
       targetType: "player",
@@ -830,10 +754,10 @@ const createSeedDb = (): MockDb => {
       bookingId: "mock-host-past2",
       courtId: "mock-court-3",
       playerId: "mock-user-3",
-      ownerId: ACTIVE_USER_ID,
+      ownerId: MOCK_ACTIVE_USER_ID,
       reviewerId: "mock-user-3",
       reviewerRole: "player",
-      revieweeId: ACTIVE_USER_ID,
+      revieweeId: MOCK_ACTIVE_USER_ID,
       targetType: "court_owner",
       rating: 5,
       comment: "CourtShare checkout was smooth and Riley's instructions were perfect after dark.",
@@ -845,8 +769,8 @@ const createSeedDb = (): MockDb => {
       bookingId: "mock-host-past2",
       courtId: "mock-court-3",
       playerId: "mock-user-3",
-      ownerId: ACTIVE_USER_ID,
-      reviewerId: ACTIVE_USER_ID,
+      ownerId: MOCK_ACTIVE_USER_ID,
+      reviewerId: MOCK_ACTIVE_USER_ID,
       reviewerRole: "owner",
       revieweeId: "mock-user-3",
       targetType: "player",
@@ -860,10 +784,10 @@ const createSeedDb = (): MockDb => {
       bookingId: "mock-host-past3",
       courtId: "mock-court-3",
       playerId: "mock-user-2",
-      ownerId: ACTIVE_USER_ID,
+      ownerId: MOCK_ACTIVE_USER_ID,
       reviewerId: "mock-user-2",
       reviewerRole: "player",
-      revieweeId: ACTIVE_USER_ID,
+      revieweeId: MOCK_ACTIVE_USER_ID,
       targetType: "court_owner",
       rating: 4,
       comment: "Lovely session; only wish the keypad had been lit a bit brighter.",
@@ -875,8 +799,8 @@ const createSeedDb = (): MockDb => {
       bookingId: "mock-host-past3",
       courtId: "mock-court-3",
       playerId: "mock-user-2",
-      ownerId: ACTIVE_USER_ID,
-      reviewerId: ACTIVE_USER_ID,
+      ownerId: MOCK_ACTIVE_USER_ID,
+      reviewerId: MOCK_ACTIVE_USER_ID,
       reviewerRole: "owner",
       revieweeId: "mock-user-2",
       targetType: "player",
@@ -890,10 +814,10 @@ const createSeedDb = (): MockDb => {
       bookingId: "mock-booking-4",
       courtId: "mock-court-3",
       playerId: "mock-user-3",
-      ownerId: ACTIVE_USER_ID,
+      ownerId: MOCK_ACTIVE_USER_ID,
       reviewerId: "mock-user-3",
       reviewerRole: "player",
-      revieweeId: ACTIVE_USER_ID,
+      revieweeId: MOCK_ACTIVE_USER_ID,
       targetType: "court_owner",
       rating: 5,
       comment: "Premium vibe and Riley checked in mid-day to confirm court number—nice touch.",
@@ -905,8 +829,8 @@ const createSeedDb = (): MockDb => {
       bookingId: "mock-booking-4",
       courtId: "mock-court-3",
       playerId: "mock-user-3",
-      ownerId: ACTIVE_USER_ID,
-      reviewerId: ACTIVE_USER_ID,
+      ownerId: MOCK_ACTIVE_USER_ID,
+      reviewerId: MOCK_ACTIVE_USER_ID,
       reviewerRole: "owner",
       revieweeId: "mock-user-3",
       targetType: "player",
@@ -1008,7 +932,13 @@ const createSeedDb = (): MockDb => {
     },
   ];
 
-  const db: MockDb = {
+  bookings.forEach((b) => {
+    if (!b.conversationId) {
+      b.conversationId = `booking_${b.id}`;
+    }
+  });
+
+  return {
     users: {
       [activeUser.uid]: activeUser,
       [guestUser.uid]: guestUser,
@@ -1016,598 +946,6 @@ const createSeedDb = (): MockDb => {
     },
     courts,
     bookings,
-    conversations: [],
-    messages: [],
     reviews,
-  };
-
-  bookings.forEach((booking) => {
-    const { conversation, message } = buildMockConversationForBooking(
-      db,
-      booking
-    );
-    db.conversations.push(conversation);
-    db.messages.push(message);
-  });
-
-  return db;
-};
-
-const createDefaultSession = (): MockSession => ({
-  loggedIn: true,
-  uid: ACTIVE_USER_ID,
-});
-
-const readStorage = <T,>(key: string): T | null => {
-  if (!isClient()) return null;
-
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? (JSON.parse(raw) as T) : null;
-  } catch {
-    return null;
-  }
-};
-
-const writeStorage = (key: string, value: unknown) => {
-  if (!isClient()) return;
-
-  window.localStorage.setItem(key, JSON.stringify(value));
-};
-
-const normalizeMockDb = (db: MockDb): MockDb => {
-  const users =
-    db.users && typeof db.users === "object" && !Array.isArray(db.users)
-      ? db.users
-      : {};
-  const courts = Array.isArray(db.courts) ? db.courts : [];
-  const bookings = Array.isArray(db.bookings) ? db.bookings : [];
-  const reviews = Array.isArray(db.reviews) ? db.reviews : [];
-  const conversations = Array.isArray(db.conversations) ? db.conversations : [];
-  const messages = Array.isArray(db.messages) ? db.messages : [];
-
-  const normalized: MockDb = {
-    users,
-    courts,
-    bookings,
-    reviews,
-    conversations,
-    messages,
-  };
-
-  normalized.bookings.forEach((booking) => {
-    const conversationId = `booking_${booking.id}`;
-    if (
-      !normalized.conversations.some(
-        (conversation) => conversation.id === conversationId
-      )
-    ) {
-      const { conversation, message } = buildMockConversationForBooking(
-        normalized,
-        booking
-      );
-      normalized.conversations.push(conversation);
-      normalized.messages.push(message);
-      booking.conversationId = conversationId;
-    }
-  });
-
-  // Persisted mock DBs from older builds often omitted `reviews` or normalized it to
-  // `[]`, so every review modal read an empty list. Re-seed reviews only when empty
-  // so existing users/bookings/conversations stay intact.
-  if (normalized.reviews.length === 0) {
-    normalized.reviews = clone(createSeedDb().reviews);
-  }
-
-  return normalized;
-};
-
-const notifyMockAuthChanged = () => {
-  if (!isClient()) return;
-
-  window.dispatchEvent(new Event(MOCK_AUTH_EVENT));
-};
-
-export const getMockDb = (): MockDb => {
-  const stored = readStorage<MockDb>(DB_STORAGE_KEY);
-  if (stored) {
-    memoryDb = normalizeMockDb(clone(stored));
-    writeStorage(DB_STORAGE_KEY, memoryDb);
-    return clone(memoryDb);
-  }
-
-  if (!memoryDb) {
-    memoryDb = createSeedDb();
-  }
-
-  writeStorage(DB_STORAGE_KEY, memoryDb);
-  return clone(memoryDb);
-};
-
-const saveMockDb = (db: MockDb) => {
-  memoryDb = clone(db);
-  writeStorage(DB_STORAGE_KEY, memoryDb);
-};
-
-const updateMockDb = <T,>(updater: (db: MockDb) => T): T => {
-  const db = getMockDb();
-  const result = updater(db);
-  saveMockDb(db);
-  return result;
-};
-
-export const getMockSession = (): MockSession => {
-  const stored = readStorage<MockSession>(SESSION_STORAGE_KEY);
-  if (stored) {
-    memorySession = stored;
-    return stored;
-  }
-
-  if (!memorySession) {
-    memorySession = createDefaultSession();
-  }
-
-  writeStorage(SESSION_STORAGE_KEY, memorySession);
-  return memorySession;
-};
-
-const saveMockSession = (session: MockSession) => {
-  memorySession = session;
-  writeStorage(SESSION_STORAGE_KEY, session);
-};
-
-export const isMockUserLoggedIn = () => getMockSession().loggedIn;
-
-export const signInMockUser = (email?: string) => {
-  updateMockDb((db) => {
-    const user = db.users[ACTIVE_USER_ID];
-    if (email) {
-      user.email = email;
-    }
-  });
-
-  saveMockSession({
-    loggedIn: true,
-    uid: ACTIVE_USER_ID,
-  });
-  notifyMockAuthChanged();
-};
-
-export const signOutMockUser = () => {
-  saveMockSession({
-    loggedIn: false,
-    uid: ACTIVE_USER_ID,
-  });
-  notifyMockAuthChanged();
-};
-
-export const getActiveMockProfile = () => {
-  const session = getMockSession();
-  if (!session.loggedIn) return null;
-
-  return getMockDb().users[session.uid] || null;
-};
-
-export const getMockProfile = (uid: string) => getMockDb().users[uid] || null;
-
-export const updateMockProfile = (
-  uid: string,
-  updates: Partial<MockUserProfile>
-) => {
-  updateMockDb((db) => {
-    db.users[uid] = {
-      ...db.users[uid],
-      ...updates,
-    };
-  });
-
-  return getMockProfile(uid);
-};
-
-export const setMockUserRole = (uid: string, isOwner: boolean) => {
-  updateMockProfile(uid, { isOwner });
-};
-
-export const getMockAuthUser = (): User | null => {
-  const profile = getActiveMockProfile();
-  if (!profile) return null;
-
-  return {
-    uid: profile.uid,
-    email: profile.email,
-    displayName: profile.displayName,
-    photoURL: profile.profileImageUrl || null,
-    emailVerified: true,
-    isAnonymous: false,
-    providerData: [],
-    providerId: "mock",
-    refreshToken: "mock-refresh-token",
-    tenantId: null,
-    delete: async () => undefined,
-    getIdToken: async () => "mock-id-token",
-    getIdTokenResult: async () =>
-      ({
-        token: "mock-id-token",
-        expirationTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
-        authTime: new Date().toISOString(),
-        issuedAtTime: new Date().toISOString(),
-        signInProvider: "mock",
-        signInSecondFactor: null,
-        claims: {},
-      }) as any,
-    reload: async () => undefined,
-    toJSON: () => profile,
-    metadata: {} as any,
-  } as unknown as User;
-};
-
-export const getMockCourts = () => getMockDb().courts ?? [];
-
-export const getMockCourtById = (id: string) =>
-  getMockDb().courts.find((court) => court.id === id) || null;
-
-export const addMockCourt = async (
-  court: Omit<MockCourt, "id">
-): Promise<MockCourt> => {
-  const newCourt = {
-    ...court,
-    id: `mock-court-${Date.now()}`,
-  };
-
-  updateMockDb((db) => {
-    db.courts.unshift(newCourt);
-  });
-
-  return newCourt;
-};
-
-export const updateMockCourt = async (
-  courtId: string,
-  updates: Partial<MockCourt>
-) => {
-  updateMockDb((db) => {
-    db.courts = db.courts.map((court) =>
-      court.id === courtId ? { ...court, ...updates } : court
-    );
-  });
-
-  return getMockCourtById(courtId);
-};
-
-export const deleteMockCourt = async (courtId: string) => {
-  updateMockDb((db) => {
-    db.courts = db.courts.filter((court) => court.id !== courtId);
-    db.bookings = db.bookings.filter((booking) => booking.courtId !== courtId);
-  });
-};
-
-export const getMockBookings = () => getMockDb().bookings ?? [];
-
-export const getMockBookingsForUser = (uid: string) =>
-  getMockBookings().filter((booking) => booking.userId === uid);
-
-export const getMockBookingsForOwner = (ownerId: string) => {
-  const ownedCourtIds = new Set(
-    getMockCourts()
-      .filter((court) => court.ownerId === ownerId)
-      .map((court) => court.id)
-  );
-
-  return getMockBookings().filter((booking) => ownedCourtIds.has(booking.courtId));
-};
-
-export const getMockBookingsForCourtAndDate = (courtId: string, date: string) =>
-  getMockBookings().filter(
-    (booking) => booking.courtId === courtId && booking.date === date
-  );
-
-export const getMockBookingById = (bookingId: string) =>
-  getMockBookings().find((booking) => booking.id === bookingId) || null;
-
-export const createMockBookingRequestConversation = (
-  booking: MockBooking
-) => {
-  const conversationId = `booking_${booking.id}`;
-
-  updateMockDb((db) => {
-    const { conversation, message } = buildMockConversationForBooking(
-      db,
-      booking
-    );
-    const existingConversation = db.conversations.find(
-      (item) => item.id === conversationId
-    );
-
-    db.conversations = existingConversation
-      ? db.conversations.map((item) =>
-          item.id === conversationId ? conversation : item
-        )
-      : [conversation, ...db.conversations];
-
-    db.messages = [
-      message,
-      ...db.messages.filter(
-        (item) =>
-          !(
-            item.conversationId === conversationId &&
-            item.id === "booking_request"
-          )
-      ),
-    ];
-
-    db.bookings = db.bookings.map((item) =>
-      item.id === booking.id ? { ...item, conversationId } : item
-    );
-  });
-
-  return conversationId;
-};
-
-export const getMockConversationsForUser = (uid: string) =>
-  getMockDb()
-    .conversations.filter((conversation) =>
-      conversation.participantIds.includes(uid)
-    )
-    .sort(
-      (a, b) =>
-        new Date(b.lastMessageAt).getTime() -
-        new Date(a.lastMessageAt).getTime()
-    );
-
-export const getMockMessagesForConversation = (conversationId: string) =>
-  getMockDb()
-    .messages.filter((message) => message.conversationId === conversationId)
-    .sort(
-      (a, b) =>
-        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
-
-export const markMockConversationRead = (
-  conversationId: string,
-  userId: string
-) => {
-  updateMockDb((db) => {
-    db.conversations = db.conversations.map((conversation) =>
-      conversation.id === conversationId
-        ? {
-            ...conversation,
-            unreadBy: conversation.unreadBy.filter(
-              (participantId) => participantId !== userId
-            ),
-          }
-        : conversation
-    );
-  });
-};
-
-export const createMockMessage = async (
-  conversationId: string,
-  senderId: string,
-  body: string
-) => {
-  const now = new Date().toISOString();
-  const message: MockMessage = {
-    id: `mock-message-${Date.now()}`,
-    conversationId,
-    senderId,
-    body,
-    createdAt: now,
-    type: "text",
-  };
-
-  updateMockDb((db) => {
-    db.messages.push(message);
-    db.conversations = db.conversations.map((conversation) =>
-      conversation.id === conversationId
-        ? {
-            ...conversation,
-            lastMessageText: body,
-            lastMessageAt: now,
-            lastMessageSenderId: senderId,
-            unreadBy: conversation.participantIds.filter(
-              (participantId) => participantId !== senderId
-            ),
-            updatedAt: now,
-          }
-        : conversation
-    );
-  });
-
-  return message;
-};
-
-export const createMockBooking = async (
-  booking: Omit<
-    MockBooking,
-    "id" | "createdAt" | "sessionId" | "conversationId"
-  >
-) => {
-  const newBooking: MockBooking = {
-    ...booking,
-    id: `mock-booking-${Date.now()}`,
-    createdAt: new Date().toISOString(),
-    sessionId: `mock-session-${Date.now()}`,
-  };
-
-  updateMockDb((db) => {
-    db.bookings.unshift(newBooking);
-  });
-
-  const conversationId = createMockBookingRequestConversation(newBooking);
-
-  return {
-    ...newBooking,
-    conversationId,
-  };
-};
-
-export const updateMockBooking = async (
-  bookingId: string,
-  updates: Partial<MockBooking>
-) => {
-  updateMockDb((db) => {
-    db.bookings = db.bookings.map((booking) =>
-      booking.id === bookingId ? { ...booking, ...updates } : booking
-    );
-  });
-
-  return getMockBookingById(bookingId);
-};
-
-const getUpdatedAverage = (
-  currentRating: number | undefined,
-  currentCount: number | undefined,
-  newRating: number
-) => {
-  const rating = currentRating || 0;
-  const count = currentCount || 0;
-  const nextCount = count + 1;
-  const nextRating = (rating * count + newRating) / nextCount;
-
-  return {
-    rating: Math.round(nextRating * 10) / 10,
-    count: nextCount,
-  };
-};
-
-export const getMockReviewsForUser = (reviewerId: string) =>
-  (getMockDb().reviews ?? []).filter((review) => review.reviewerId === reviewerId);
-
-export const getMockReviewsForTarget = (revieweeId: string) =>
-  (getMockDb().reviews ?? []).filter((review) => review.revieweeId === revieweeId);
-
-export const getMockReviewsForCourt = (courtId: string) =>
-  (getMockDb().reviews ?? []).filter(
-    (review) => review.courtId === courtId && review.targetType === "court_owner"
-  );
-
-export const createMockReview = async ({
-  bookingId,
-  reviewerId,
-  rating,
-  comment,
-}: {
-  bookingId: string;
-  reviewerId: string;
-  rating: number;
-  comment: string;
-}) => {
-  let createdReview: MockReview | null = null;
-
-  updateMockDb((db) => {
-    const booking = db.bookings.find((item) => item.id === bookingId);
-    if (!booking) throw new Error("Booking not found");
-
-    const court = db.courts.find((item) => item.id === booking.courtId);
-    if (!court) throw new Error("Court for this booking was not found");
-
-    const reviewerRole =
-      reviewerId === booking.userId
-        ? "player"
-        : reviewerId === court.ownerId
-          ? "owner"
-          : null;
-
-    if (!reviewerRole) {
-      throw new Error("Only booking participants can review this booking");
-    }
-
-    const reviewId = `${bookingId}_${reviewerRole}`;
-    if (db.reviews.some((review) => review.id === reviewId)) {
-      throw new Error("You already reviewed this booking");
-    }
-
-    const now = new Date().toISOString();
-    createdReview = {
-      id: reviewId,
-      bookingId,
-      courtId: booking.courtId,
-      playerId: booking.userId,
-      ownerId: court.ownerId,
-      reviewerId,
-      reviewerRole,
-      revieweeId: reviewerRole === "player" ? court.ownerId : booking.userId,
-      targetType: reviewerRole === "player" ? "court_owner" : "player",
-      rating,
-      comment: comment.trim().slice(0, 1000),
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    db.reviews.push(createdReview);
-
-    if (reviewerRole === "player") {
-      const courtAverage = getUpdatedAverage(
-        court.rating,
-        court.reviewCount,
-        rating
-      );
-      db.courts = db.courts.map((item) =>
-        item.id === court.id
-          ? {
-              ...item,
-              rating: courtAverage.rating,
-              reviewCount: courtAverage.count,
-            }
-          : item
-      );
-
-      const owner = db.users[court.ownerId];
-      if (owner) {
-        const ownerAverage = getUpdatedAverage(
-          owner.ownerRating,
-          owner.ownerReviewCount,
-          rating
-        );
-        db.users[court.ownerId] = {
-          ...owner,
-          ownerRating: ownerAverage.rating,
-          ownerReviewCount: ownerAverage.count,
-        };
-      }
-    } else {
-      const player = db.users[booking.userId];
-      if (player) {
-        const playerAverage = getUpdatedAverage(
-          player.playerRating,
-          player.playerReviewCount,
-          rating
-        );
-        db.users[booking.userId] = {
-          ...player,
-          playerRating: playerAverage.rating,
-          playerReviewCount: playerAverage.count,
-        };
-      }
-    }
-  });
-
-  return createdReview;
-};
-
-export const getMockUserDisplayName = (uid: string) => {
-  const user = getMockProfile(uid);
-  return user?.displayName || user?.email || uid;
-};
-
-export const fileToDataUrl = (file: File) =>
-  new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("Failed to read file"));
-    reader.readAsDataURL(file);
-  });
-
-export const subscribeToMockAuthChanges = (callback: () => void) => {
-  if (!isClient()) {
-    return () => undefined;
-  }
-
-  window.addEventListener(MOCK_AUTH_EVENT, callback);
-  window.addEventListener("storage", callback);
-
-  return () => {
-    window.removeEventListener(MOCK_AUTH_EVENT, callback);
-    window.removeEventListener("storage", callback);
   };
 };

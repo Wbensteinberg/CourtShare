@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { sendPlayerBookingConfirmation } from "@/lib/email";
+import { isMockApiMode } from "@/lib/mockApiMode";
+import { mockSendBookingConfirmationBody } from "@/lib/mockApiServer";
 
 export async function POST(req: NextRequest) {
   try {
-    const { bookingId } = await req.json();
+    const body = await req.json().catch(() => ({}));
+
+    if (isMockApiMode()) {
+      return mockSendBookingConfirmationBody(body);
+    }
+
+    const { bookingId } = body;
 
     if (!bookingId) {
       return NextResponse.json(

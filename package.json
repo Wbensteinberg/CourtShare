@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "next dev --webpack",
+    "dev:mock": "MOCK_API=true NEXT_PUBLIC_USE_MOCK_DATA=true next dev --webpack",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",

@@ -1,21 +1,61 @@
 import "@testing-library/jest-dom"; // Note to Cursor: keep this line like this
 import { TextEncoder, TextDecoder } from "util";
 
-// Polyfill for ReadableStream
-if (typeof global.ReadableStream === "undefined") {
-  // @ts-ignore
-  global.ReadableStream = class MockReadableStream {
-    constructor() {}
-    getReader() {
-      return {
-        read: () => Promise.resolve({ done: true, value: undefined }),
-        releaseLock: () => {},
-      };
-    }
+// undici expects TextDecoder on global during module init — set before require.
+// @ts-expect-error test polyfill
+global.TextEncoder = TextEncoder;
+// @ts-expect-error test polyfill
+global.TextDecoder = TextDecoder;
+
+// Prefer Node's ReadableStream for undici compatibility (Jest's jsdom stub is insufficient).
+try {
+  const { ReadableStream } = require("node:stream/web") as typeof import("node:stream/web");
+  (globalThis as unknown as { ReadableStream: typeof ReadableStream }).ReadableStream =
+    ReadableStream;
+} catch {
+  if (typeof global.ReadableStream === "undefined") {
+    // @ts-ignore
+    global.ReadableStream = class MockReadableStream {
+      constructor() {}
+      getReader() {
+        return {
+          read: () => Promise.resolve({ done: true, value: undefined }),
+          releaseLock: () => {},
+        };
+      }
+    };
+  }
+}
+
+// Minimal stubs for undici / NextRequest in Jest (jsdom lacks worker types)
+if (typeof (globalThis as { MessagePort?: unknown }).MessagePort === "undefined") {
+  (globalThis as { MessagePort: unknown }).MessagePort = class MessagePort {
+    close() {}
+    postMessage() {}
+    start() {}
+    addEventListener() {}
+    removeEventListener() {}
   };
 }
 
-// Polyfill for TextEncoder/TextDecoder
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { Request, Response, Headers, FormData } = require("undici") as typeof import("undici");
+
+if (typeof (globalThis as unknown as { Request?: unknown }).Request === "undefined") {
+  (globalThis as unknown as { Request: typeof Request }).Request = Request;
+  (globalThis as unknown as { Response: typeof Response }).Response = Response;
+  (globalThis as unknown as { Headers: typeof Headers }).Headers = Headers;
+  (globalThis as unknown as { FormData: typeof FormData }).FormData = FormData;
+}
+
+if (typeof window !== "undefined") {
+  (window as unknown as { Request: typeof Request }).Request = Request;
+  (window as unknown as { Response: typeof Response }).Response = Response;
+  (window as unknown as { Headers: typeof Headers }).Headers = Headers;
+  (window as unknown as { FormData: typeof FormData }).FormData = FormData;
+}
+
+// Polyfill for TextEncoder/TextDecoder (idempotent for other tests)
 // @ts-ignore
 if (typeof global.TextEncoder === "undefined") {
   // @ts-ignore
@@ -28,33 +68,45 @@ if (typeof global.TextDecoder === "undefined") {
   global.TextDecoder = TextDecoder;
 }
 
-// Mock window.URL.createObjectURL
+// Ensure URL constructor exists for NextRequest (do not replace window.URL with a plain object)
 if (typeof window !== "undefined") {
-  Object.defineProperty(window, "URL", {
-    value: {
-      createObjectURL: jest.fn(),
-      revokeObjectURL: jest.fn(),
-    },
-  });
+  const origCreate = window.URL.createObjectURL?.bind(window.URL);
+  const origRevoke = window.URL.revokeObjectURL?.bind(window.URL);
+  window.URL.createObjectURL = jest.fn(origCreate ?? (() => "blob:mock"));
+  window.URL.revokeObjectURL = jest.fn(origRevoke ?? (() => {}));
 }
 
 // Mock window.location methods to prevent JSDOM "not implemented" errors
-// Delete first to avoid "Cannot redefine property" error
-delete (window as any).location;
-(window as any).location = {
-  href: "http://localhost:3000",
-  origin: "http://localhost:3000",
-  protocol: "http:",
-  host: "localhost:3000",
-  hostname: "localhost",
-  port: "3000",
-  pathname: "/",
-  search: "",
-  hash: "",
-  assign: jest.fn(),
-  replace: jest.fn(),
-  reload: jest.fn(),
-};
+if (typeof window !== "undefined") {
+  const mockLoc = {
+    href: "http://localhost:3000",
+    origin: "http://localhost:3000",
+    protocol: "http:",
+    host: "localhost:3000",
+    hostname: "localhost",
+    port: "3000",
+    pathname: "/",
+    search: "",
+    hash: "",
+    assign: jest.fn(),
+    replace: jest.fn(),
+    reload: jest.fn(),
+  };
+  try {
+    Reflect.deleteProperty(window, "location");
+  } catch {
+    /* non-configurable in some jsdom versions */
+  }
+  try {
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      writable: true,
+      value: mockLoc,
+    });
+  } catch {
+    /* keep default jsdom Location if non-configurable */
+  }
+}
 
 // Mock IntersectionObserver
 class MockIntersectionObserver {
