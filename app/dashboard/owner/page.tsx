@@ -47,9 +47,9 @@ import {
   Banknote,
   Settings,
   ExternalLink,
+  FileText,
   Plus,
   ListChecks,
-  MessageCircle,
   Star,
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
@@ -128,6 +128,8 @@ interface PublicReview {
   id: string;
   bookingId: string;
   courtId: string;
+  playerId?: string;
+  reviewerId?: string;
   reviewerRole?: string;
   targetType?: string;
   rating: number;
@@ -233,6 +235,9 @@ export default function OwnerDashboard() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("tab") === "courts") {
       setActiveTab("courts");
+    }
+    if (params.get("tab") === "reviews") {
+      setActiveTab("reviews");
     }
     if (params.get("addCourt") === "1") {
       setActiveTab("courts");
@@ -369,6 +374,8 @@ export default function OwnerDashboard() {
                 id: review.id,
                 bookingId: review.bookingId,
                 courtId: review.courtId,
+                playerId: review.playerId,
+                reviewerId: review.reviewerId,
                 reviewerRole: review.reviewerRole,
                 targetType: review.targetType,
                 rating: review.rating,
@@ -846,6 +853,23 @@ export default function OwnerDashboard() {
   const getBookingCourtName = (booking: Booking) =>
     courtsById[booking.courtId]?.name || "Court unavailable";
 
+  const getReviewBooking = (review: PublicReview) =>
+    bookings.find((booking) => booking.id === review.bookingId);
+
+  const getReviewPlayer = (review: PublicReview) => {
+    const booking = getReviewBooking(review);
+    const playerId = booking?.userId || review.playerId || review.reviewerId || "";
+    return {
+      name: playerId ? bookingUsers[playerId]?.displayName || "Player" : "Player",
+      imageUrl: playerId ? bookingUsers[playerId]?.profileImageUrl || "" : "",
+      initial:
+        (playerId ? bookingUsers[playerId]?.displayName : "Player")
+          ?.trim()
+          .charAt(0)
+          .toUpperCase() || "P",
+    };
+  };
+
   const openBookingConversation = (booking: Booking) => {
     const conversationId = booking.conversationId || `booking_${booking.id}`;
     router.push(
@@ -1137,13 +1161,21 @@ export default function OwnerDashboard() {
             typeof booking.ownerAmountCents === "number"
               ? booking.ownerAmountCents / 100
               : (court?.price || 0) * booking.duration;
+          const showPendingActions =
+            options.pendingActions && booking.status === "pending";
+          const showReviewButton =
+            options.reviewActions && canReviewBooking(booking);
+          const showReviewedBadge =
+            options.reviewActions && reviewedBookingIds.has(booking.id);
+          const hasReservationActions =
+            showPendingActions || showReviewButton || showReviewedBadge;
 
           return (
             <div
               key={booking.id}
-              className="grid gap-5 rounded-[32px] border border-slate-200 bg-white p-5 text-left shadow-sm sm:grid-cols-[144px_minmax(0,1fr)]"
+              className="grid gap-5 rounded-[32px] border border-slate-200 bg-white p-5 text-left shadow-sm sm:grid-cols-[120px_minmax(0,1fr)]"
             >
-              <div className="relative h-28 overflow-hidden rounded-[24px] bg-slate-100">
+              <div className="relative h-24 overflow-hidden rounded-[24px] bg-slate-100">
                 {court?.imageUrl ? (
                   <Image
                     src={court.imageUrl}
@@ -1159,51 +1191,45 @@ export default function OwnerDashboard() {
               </div>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="truncate text-xl font-black text-slate-950">
+                  <h3 className="truncate text-lg font-black text-slate-950">
                     {courtName}
                   </h3>
                   <Badge variant="outline" className="rounded-md">
                     Court {booking.courtNumber || 1}
                   </Badge>
                   {getStatusBadge(booking.status)}
-                </div>
-                <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-slate-600">
-                  <span className="inline-flex items-center">
-                    <Calendar className="mr-2 h-4 w-4 text-slate-400" />
-                    {formatBookingDateWithDay(booking.date)}
-                  </span>
-                  <span className="inline-flex items-center">
-                    <Clock className="mr-2 h-4 w-4 text-slate-400" />
-                    {booking.time} for {booking.duration}h
-                  </span>
-                  <span className="inline-flex items-center">
-                    <User className="mr-2 h-4 w-4 text-slate-400" />
-                    {getBookingPlayerName(booking)}
-                  </span>
-                  <span className="inline-flex items-center font-semibold text-emerald-700">
-                    <Banknote className="mr-2 h-4 w-4" />${amount.toFixed(2)}
+                  <span className="text-sm font-extrabold text-[var(--site-accent)]">
+                    ${amount.toFixed(2)}
                   </span>
                 </div>
-                <div className="mt-5 flex flex-wrap gap-2">
+                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-slate-600">
+                    <span className="inline-flex items-center">
+                      <Calendar className="mr-2 h-4 w-4 text-slate-400" />
+                      {formatBookingDateWithDay(booking.date)}
+                    </span>
+                    <span className="inline-flex items-center">
+                      <Clock className="mr-2 h-4 w-4 text-slate-400" />
+                      {booking.time} for {booking.duration}h
+                    </span>
+                    <span className="inline-flex items-center">
+                      <User className="mr-2 h-4 w-4 text-slate-400" />
+                      {getBookingPlayerName(booking)}
+                    </span>
+                  </div>
                   <Button
                     size="sm"
                     variant="outline"
-                    className="rounded-lg border-slate-300"
+                    className="w-fit rounded-lg border-slate-300 px-4"
                     onClick={() => router.push(`/booking/${booking.id}`)}
                   >
-                    <ListChecks className="mr-2 h-4 w-4" />
+                    <FileText className="mr-2 h-4 w-4" />
                     Details
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="rounded-lg border-slate-300"
-                    onClick={() => openBookingConversation(booking)}
-                  >
-                    <MessageCircle className="mr-2 h-4 w-4" />
-                    Message
-                  </Button>
-                  {options.pendingActions && booking.status === "pending" && (
+                </div>
+                {hasReservationActions && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                  {showPendingActions && (
                     <>
                       <Button
                         size="sm"
@@ -1228,7 +1254,7 @@ export default function OwnerDashboard() {
                       </Button>
                     </>
                   )}
-                  {options.reviewActions && canReviewBooking(booking) && (
+                  {showReviewButton && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -1239,7 +1265,7 @@ export default function OwnerDashboard() {
                       Review player
                     </Button>
                   )}
-                  {options.reviewActions && reviewedBookingIds.has(booking.id) && (
+                  {showReviewedBadge && (
                     <Badge
                       variant="outline"
                       className="rounded-lg border-slate-200 bg-slate-50 px-3 py-2 text-slate-600"
@@ -1247,7 +1273,8 @@ export default function OwnerDashboard() {
                       Reviewed
                     </Badge>
                   )}
-                </div>
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -1414,7 +1441,7 @@ export default function OwnerDashboard() {
                           <div className="grid grid-cols-2 gap-2">
                             <Button
                               size="sm"
-                              className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                              className="rounded-2xl bg-[var(--site-accent)] px-4 py-5 font-bold text-white hover:bg-[var(--site-accent-hover)]"
                               onClick={() =>
                                 router.push(`/edit-listing/${court.id}`)
                               }
@@ -1425,7 +1452,7 @@ export default function OwnerDashboard() {
                             <Button
                               variant="outline"
                               size="sm"
-                              className="rounded-lg border-slate-300"
+                              className="rounded-2xl border-slate-300 bg-white px-4 py-5 font-bold text-slate-950 hover:bg-slate-50"
                               onClick={() =>
                                 setExpandedCourtId(
                                   expandedCourtId === court.id ? null : court.id
@@ -1769,19 +1796,37 @@ export default function OwnerDashboard() {
                     <div className="grid gap-8 md:grid-cols-2">
                       {receivedReviews.map((review) => {
                         const court = courtsById[review.courtId];
+                        const player = getReviewPlayer(review);
                         return (
-                          <article
+                          <button
+                            type="button"
                             key={review.id}
-                            className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm"
+                            onClick={() => router.push(`/booking/${review.bookingId}`)}
+                            className="rounded-[32px] border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                           >
                             <div className="flex items-start justify-between gap-4">
-                              <div>
-                                <p className="text-lg font-black text-slate-950">
-                                  {court?.name || "Court review"}
-                                </p>
-                                <p className="mt-1 text-sm text-slate-500">
-                                  {formatReviewDate(review.createdAt)}
-                                </p>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-3">
+                                  <Avatar className="h-11 w-11 border border-slate-200">
+                                    <AvatarImage
+                                      src={player.imageUrl}
+                                      alt={player.name}
+                                    />
+                                    <AvatarFallback className="bg-slate-100 text-sm font-bold text-slate-700">
+                                      {player.initial}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <p className="truncate text-lg font-black text-slate-950">
+                                    {player.name}
+                                  </p>
+                                </div>
+                                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-medium text-slate-500">
+                                  <span className="text-slate-700">
+                                    {court?.name || "Court review"}
+                                  </span>
+                                  <span className="text-slate-300">/</span>
+                                  <span>{formatReviewDate(review.createdAt)}</span>
+                                </div>
                               </div>
                               <div className="flex gap-0.5 text-amber-400">
                                 {Array.from({ length: 5 }).map((_, star) => (
@@ -1799,7 +1844,7 @@ export default function OwnerDashboard() {
                             <p className="mt-5 text-lg leading-8 text-slate-900">
                               {review.comment || "No written review provided."}
                             </p>
-                          </article>
+                          </button>
                         );
                       })}
                     </div>

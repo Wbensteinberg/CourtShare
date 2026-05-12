@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Calendar,
   Clock,
+  FileText,
   MapPin,
   MessageCircle,
   Star,
@@ -58,6 +59,8 @@ interface Booking {
   cancelReason?: string;
   conversationId?: string;
   durationMinutes?: number;
+  totalAmountCents?: number;
+  expectedAmountCents?: number;
   createdAt?: Date | string | number | { toDate?: () => Date; seconds?: number; nanoseconds?: number };
   expiresAt?: Date | string | number | { toDate?: () => Date; seconds?: number; nanoseconds?: number };
 }
@@ -324,6 +327,18 @@ export default function PlayerDashboard() {
   const getCourtName = (booking: Booking) =>
     courts[booking.courtId]?.name || "Court unavailable";
 
+  const getBookingPrice = (booking: Booking) => {
+    const cents = booking.totalAmountCents || booking.expectedAmountCents;
+    if (cents) return `$${(cents / 100).toFixed(2)}`;
+
+    const court = courts[booking.courtId];
+    const duration =
+      booking.durationMinutes !== undefined
+        ? booking.durationMinutes / 60
+        : booking.duration;
+    return court?.price && duration ? `$${(court.price * duration).toFixed(2)}` : "";
+  };
+
   const getCourtOwnerName = (booking: Booking) => {
     const ownerId = courts[booking.courtId]?.ownerId;
     return ownerId ? courtOwners[ownerId] || "Court host" : "Court host";
@@ -550,9 +565,9 @@ export default function PlayerDashboard() {
                   return (
                     <div
                       key={booking.id}
-                      className="grid gap-5 rounded-[32px] border border-slate-200 bg-white p-5 text-left shadow-sm sm:grid-cols-[144px_minmax(0,1fr)]"
+                      className="grid gap-5 rounded-[32px] border border-slate-200 bg-white p-5 text-left shadow-sm sm:grid-cols-[120px_minmax(0,1fr)]"
                     >
-                      <div className="relative h-28 overflow-hidden rounded-[24px] bg-slate-100">
+                      <div className="relative h-24 overflow-hidden rounded-[24px] bg-slate-100">
                         {court?.imageUrl ? (
                           <Image
                             src={court.imageUrl}
@@ -568,73 +583,36 @@ export default function PlayerDashboard() {
                       </div>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="truncate text-xl font-black text-slate-950">
+                          <h3 className="truncate text-lg font-black text-slate-950">
                             {courtName}
                           </h3>
                           {getStatusBadge(booking.status)}
+                          {getBookingPrice(booking) && (
+                            <span className="text-sm font-extrabold text-[var(--site-accent)]">
+                              {getBookingPrice(booking)}
+                            </span>
+                          )}
                         </div>
-                        <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-slate-600">
-                          <span className="inline-flex items-center">
-                            <Calendar className="mr-2 h-4 w-4 text-slate-400" />
-                            {formatBookingDateWithDay(booking.date)}
-                          </span>
-                          <span className="inline-flex items-center">
-                            <Clock className="mr-2 h-4 w-4 text-slate-400" />
-                            {booking.time} for {booking.duration}h
-                          </span>
-                          <span className="inline-flex items-center">
-                            <MapPin className="mr-2 h-4 w-4 text-slate-400" />
-                            {court ? court.location : "Unknown location"}
-                          </span>
-                          <span className="inline-flex items-center">
-                            <User className="mr-2 h-4 w-4 text-slate-400" />
-                            Hosted by {getCourtOwnerName(booking)}
-                          </span>
-                        </div>
-                        {court?.address && booking.status === "confirmed" && (
-                          <div className="mt-2 text-sm">
-                            <GoogleMapsLink
-                              address={court.address}
-                              variant="link"
-                              className="font-medium text-emerald-700"
-                            >
-                              {court.address}
-                            </GoogleMapsLink>
+                        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-slate-600">
+                            <span className="inline-flex items-center">
+                              <Calendar className="mr-2 h-4 w-4 text-slate-400" />
+                              {formatBookingDateWithDay(booking.date)}
+                            </span>
+                            <span className="inline-flex items-center">
+                              <Clock className="mr-2 h-4 w-4 text-slate-400" />
+                              {booking.time} for {booking.duration}h
+                            </span>
                           </div>
-                        )}
-                        <div className="mt-5 flex flex-wrap gap-2">
                           <Button
                             variant="outline"
                             size="sm"
-                            className="rounded-lg border-slate-300"
-                            onClick={() => openBookingConversation(booking)}
-                          >
-                            <MessageCircle className="mr-2 h-4 w-4" />
-                            Message
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="rounded-lg border-slate-300"
+                            className="w-fit rounded-lg border-slate-300 px-4"
                             onClick={() => router.push(`/booking/${booking.id}`)}
                           >
-                            <User className="mr-2 h-4 w-4" />
+                            <FileText className="mr-2 h-4 w-4" />
                             Details
                           </Button>
-                          {canCancelBooking(booking) && (
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              className="rounded-lg"
-                              onClick={() => handleCancel(booking.id)}
-                              disabled={cancelling === booking.id}
-                            >
-                              <X className="mr-2 h-4 w-4" />
-                              {cancelling === booking.id
-                                ? "Cancelling..."
-                                : "Cancel"}
-                            </Button>
-                          )}
                         </div>
                       </div>
                     </div>

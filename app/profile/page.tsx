@@ -18,6 +18,7 @@ import LoadingScreen from "@/components/LoadingScreen";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   ArrowLeft,
   AlertCircle,
@@ -25,9 +26,11 @@ import {
   Camera,
   CheckCircle,
   Clock,
+  FileText,
   MapPin,
   Pencil,
   Star,
+  User,
 } from "lucide-react";
 import {
   fileToDataUrl,
@@ -76,6 +79,7 @@ interface Court {
   name: string;
   location: string;
   imageUrl: string;
+  ownerId?: string;
   surface?: string;
   indoor?: boolean;
 }
@@ -84,6 +88,8 @@ interface PublicReview {
   id: string;
   bookingId: string;
   courtId: string;
+  reviewerId?: string;
+  ownerId?: string;
   reviewerRole?: string;
   targetType?: string;
   rating: number;
@@ -113,7 +119,7 @@ function centerAspectCrop(
   );
 }
 
-const getProfileDate = (value: any): Date | null => {
+  const getProfileDate = (value: any): Date | null => {
   if (!value) return null;
   if (value instanceof Date) return value;
   if (typeof value === "string" || typeof value === "number") {
@@ -128,6 +134,12 @@ const getProfileDate = (value: any): Date | null => {
   }
   return null;
 };
+
+const getStatusBadge = (status: string) => (
+  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold capitalize text-slate-700">
+    {status}
+  </span>
+);
 
 const formatReviewDate = (value?: string | null) => {
   const date = value ? new Date(value) : new Date();
@@ -240,17 +252,21 @@ export default function ProfilePage() {
         }
 
         if (isMockMode) {
-          setHasOwnerListing(
-            getMockCourts().some((court) => court.ownerId === user.uid)
-          );
+          const ownerCourts = getMockCourts().filter(
+            (court) => court.ownerId === user.uid
+          ) as Court[];
+          setHasOwnerListing(ownerCourts.length > 0);
 
           const userBookings = getMockBookingsForUser(user.uid) as Booking[];
           setBookings(userBookings);
           setCourtsById(
             Object.fromEntries(
-              userBookings
-                .map((booking) => getMockCourtById(booking.courtId) as Court | null)
-                .filter((court): court is Court => Boolean(court))
+              [
+                ...userBookings
+                  .map((booking) => getMockCourtById(booking.courtId) as Court | null)
+                  .filter((court): court is Court => Boolean(court)),
+                ...ownerCourts,
+              ]
                 .map((court) => [court.id, court])
             )
           );
@@ -259,6 +275,8 @@ export default function ProfilePage() {
               id: review.id,
               bookingId: review.bookingId,
               courtId: review.courtId,
+              reviewerId: review.reviewerId,
+              ownerId: review.ownerId,
               reviewerRole: review.reviewerRole,
               targetType: review.targetType,
               rating: review.rating,
@@ -271,6 +289,13 @@ export default function ProfilePage() {
             query(collection(db, "courts"), where("ownerId", "==", user.uid))
           );
           setHasOwnerListing(!ownerCourts.empty);
+          const ownerCourtEntries = ownerCourts.docs.map(
+            (courtDoc) =>
+              [courtDoc.id, { id: courtDoc.id, ...courtDoc.data() } as Court] as [
+                string,
+                Court,
+              ]
+          );
 
           const bookingsSnapshot = await getDocs(
             query(collection(db, "bookings"), where("userId", "==", user.uid))
@@ -293,11 +318,12 @@ export default function ProfilePage() {
             })
           );
           setCourtsById(
-            Object.fromEntries(
-              courtEntries.filter(
+            Object.fromEntries([
+              ...courtEntries.filter(
                 (entry): entry is [string, Court] => Boolean(entry)
-              )
-            )
+              ),
+              ...ownerCourtEntries,
+            ])
           );
 
           const reviewsRes = await fetch(
@@ -540,8 +566,11 @@ export default function ProfilePage() {
     "CourtShare player";
   const profileInitial = profileName.charAt(0).toUpperCase();
   const bookingList = bookings ?? [];
+  const ownerListings = Object.values(courtsById).filter(
+    (court) => court.ownerId === user?.uid
+  );
   const pastBookings = bookingList
-    .filter((booking) => isPastOrInactiveBooking(booking))
+    .filter((booking) => booking.status === "completed")
     .sort(sortBookingsAscending);
   const confirmedTrips = bookingList.filter(
     (booking) => booking.status === "confirmed"
@@ -563,9 +592,23 @@ export default function ProfilePage() {
           reviewCount === 1 ? "review" : "reviews"
         })`
       : "No reviews";
-  const completedPastBookingCount = pastBookings.filter(
-    (booking) => booking.status === "completed" || booking.status === "confirmed"
-  ).length;
+  const playerReviews = reviews.filter(
+    (review) => review.reviewerRole === "owner" || review.targetType === "player"
+  );
+  const playerReviewSummary =
+    playerReviews.length > 0
+      ? `${(
+          playerReviews.reduce((total, review) => total + review.rating, 0) /
+          playerReviews.length
+        ).toFixed(1)} (${playerReviews.length} ${
+          playerReviews.length === 1 ? "review" : "reviews"
+        })`
+      : "No reviews";
+  const hostReviewCount =
+    typeof profile?.ownerReviewCount === "number"
+      ? profile.ownerReviewCount
+      : reviews.filter((review) => review.reviewerRole === "player").length;
+  const completedPastBookingCount = pastBookings.length;
   const monthsOnCourtShare = getMonthCount(profile?.createdAt);
   const tabs: { id: ProfileTab; label: string }[] = [
     { id: "about", label: "About Me" },
@@ -605,15 +648,7 @@ export default function ProfilePage() {
                   >
                     <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-pink-50 text-lg font-black text-pink-700">
                       {tab.id === "about" ? (
-                        profileImagePreview ? (
-                          <img
-                            src={profileImagePreview}
-                            alt=""
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          profileInitial
-                        )
+                        <User className="h-5 w-5 text-slate-500" />
                       ) : (
                         <>
                           {tab.id === "past" ? (
@@ -769,7 +804,7 @@ export default function ProfilePage() {
                           Bio
                         </label>
                         <textarea
-                          placeholder="Tell players and hosts a little about your tennis style."
+                          placeholder="Tell players and hosts a little about your background and tennis experience."
                           value={bio}
                           onChange={(e) => setBio(e.target.value)}
                           rows={6}
@@ -800,59 +835,140 @@ export default function ProfilePage() {
                     </Button>
                   </div>
 
-                  <Card className="w-full rounded-[32px] border-slate-200 bg-white shadow-xl shadow-slate-200/70">
-                    <CardContent className="grid gap-8 p-8 sm:grid-cols-[1fr_170px] sm:p-10">
-                      <div className="flex flex-col items-center text-center">
-                        <div className="relative h-36 w-36 overflow-hidden rounded-full bg-pink-50 text-pink-700">
-                          {profileImagePreview ? (
-                            <img
-                              src={profileImagePreview}
-                              alt={profileName}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center text-6xl font-black">
-                              {profileInitial}
+                  <div
+                    className={`grid gap-6 ${
+                      hasOwnerListing ? "xl:grid-cols-2" : "grid-cols-1"
+                    }`}
+                  >
+                    <Card className="w-full rounded-[32px] border-slate-200 bg-white shadow-xl shadow-slate-200/70">
+                      <CardContent className="p-8 sm:p-10">
+                        <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-slate-400">
+                          Player Profile
+                        </p>
+                        <div className="mt-6 space-y-6">
+                          <div className="flex items-center gap-5">
+                            <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full bg-pink-50 text-pink-700">
+                              {profileImagePreview ? (
+                                <img
+                                  src={profileImagePreview}
+                                  alt={profileName}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-4xl font-black">
+                                  {profileInitial}
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                        <h3 className="mt-5 text-4xl font-black tracking-tight text-slate-950">
-                          {profileName}
-                        </h3>
-                          <p className="mt-4 max-w-sm text-base leading-7 text-slate-600">
-                            {profile?.bio ||
-                              "No bio yet. Add a short note about your tennis style and what hosts should know."}
-                          </p>
-                        </div>
+                            <div className="min-w-0">
+                              <h3 className="truncate text-2xl font-black tracking-tight text-slate-950">
+                                {profileName}
+                              </h3>
+                              <p className="mt-1 text-xs font-extrabold uppercase tracking-[0.2em] text-[var(--site-accent)]">
+                                Player
+                              </p>
+                            </div>
+                          </div>
 
-                      <div className="grid content-center divide-y divide-slate-200">
-                        <div className="py-4 first:pt-0">
-                          <p className="text-3xl font-black text-slate-950">
-                            {confirmedTrips}
-                          </p>
-                          <p className="text-sm font-semibold text-slate-600">
-                            Bookings
-                          </p>
+                          <div className="grid grid-cols-3 gap-4">
+                            <div>
+                              <p className="text-2xl font-black text-slate-950">
+                                {confirmedTrips}
+                              </p>
+                              <p className="text-xs font-semibold text-slate-600">
+                                Bookings
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-2xl font-black text-slate-950">
+                                {reviewCount}
+                              </p>
+                              <p className="text-xs font-semibold text-slate-600">
+                                Reviews
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-2xl font-black text-slate-950">
+                                {monthsOnCourtShare}
+                              </p>
+                              <p className="text-xs font-semibold text-slate-600">
+                                Months
+                              </p>
+                            </div>
+                          </div>
                         </div>
-                        <div className="py-4">
-                          <p className="text-3xl font-black text-slate-950">
-                            {reviewCount}
+                        <p className="mt-6 border-t border-slate-200 pt-5 text-base leading-7 text-slate-600">
+                          {profile?.bio || "No bio added."}
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    {hasOwnerListing && (
+                      <Card className="w-full rounded-[32px] border-slate-200 bg-white shadow-xl shadow-slate-200/70">
+                        <CardContent className="p-8 sm:p-10">
+                          <p className="text-xs font-extrabold uppercase tracking-[0.24em] text-slate-400">
+                            Host Profile
                           </p>
-                          <p className="text-sm font-semibold text-slate-600">
-                            Reviews
+                          <div className="mt-6 space-y-6">
+                            <div className="flex items-center gap-5">
+                              <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full bg-pink-50 text-pink-700">
+                                {profileImagePreview ? (
+                                  <img
+                                    src={profileImagePreview}
+                                    alt={profileName}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center text-4xl font-black">
+                                    {profileInitial}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <h3 className="truncate text-2xl font-black tracking-tight text-slate-950">
+                                  {profileName}
+                                </h3>
+                                <p className="mt-1 text-xs font-extrabold uppercase tracking-[0.2em] text-[var(--site-accent)]">
+                                  Host
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-4">
+                              <div>
+                                <p className="text-2xl font-black text-slate-950">
+                                  {ownerListings.length}
+                                </p>
+                                <p className="text-xs font-semibold text-slate-600">
+                                  Listings
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-2xl font-black text-slate-950">
+                                  {hostReviewCount}
+                                </p>
+                                <p className="text-xs font-semibold text-slate-600">
+                                  Reviews
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-2xl font-black text-slate-950">
+                                  {monthsOnCourtShare}
+                                </p>
+                                <p className="text-xs font-semibold text-slate-600">
+                                  Months
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                          <p className="mt-6 border-t border-slate-200 pt-5 text-base leading-7 text-slate-600">
+                            {profile?.bio ||
+                              "No bio added."}
                           </p>
-                        </div>
-                        <div className="py-4">
-                          <p className="text-3xl font-black text-slate-950">
-                            {monthsOnCourtShare}
-                          </p>
-                          <p className="text-sm font-semibold text-slate-600">
-                            Months on CourtShare
-                          </p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
                 </>
               ) : activeTab === "reviews" ? (
                 <>
@@ -862,67 +978,83 @@ export default function ProfilePage() {
                         My Reviews
                       </h2>
                       <span className="text-base font-semibold text-slate-400">
-                        {reviewSummary}
+                        {playerReviewSummary}
                       </span>
                     </div>
                     <p className="mt-2 text-slate-500">
-                      Your reviews from court hosts from completed bookings.
+                      Your player reviews written by court hosts from completed bookings.
                     </p>
-                    {reviews.length === 0 ? (
+                    {hasOwnerListing && (
+                      <p className="mt-1 text-sm font-semibold text-slate-500">
+                        To see your host reviews, go to the{" "}
+                        <button
+                          type="button"
+                          onClick={() => router.push("/host?tab=reviews")}
+                          className="font-extrabold text-[var(--site-accent)] underline-offset-4 hover:underline"
+                        >
+                          Host Dashboard
+                        </button>
+                        .
+                      </p>
+                    )}
+                    {playerReviews.length === 0 ? (
                       <Card className="mt-6 rounded-[32px] border-slate-200 bg-white shadow-sm">
                         <CardContent className="p-8 text-slate-600">
                           You have no reviews yet.
                         </CardContent>
                       </Card>
                     ) : (
-                      <div className="mt-8 grid gap-8 md:grid-cols-3">
-                        {reviews.slice(0, 3).map((review, index) => (
-                          <article
+                      <div className="mt-8 grid gap-8 md:grid-cols-2">
+                        {playerReviews.map((review) => {
+                          const court = courtsById[review.courtId];
+                          return (
+                          <button
+                            type="button"
                             key={review.id}
-                            className={`space-y-5 ${
-                              index > 0 ? "md:border-l md:border-slate-200 md:pl-8" : ""
-                            }`}
+                            onClick={() => router.push(`/booking/${review.bookingId}`)}
+                            className="rounded-[32px] border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                           >
-                            <div className="flex items-center gap-4">
-                              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-pink-50 text-xl font-black text-pink-700">
-                                {review.reviewerRole === "owner" ? "O" : "P"}
-                              </div>
-                              <div>
-                                <p className="font-bold text-slate-950">
-                                  CourtShare host
-                                </p>
-                                <div className="mt-1 flex gap-0.5 text-amber-400">
-                                  {Array.from({ length: 5 }).map((_, star) => (
-                                    <Star
-                                      key={star}
-                                      className={`h-4 w-4 ${
-                                        star < review.rating
-                                          ? "fill-amber-400"
-                                          : "text-slate-300"
-                                      }`}
-                                    />
-                                  ))}
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-3">
+                                  <Avatar className="h-11 w-11 border border-slate-200">
+                                    <AvatarImage src="" alt="Court host" />
+                                    <AvatarFallback className="bg-slate-100 text-sm font-bold text-slate-700">
+                                      H
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <p className="truncate text-lg font-black text-slate-950">
+                                    Court host
+                                  </p>
+                                </div>
+                                <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-medium text-slate-500">
+                                  <span className="text-slate-700">
+                                    {court?.name || "Court booking"}
+                                  </span>
+                                  <span className="text-slate-300">/</span>
+                                  <span>{formatReviewDate(review.createdAt)}</span>
                                 </div>
                               </div>
+                              <div className="flex gap-0.5 text-amber-400">
+                                {Array.from({ length: 5 }).map((_, star) => (
+                                  <Star
+                                    key={star}
+                                    className={`h-4 w-4 ${
+                                      star < review.rating
+                                        ? "fill-amber-400"
+                                        : "text-slate-300"
+                                    }`}
+                                  />
+                                ))}
+                              </div>
                             </div>
-                            <p className="text-slate-500">
-                              {formatReviewDate(review.createdAt)}
-                            </p>
-                            <p className="text-xl leading-8 text-slate-900">
+                            <p className="mt-5 text-lg leading-8 text-slate-900">
                               {review.comment || "No written review provided."}
                             </p>
-                          </article>
-                        ))}
+                          </button>
+                          );
+                        })}
                       </div>
-                    )}
-                    {reviews.length > 3 && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="mt-8 rounded-2xl px-8 py-6 text-base font-bold"
-                      >
-                        Show all {reviews.length} reviews
-                      </Button>
                     )}
                   </div>
                 </>
@@ -952,51 +1084,55 @@ export default function ProfilePage() {
                     <div className="space-y-4">
                       {pastBookings.map((booking) => {
                         const court = courtsById[booking.courtId];
+                        const courtName = court?.name || "Court booking";
                         return (
-                          <button
+                          <div
                             key={booking.id}
-                            type="button"
-                            onClick={() => router.push(`/booking/${booking.id}`)}
-                            className="grid w-full gap-5 rounded-[32px] border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:grid-cols-[144px_minmax(0,1fr)_auto]"
+                            className="grid gap-5 rounded-[32px] border border-slate-200 bg-white p-5 text-left shadow-sm sm:grid-cols-[120px_minmax(0,1fr)]"
                           >
-                            <div className="h-28 overflow-hidden rounded-[24px] bg-slate-100">
+                            <div className="h-24 overflow-hidden rounded-[24px] bg-slate-100">
                               {court?.imageUrl ? (
                                 <img
                                   src={court.imageUrl}
-                                  alt={court.name}
+                                  alt={courtName}
                                   className="h-full w-full object-cover"
                                 />
                               ) : (
-                                <div className="flex h-full w-full items-center justify-center text-3xl">
-                                  🎾
+                                <div className="flex h-full w-full items-center justify-center text-sm text-slate-400">
+                                  Court
                                 </div>
                               )}
                             </div>
                             <div className="min-w-0">
-                              <h3 className="truncate text-xl font-black text-slate-950">
-                                {court?.name || "Court booking"}
-                              </h3>
-                              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-slate-600">
-                                <span className="inline-flex items-center">
-                                  <Calendar className="mr-2 h-4 w-4 text-slate-400" />
-                                  {formatBookingDateWithDay(booking.date)}
-                                </span>
-                                <span className="inline-flex items-center">
-                                  <Clock className="mr-2 h-4 w-4 text-slate-400" />
-                                  {booking.time}
-                                </span>
-                                {court?.location && (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h3 className="truncate text-lg font-black text-slate-950">
+                                  {courtName}
+                                </h3>
+                                {getStatusBadge(booking.status)}
+                              </div>
+                              <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-slate-600">
                                   <span className="inline-flex items-center">
-                                    <MapPin className="mr-2 h-4 w-4 text-slate-400" />
-                                    {court.location}
+                                    <Calendar className="mr-2 h-4 w-4 text-slate-400" />
+                                    {formatBookingDateWithDay(booking.date)}
                                   </span>
-                                )}
+                                  <span className="inline-flex items-center">
+                                    <Clock className="mr-2 h-4 w-4 text-slate-400" />
+                                    {booking.time} for {booking.duration}h
+                                  </span>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-fit rounded-lg border-slate-300 px-4"
+                                  onClick={() => router.push(`/booking/${booking.id}`)}
+                                >
+                                  <FileText className="mr-2 h-4 w-4" />
+                                  Details
+                                </Button>
                               </div>
                             </div>
-                            <div className="self-center rounded-full bg-slate-100 px-4 py-2 text-sm font-bold capitalize text-slate-700">
-                              {booking.status}
-                            </div>
-                          </button>
+                          </div>
                         );
                       })}
                     </div>
