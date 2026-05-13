@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { isActionablePendingBooking } from "@/lib/bookingDates";
+import { postBookingStatusConversationMessage } from "@/lib/conversations";
 import { sendPlayerBookingConfirmation } from "@/lib/email";
 import { transferPlatformHeldBookingToHost } from "@/lib/stripeHostPayouts";
 import { isMockApiMode } from "@/lib/mockApiMode";
@@ -143,16 +144,49 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    try {
-      const playerDoc = await db.collection("users").doc(bookingData.userId).get();
-      const ownerDoc = await db.collection("users").doc(ownerId).get();
-      const playerData = playerDoc.exists ? playerDoc.data() : null;
-      const ownerData = ownerDoc.exists ? ownerDoc.data() : null;
-      const price =
-        typeof bookingData.totalAmountCents === "number"
-          ? bookingData.totalAmountCents / 100
-          : (courtData.price || 0) * (bookingData.duration || 1);
+    const [playerDoc, ownerDoc] = await Promise.all([
+      db.collection("users").doc(bookingData.userId).get(),
+      db.collection("users").doc(ownerId).get(),
+    ]);
+    const playerData = playerDoc.exists ? playerDoc.data() : null;
+    const ownerData = ownerDoc.exists ? ownerDoc.data() : null;
+    const price =
+      typeof bookingData.totalAmountCents === "number"
+        ? bookingData.totalAmountCents / 100
+        : (courtData.price || 0) * (bookingData.duration || 1);
 
+    let conversationMessage:
+      | Awaited<ReturnType<typeof postBookingStatusConversationMessage>>
+      | undefined;
+
+    try {
+      conversationMessage = await postBookingStatusConversationMessage(db, {
+        bookingId,
+        conversationId: bookingData.conversationId,
+        courtId: bookingData.courtId,
+        courtName: courtData.name || "Court",
+        playerId: bookingData.userId,
+        playerName: playerData?.displayName || playerData?.name,
+        ownerId,
+        ownerName: ownerData?.displayName || ownerData?.name,
+        actorId: ownerId,
+        date: bookingData.date,
+        time: bookingData.time,
+        durationMinutes:
+          typeof bookingData.durationMinutes === "number"
+            ? bookingData.durationMinutes
+            : Math.round((bookingData.duration || 1) * 60),
+        courtNumber: bookingData.courtNumber || 1,
+        status: "accepted",
+      });
+    } catch (conversationError) {
+      console.warn(
+        "[ACCEPT-BOOKING] Failed to post conversation status message:",
+        conversationError
+      );
+    }
+
+    try {
       if (playerData?.email) {
         await sendPlayerBookingConfirmation({
           bookingId,
@@ -172,7 +206,11 @@ export async function POST(req: NextRequest) {
       console.warn("[ACCEPT-BOOKING] Failed to send confirmation email:", emailError);
     }
 
-    return NextResponse.json({ success: true, paymentStatus: "captured" });
+    return NextResponse.json({
+      success: true,
+      paymentStatus: "captured",
+      conversationMessage,
+    });
   } catch (err: any) {
     console.error("[ACCEPT-BOOKING] Error:", err);
     return NextResponse.json(

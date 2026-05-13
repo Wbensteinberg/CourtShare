@@ -606,24 +606,12 @@ function MessagesPageContent() {
     if (participantId) setProfileDialogOpen(true);
   };
 
-  const updateConversationStatus = async (
+  const updateConversationStatus = (
     conversation: Conversation,
     status: Conversation["status"],
     lastMessageText: string
   ) => {
     const now = new Date().toISOString();
-    if (!isMockMode) {
-      await updateDoc(doc(db, "conversations", conversation.id), {
-        status,
-        lastMessageText,
-        lastMessageAt: serverTimestamp(),
-        lastMessageSenderId: user?.uid || conversation.ownerId,
-        unreadBy: conversation.participantIds.filter(
-          (participantId) => participantId !== user?.uid
-        ),
-        updatedAt: serverTimestamp(),
-      });
-    }
 
     setConversations((current) =>
       current.map((item) =>
@@ -661,13 +649,23 @@ function MessagesPageContent() {
       const nextStatus = decision === "accepted" ? "confirmed" : "rejected";
       const conversationStatus =
         decision === "accepted" ? "confirmed" : "closed";
-      const lastMessageText =
+      let lastMessageText =
         decision === "accepted"
           ? "Booking request accepted."
           : "Booking request declined.";
+      let statusMessage: Message | null = null;
 
       if (isMockMode) {
         await updateMockBooking(selectedBooking.id, { status: nextStatus });
+        await createMockMessage(selectedConversation.id, user.uid, lastMessageText);
+        statusMessage = {
+          id: `local-${decision}-${Date.now()}`,
+          conversationId: selectedConversation.id,
+          senderId: user.uid,
+          body: lastMessageText,
+          createdAt: new Date().toISOString(),
+          type: "booking_status",
+        };
       } else {
         const idToken = await user.getIdToken();
         const res = await fetch(
@@ -690,13 +688,31 @@ function MessagesPageContent() {
                 : "Failed to decline booking")
           );
         }
+        if (data.conversationMessage?.body) {
+          lastMessageText = data.conversationMessage.body;
+          statusMessage = {
+            id:
+              data.conversationMessage.messageId ||
+              `local-${decision}-${Date.now()}`,
+            conversationId:
+              data.conversationMessage.conversationId ||
+              selectedConversation.id,
+            senderId: user.uid,
+            body: data.conversationMessage.body,
+            createdAt: new Date().toISOString(),
+            type: "booking_status",
+          };
+        }
       }
 
-      await updateConversationStatus(
+      updateConversationStatus(
         selectedConversation,
         conversationStatus,
         lastMessageText
       );
+      if (statusMessage) {
+        setMessages((current) => [...current, statusMessage as Message]);
+      }
       setSelectedBooking((current) =>
         current ? { ...current, status: nextStatus } : current
       );

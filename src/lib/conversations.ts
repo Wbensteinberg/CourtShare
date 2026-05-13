@@ -17,6 +17,99 @@ type BookingConversationInput = {
   initialMessage?: string;
 };
 
+type BookingPaymentReleaseStatus =
+  | "authorization_released"
+  | "refunded"
+  | "no_payment";
+
+type BookingStatusConversationInput = {
+  bookingId: string;
+  conversationId?: string;
+  courtId: string;
+  courtName?: string;
+  playerId: string;
+  playerName?: string;
+  ownerId: string;
+  ownerName?: string;
+  actorId: string;
+  date: string;
+  time: string;
+  durationMinutes?: number;
+  courtNumber?: number;
+  status: "accepted" | "declined" | "cancelled";
+  cancelledBy?: "player" | "host";
+  paymentStatus?: BookingPaymentReleaseStatus;
+};
+
+export const getConversationIdForBooking = (
+  bookingId: string,
+  conversationId?: string
+) => {
+  const normalizedConversationId =
+    typeof conversationId === "string" ? conversationId.trim() : "";
+  return normalizedConversationId || `booking_${bookingId}`;
+};
+
+const formatBookingConversationDate = (date: string) =>
+  new Intl.DateTimeFormat("en", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(`${date}T12:00:00`));
+
+export const getBookingPaymentStatusText = (
+  status?: BookingPaymentReleaseStatus
+) => {
+  if (status === "refunded") {
+    return "A refund has been issued to the original payment method.";
+  }
+
+  if (status === "authorization_released") {
+    return "The card authorization has been released. The player was not charged.";
+  }
+
+  if (status === "no_payment") {
+    return "No payment was collected for this booking.";
+  }
+
+  return "";
+};
+
+export const buildBookingStatusMessage = (
+  input: Pick<
+    BookingStatusConversationInput,
+    "courtName" | "date" | "time" | "status" | "cancelledBy" | "paymentStatus"
+  >
+) => {
+  const courtLabel = input.courtName || "this court";
+  const bookingTime = `on ${formatBookingConversationDate(input.date)} at ${input.time}`;
+
+  if (input.status === "accepted") {
+    return `Booking confirmed for ${courtLabel} ${bookingTime}. Payment is complete.`;
+  }
+
+  const paymentText = getBookingPaymentStatusText(input.paymentStatus);
+  const suffix = paymentText ? ` ${paymentText}` : "";
+
+  if (input.status === "declined") {
+    return `Booking request declined for ${courtLabel} ${bookingTime}.${suffix}`;
+  }
+
+  const actorText =
+    input.cancelledBy === "host"
+      ? "by the host"
+      : input.cancelledBy === "player"
+        ? "by the player"
+        : "";
+
+  return `Booking cancelled${actorText ? ` ${actorText}` : ""} for ${courtLabel} ${bookingTime}.${suffix}`;
+};
+
+export const getBookingConversationStatus = (
+  status: BookingStatusConversationInput["status"]
+) => (status === "accepted" ? "confirmed" : "closed");
+
 const buildBookingRequestMessage = ({
   courtName,
   date,
@@ -25,12 +118,7 @@ const buildBookingRequestMessage = ({
   courtNumber,
   guestCount,
 }: BookingConversationInput) => {
-  const formattedDate = new Intl.DateTimeFormat("en", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date(`${date}T12:00:00`));
+  const formattedDate = formatBookingConversationDate(date);
   const durationHours = durationMinutes / 60;
   const durationLabel = Number.isInteger(durationHours)
     ? String(durationHours)
@@ -126,4 +214,84 @@ export async function createBookingRequestConversation(
   });
 
   return conversationId;
+}
+
+export async function postBookingStatusConversationMessage(
+  db: Firestore,
+  input: BookingStatusConversationInput
+) {
+  const conversationId = getConversationIdForBooking(
+    input.bookingId,
+    input.conversationId
+  );
+  const conversationRef = db.collection("conversations").doc(conversationId);
+  const bookingRef = db.collection("bookings").doc(input.bookingId);
+  const messageRef = conversationRef
+    .collection("messages")
+    .doc(`booking_${input.status}`);
+  const now = FieldValue.serverTimestamp();
+  const body = buildBookingStatusMessage(input);
+  const participantIds = [input.playerId, input.ownerId].filter(
+    (id): id is string => Boolean(id)
+  );
+  const unreadBy = participantIds.filter((id) => id !== input.actorId);
+
+  await db.runTransaction(async (transaction) => {
+    const conversationSnapshot = await transaction.get(conversationRef);
+
+    transaction.set(
+      conversationRef,
+      {
+        participantIds,
+        playerId: input.playerId,
+        playerName: input.playerName || null,
+        ownerId: input.ownerId,
+        ownerName: input.ownerName || null,
+        courtId: input.courtId,
+        courtName: input.courtName || null,
+        bookingId: input.bookingId,
+        bookingDate: input.date,
+        bookingTime: input.time,
+        ...(typeof input.durationMinutes === "number"
+          ? { bookingDurationMinutes: input.durationMinutes }
+          : {}),
+        ...(typeof input.courtNumber === "number"
+          ? { bookingCourtNumber: input.courtNumber }
+          : {}),
+        status: getBookingConversationStatus(input.status),
+        lastMessageText: body,
+        lastMessageAt: now,
+        lastMessageSenderId: input.actorId,
+        unreadBy,
+        updatedAt: now,
+        createdAt: conversationSnapshot.exists
+          ? conversationSnapshot.get("createdAt") || now
+          : now,
+      },
+      { merge: true }
+    );
+
+    transaction.set(
+      messageRef,
+      {
+        senderId: input.actorId,
+        body,
+        createdAt: now,
+        type: "booking_status",
+        bookingId: input.bookingId,
+        courtId: input.courtId,
+        status: input.status,
+        ...(input.cancelledBy ? { cancelledBy: input.cancelledBy } : {}),
+        ...(input.paymentStatus ? { paymentStatus: input.paymentStatus } : {}),
+      },
+      { merge: false }
+    );
+
+    transaction.update(bookingRef, {
+      conversationId,
+      updatedAt: now,
+    });
+  });
+
+  return { conversationId, messageId: messageRef.id, body };
 }

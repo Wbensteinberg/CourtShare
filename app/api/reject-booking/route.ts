@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { adminDb, adminAuth } from "@/lib/firebase-admin";
+import { postBookingStatusConversationMessage } from "@/lib/conversations";
 import { sendPlayerRejectionNotification } from "@/lib/email";
 import { releaseBookingPayment } from "@/lib/stripeBookingPayments";
 import { isMockApiMode } from "@/lib/mockApiMode";
@@ -99,18 +100,51 @@ export async function POST(req: NextRequest) {
       ...(releasedPayment.refundId ? { refundId: releasedPayment.refundId } : {}),
     });
 
+    const [playerDoc, ownerDoc] = await Promise.all([
+      adminDb.collection("users").doc(bookingData.userId).get(),
+      adminDb.collection("users").doc(userId).get(),
+    ]);
+    const playerData = playerDoc.exists ? playerDoc.data() : null;
+    const ownerData = ownerDoc.exists ? ownerDoc.data() : null;
+    const price =
+      typeof bookingData.totalAmountCents === "number"
+        ? bookingData.totalAmountCents / 100
+        : (courtData?.price || 0) * (bookingData.duration || 1);
+
+    let conversationMessage:
+      | Awaited<ReturnType<typeof postBookingStatusConversationMessage>>
+      | undefined;
+
+    try {
+      conversationMessage = await postBookingStatusConversationMessage(adminDb, {
+        bookingId,
+        conversationId: bookingData.conversationId,
+        courtId: bookingData.courtId,
+        courtName: courtData?.name || "Court",
+        playerId: bookingData.userId,
+        playerName: playerData?.displayName || playerData?.name,
+        ownerId: userId,
+        ownerName: ownerData?.displayName || ownerData?.name,
+        actorId: userId,
+        date: bookingData.date,
+        time: bookingData.time,
+        durationMinutes:
+          typeof bookingData.durationMinutes === "number"
+            ? bookingData.durationMinutes
+            : Math.round((bookingData.duration || 1) * 60),
+        courtNumber: bookingData.courtNumber || 1,
+        status: "declined",
+        paymentStatus: releasedPayment.paymentStatus,
+      });
+    } catch (conversationErr: any) {
+      console.warn(
+        "[REJECT-BOOKING] Failed to post conversation status message:",
+        conversationErr.message || conversationErr
+      );
+    }
+
     // Send email to player (non-blocking)
     try {
-      const playerDoc = await adminDb
-        .collection("users")
-        .doc(bookingData.userId)
-        .get();
-      const playerData = playerDoc.exists ? playerDoc.data() : null;
-      const price =
-        typeof bookingData.totalAmountCents === "number"
-          ? bookingData.totalAmountCents / 100
-          : (courtData?.price || 0) * (bookingData.duration || 1);
-
       if (playerData?.email) {
         await sendPlayerRejectionNotification({
           courtName: courtData?.name || "Court",
@@ -127,7 +161,7 @@ export async function POST(req: NextRequest) {
       console.warn("[REJECT-BOOKING] Failed to send player email:", emailErr.message);
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, conversationMessage });
   } catch (err: any) {
     console.error("[REJECT-BOOKING] Error:", err);
     return NextResponse.json(

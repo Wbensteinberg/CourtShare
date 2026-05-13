@@ -28,6 +28,7 @@ import {
   parseBookingDateTime,
   isBookingReviewable,
 } from "@/lib/bookingDates";
+import { formatBookingCancelReason } from "@/lib/bookingCancelReasons";
 import {
   createMockReview,
   getMockBookingById,
@@ -907,7 +908,9 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
                   <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
                     Cancel reason
                   </p>
-                  <p className="mt-1 text-sm font-medium text-slate-900">{booking.cancelReason}</p>
+                  <p className="mt-1 text-sm font-medium text-slate-900">
+                    {formatBookingCancelReason(booking.cancelReason)}
+                  </p>
                 </div>
               )}
 
