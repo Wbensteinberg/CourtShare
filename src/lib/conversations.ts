@@ -13,6 +13,8 @@ type BookingConversationInput = {
   time: string;
   durationMinutes: number;
   courtNumber?: number;
+  guestCount?: number;
+  initialMessage?: string;
 };
 
 const buildBookingRequestMessage = ({
@@ -21,6 +23,7 @@ const buildBookingRequestMessage = ({
   time,
   durationMinutes,
   courtNumber,
+  guestCount,
 }: BookingConversationInput) => {
   const formattedDate = new Intl.DateTimeFormat("en", {
     weekday: "long",
@@ -36,9 +39,11 @@ const buildBookingRequestMessage = ({
   const courtNumberText =
     courtNumber && courtNumber > 1 ? `, Court ${courtNumber}` : "";
 
+  const guestText = guestCount && guestCount > 1 ? ` for ${guestCount} guests` : "";
+
   return `New booking request for ${courtLabel}${courtNumberText} on ${formattedDate} at ${time} for ${durationLabel} hour${
     durationHours === 1 ? "" : "s"
-  }.`;
+  }${guestText}.`;
 };
 
 export async function createBookingRequestConversation(
@@ -53,6 +58,7 @@ export async function createBookingRequestConversation(
   const bookingRef = db.collection("bookings").doc(input.bookingId);
   const now = FieldValue.serverTimestamp();
   const lastMessageText = buildBookingRequestMessage(input);
+  const initialMessage = input.initialMessage?.trim().slice(0, 1000) || "";
 
   await db.runTransaction(async (transaction) => {
     const conversationSnapshot = await transaction.get(conversationRef);
@@ -73,7 +79,7 @@ export async function createBookingRequestConversation(
         bookingDurationMinutes: input.durationMinutes,
         bookingCourtNumber: input.courtNumber || 1,
         status: "booking_pending",
-        lastMessageText,
+	        lastMessageText: initialMessage || lastMessageText,
         lastMessageAt: now,
         lastMessageSenderId: input.playerId,
         unreadBy: [input.ownerId],
@@ -85,8 +91,8 @@ export async function createBookingRequestConversation(
       { merge: true }
     );
 
-    transaction.set(
-      messageRef,
+	    transaction.set(
+	      messageRef,
       {
         senderId: input.playerId,
         body: lastMessageText,
@@ -96,7 +102,22 @@ export async function createBookingRequestConversation(
         courtId: input.courtId,
       },
       { merge: false }
-    );
+	    );
+
+	    if (initialMessage) {
+	      transaction.set(
+	        conversationRef.collection("messages").doc("initial_message"),
+	        {
+	          senderId: input.playerId,
+	          body: initialMessage,
+	          createdAt: now,
+	          type: "text",
+	          bookingId: input.bookingId,
+	          courtId: input.courtId,
+	        },
+	        { merge: false }
+	      );
+	    }
 
     transaction.update(bookingRef, {
       conversationId,

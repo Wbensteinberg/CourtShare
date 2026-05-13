@@ -34,6 +34,8 @@ type PendingCheckout = {
   time: string;
   durationMinutes: number;
   courtNumber: number;
+  guestCount: number;
+  initialMessage: string;
 };
 
 type ServerState = {
@@ -90,16 +92,23 @@ const getPublicProfilePayload = (userId: string, data: MockApiData) => {
   };
 };
 
-const serializeReviewPublic = (r: MockApiReviewRow) => ({
-  id: r.id,
-  bookingId: r.bookingId,
-  courtId: r.courtId,
-  reviewerRole: r.reviewerRole,
-  targetType: r.targetType,
-  rating: r.rating,
-  comment: r.comment || "",
-  createdAt: r.createdAt,
-});
+const serializeReviewPublic = (r: MockApiReviewRow, data: MockApiData) => {
+  const reviewer = data.users[r.reviewerId || r.playerId];
+  return {
+    id: r.id,
+    bookingId: r.bookingId,
+    courtId: r.courtId,
+    reviewerId: r.reviewerId,
+    playerId: r.playerId,
+    reviewerRole: r.reviewerRole,
+    targetType: r.targetType,
+    rating: r.rating,
+    comment: r.comment || "",
+    createdAt: r.createdAt,
+    reviewerName: reviewer?.displayName?.trim() || "CourtShare player",
+    reviewerProfileImageUrl: reviewer?.profileImageUrl || "",
+  };
+};
 
 const getUpdatedAverage = (
   currentRating: unknown,
@@ -179,7 +188,7 @@ export async function mockReviewsGET(req: NextRequest): Promise<NextResponse> {
       ? list.filter((r) => r.targetType === "court_owner")
       : list;
     const reviews = filtered
-      .map(serializeReviewPublic)
+      .map((review) => serializeReviewPublic(review, data))
       .sort(
         (a, b) =>
           new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
@@ -358,6 +367,8 @@ export async function mockCreateCheckoutSessionPOST(req: NextRequest): Promise<N
     time?: string;
     durationMinutes?: number;
     courtNumber?: number;
+    guestCount?: number;
+    initialMessage?: string;
   };
   try {
     body = await req.json();
@@ -365,7 +376,7 @@ export async function mockCreateCheckoutSessionPOST(req: NextRequest): Promise<N
     return mockJson({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { courtId, date, time, durationMinutes, courtNumber } = body;
+  const { courtId, date, time, durationMinutes, courtNumber, guestCount, initialMessage } = body;
   if (!courtId || !date || !time || durationMinutes == null) {
     return mockJson({ error: "Missing required fields" }, { status: 400 });
   }
@@ -397,6 +408,23 @@ export async function mockCreateCheckoutSessionPOST(req: NextRequest): Promise<N
   if (!court) {
     return mockJson({ error: "Court not found" }, { status: 404 });
   }
+
+  const guestCountNum = guestCount == null ? 1 : Number(guestCount);
+  if (!Number.isInteger(guestCountNum) || guestCountNum < 1) {
+    return mockJson({ error: "Guest count must be at least 1" }, { status: 400 });
+  }
+  if (
+    typeof court.maxGuests === "number" &&
+    court.maxGuests > 0 &&
+    guestCountNum > court.maxGuests
+  ) {
+    return mockJson(
+      { error: `This court allows up to ${court.maxGuests} guests` },
+      { status: 400 }
+    );
+  }
+  const normalizedInitialMessage =
+    typeof initialMessage === "string" ? initialMessage.trim().slice(0, 1000) : "";
 
   const maxAdvanceDays = court.maxAdvanceBookingDays;
   if (maxAdvanceDays != null && typeof maxAdvanceDays === "number") {
@@ -504,6 +532,8 @@ export async function mockCreateCheckoutSessionPOST(req: NextRequest): Promise<N
     time,
     durationMinutes: durationMinutesNum,
     courtNumber: courtNumberNum,
+    guestCount: guestCountNum,
+    initialMessage: normalizedInitialMessage,
   });
 
   const url = `${requestOrigin(req)}/success?session_id=${encodeURIComponent(sessionId)}`;
@@ -572,6 +602,8 @@ export async function mockFinalizeCheckoutSessionPOST(req: NextRequest): Promise
     durationMinutes: pending.durationMinutes,
     status: "pending",
     courtNumber: pending.courtNumber,
+    guestCount: pending.guestCount,
+    initialMessage: pending.initialMessage,
     createdAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
     sessionId,

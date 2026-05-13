@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { db, auth, isMockMode } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -13,11 +13,28 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { useAuth } from "@/lib/AuthContext";
-import { ArrowLeft, Clock, Calendar, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  Calendar,
+  Car,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Droplets,
+  Lightbulb,
+  MapPin,
+  Shield,
+  Shirt,
+  Star,
+  Volume1,
+  Volume2,
+  VolumeX,
+  Wifi,
+  X,
+  Building2,
+  Circle,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -25,13 +42,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { calculateBookingPriceBreakdown, formatCents } from "@/lib/pricing";
 import { WaiverAcknowledgmentDialog } from "@/components/WaiverAcknowledgmentDialog";
 import LoadingScreen from "@/components/LoadingScreen";
 import CourtBookingDetailUnified from "@/components/CourtBookingDetailUnified";
-import CourtListingGalleryCard from "@/components/CourtListingGalleryCard";
+// CourtListingHostCard kept per design spec — host dialog is rendered inline using its visual language
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import CourtListingHostCard from "@/components/CourtListingHostCard";
 import ReviewsListDialog from "@/components/ReviewsListDialog";
+import AppHeader from "@/components/AppHeader";
 import {
   PLAYER_BOOKING_WAIVER_INTRO,
   PLAYER_BOOKING_WAIVER_BODY,
@@ -50,7 +78,9 @@ import {
   getMockReviewsForCourt,
   getMockReviewsForTarget,
 } from "@/lib/mockData";
+import { cn } from "@/lib/utils";
 
+// ─── Court interface ────────────────────────────────────────────────────────
 interface Court {
   name: string;
   location: string;
@@ -74,6 +104,18 @@ interface Court {
   rating?: number;
   reviewCount?: number;
   ownerId?: string;
+  // Extended fields
+  latitude?: number;
+  longitude?: number;
+  maxGuests?: number | null;
+  speakersPolicy?: "allowed" | "not_allowed" | "quiet_hours_only" | null;
+  quietHoursStart?: string | null;
+  quietHoursEnd?: string | null;
+  houseRules?: string[];
+  additionalRules?: string;
+  spaceGreatFor?: string[];
+  checkInType?: "self" | "host";
+  parkingSpaces?: number | null;
 }
 
 type PublicProfile = {
@@ -96,8 +138,124 @@ type PublicReview = {
   comment?: string;
   createdAt?: string | null;
   targetType?: string;
+  reviewerId?: string;
+  playerId?: string;
+  reviewerName?: string;
+  reviewerProfileImageUrl?: string;
 };
 
+// ─── Amenity helpers ─────────────────────────────────────────────────────────
+const AMENITY_LABELS: Record<string, string> = {
+  on_site_parking: "On-site parking",
+  free_street_parking: "Free street parking",
+  wifi: "WiFi",
+  restrooms: "Restrooms",
+  balls_provided: "Balls provided",
+  night_lights: "Night lights",
+  water_provided: "Water",
+  towels_provided: "Towels provided",
+};
+
+function AmenityIcon({ slug, className }: { slug: string; className?: string }) {
+  const cls = cn("h-5 w-5 shrink-0", className);
+  switch (slug) {
+    case "on_site_parking":
+    case "free_street_parking":
+      return <Car className={cls} />;
+    case "wifi":
+      return <Wifi className={cls} />;
+    case "restrooms":
+      return <Building2 className={cls} />;
+    case "balls_provided":
+      return <Circle className={cls} />;
+    case "night_lights":
+      return <Lightbulb className={cls} />;
+    case "water_provided":
+      return <Droplets className={cls} />;
+    case "towels_provided":
+      return <Shirt className={cls} />;
+    default:
+      return <Shield className={cls} />;
+  }
+}
+
+// ─── House rules helpers ──────────────────────────────────────────────────────
+const HOUSE_RULE_LABELS: Record<string, string> = {
+  no_smoking: "No smoking",
+  no_alcohol: "No alcohol",
+  no_outside_food: "No outside food or drinks",
+  court_shoes_required: "Court shoes required",
+  no_pets: "No pets",
+  guests_must_sign_in: "Guests must sign in",
+};
+
+// ─── Speakers policy display ─────────────────────────────────────────────────
+function formatHour(raw: string | null | undefined): string {
+  if (!raw) return "";
+  // Accepts "HH:00" or "H:00" → "H:00 AM/PM"
+  const [hStr] = raw.split(":");
+  const h = parseInt(hStr, 10);
+  if (Number.isNaN(h)) return raw;
+  const ampm = h < 12 ? "AM" : "PM";
+  const display = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${display}:00 ${ampm}`;
+}
+
+function SpeakersRow({ policy, start, end }: {
+  policy: Court["speakersPolicy"];
+  start?: string | null;
+  end?: string | null;
+}) {
+  if (!policy) return null;
+  let icon: React.ReactNode;
+  let label: string;
+  if (policy === "allowed") {
+    icon = <Volume2 className="h-5 w-5 text-emerald-600" />;
+    label = "Speakers allowed";
+  } else if (policy === "not_allowed") {
+    icon = <VolumeX className="h-5 w-5 text-slate-500" />;
+    label = "No speakers";
+  } else {
+    icon = <Volume1 className="h-5 w-5 text-amber-500" />;
+    label = `Quiet hours: ${formatHour(start)} – ${formatHour(end)}`;
+  }
+  return (
+    <div className="flex items-center gap-3 text-sm text-slate-700">
+      {icon}
+      <span>{label}</span>
+    </div>
+  );
+}
+
+// ─── Member Since formatter ──────────────────────────────────────────────────
+function formatMemberSince(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `Member since ${d.toLocaleDateString("en-US", { month: "long", year: "numeric" })}`;
+}
+
+// ─── Review date formatter ────────────────────────────────────────────────────
+function formatReviewDate(value?: string | null): string {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
+// ─── Divider ──────────────────────────────────────────────────────────────────
+function Divider() {
+  return <hr className="border-slate-200" />;
+}
+
+// ─── Section Header ───────────────────────────────────────────────────────────
+function SectionHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="text-xl font-black text-slate-950">{children}</h2>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 function CourtDetailPage() {
   const params = useParams();
   const rawId = params?.id;
@@ -113,10 +271,24 @@ function CourtDetailPage() {
   const router = useRouter();
   const { user, loading: authLoading, isOwner } = useAuth();
 
+  // Image gallery state
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [showImageModal, setShowImageModal] = useState(false);
+
+  // State to control the inline host profile dialog
+  const [hostProfileDialogOpen, setHostProfileDialogOpen] = useState(false);
+
+  // Ref for scrolling to reviews section
+  const reviewsRef = useRef<HTMLElement>(null);
+  const scrollToReviews = () =>
+    reviewsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+
   // Booking state
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [duration, setDuration] = useState<string>("1");
+  const [guestCount, setGuestCount] = useState<string>("1");
+  const [initialMessage, setInitialMessage] = useState<string>("");
   const [bookingStatus, setBookingStatus] = useState<
     "idle" | "loading" | "success" | "error" | "conflict"
   >("idle");
@@ -244,58 +416,56 @@ function CourtDetailPage() {
     return `${hours24.toString().padStart(2, "0")}:${(minutes || 0).toString().padStart(2, "0")}`;
   };
 
-  // Filter available time slots
-  const availableTimeSlots = timeSlots.filter((time) => {
-    // Check if time is in blocked times (for court's blocked times)
+  const isStartTimeInPast = (time: string) => {
+    if (!selectedDate) return false;
+    const today = new Date();
+    const selectedDateOnly = new Date(selectedDate.toDateString());
+    const todayOnly = new Date(today.toDateString());
+    if (selectedDateOnly.getTime() !== todayOnly.getTime()) return false;
     const time24 = convertTo24Hour(time);
-    if (blockedTimes.has(time24)) return false;
+    const timeHour = parseInt(time24.split(":")[0], 10);
+    return timeHour <= today.getHours();
+  };
 
-    // Check if a booking starting at this time with selected duration would overlap
-    // with any blocked time (e.g. 1pm + 3h spans 1pm-4pm; if 3pm is blocked, disallow)
-    if (selectedDate && duration) {
-      const bookingDuration = parseFloat(duration);
-      const startHour = parseInt(time24.split(":")[0], 10);
-      for (let i = 0; i < bookingDuration; i++) {
-        const hour = startHour + i;
-        const hourStr = hour.toString().padStart(2, "0") + ":00";
-        if (blockedTimes.has(hourStr)) return false;
-      }
+  const isDurationAvailable = (startTime: string, durationHours: number) => {
+    if (!selectedDate || !court) return true;
+    const time24 = convertTo24Hour(startTime);
+    const startHour = parseInt(time24.split(":")[0], 10);
+    for (let i = 0; i < durationHours; i++) {
+      const hour = startHour + i;
+      const hourStr = hour.toString().padStart(2, "0") + ":00";
+      if (blockedTimes.has(hourStr)) return false;
     }
+    const relevantBookings = bookingsForDate.filter((b) => {
+      if ((court?.numberOfCourts || 1) <= 1) return true;
+      return (b.courtNumber || 1) === selectedCourtNumber;
+    });
+    return !relevantBookings.some((b) => {
+      const existingDurationMinutes = b.durationMinutes || (Number(b.duration) || 1) * 60;
+      const existingDuration = Math.ceil(existingDurationMinutes / 60);
+      return timeRangesOverlap(startTime, durationHours, b.time, existingDuration);
+    });
+  };
 
-    // Check if a booking starting at this time with selected duration would conflict
-    // with any existing bookings (filtered by courtNumber for multi-court)
-    if (selectedDate && duration) {
-      const bookingDuration = parseFloat(duration);
-      const relevantBookings = bookingsForDate.filter((b) => {
-        if ((court?.numberOfCourts || 1) <= 1) return true;
-        return (b.courtNumber || 1) === selectedCourtNumber;
-      });
-      const wouldConflict = relevantBookings.some((b) => {
-        const existingDuration = Number(b.duration) || 1;
-        return timeRangesOverlap(
-          time,
-          bookingDuration,
-          b.time,
-          existingDuration
-        );
-      });
-      if (wouldConflict) return false;
-    }
+  const getStartTimeUnavailableReason = (time: string) => {
+    if (!selectedDate) return "Select a date first";
+    if (isStartTimeInPast(time)) return "Past time";
+    return isDurationAvailable(time, 1) ? "" : "Unavailable";
+  };
 
-    // Check if time is in the past for today
-    if (selectedDate) {
-      const today = new Date();
-      const selectedDateOnly = new Date(selectedDate.toDateString());
-      const todayOnly = new Date(today.toDateString());
+  const startTimeOptions = timeSlots.map((time) => ({
+    time,
+    unavailableReason: getStartTimeUnavailableReason(time),
+  }));
 
-      if (selectedDateOnly.getTime() === todayOnly.getTime()) {
-        const nowHour = today.getHours();
-        const timeHour = parseInt(time24.split(":")[0], 10);
-        return timeHour > nowHour;
-      }
-    }
-
-    return true;
+  const durationOptions = durations.map((dur) => {
+    const durationHours = parseFloat(dur);
+    const available =
+      !!selectedDate &&
+      !!selectedTime &&
+      !getStartTimeUnavailableReason(selectedTime) &&
+      isDurationAvailable(selectedTime, durationHours);
+    return { value: dur, available };
   });
 
   // Clear selectedTime when it becomes invalid (e.g. duration change causes overlap with blocked times)
@@ -316,11 +486,10 @@ function CourtDetailPage() {
         return;
       }
     }
-    const wouldConflict = bookingsForDate.some((b) => {
-      const existingDuration = Number(b.duration) || 1;
-      return timeRangesOverlap(selectedTime, bookingDuration, b.time, existingDuration);
-    });
-    if (wouldConflict) setSelectedTime("");
+    if (!isDurationAvailable(selectedTime, bookingDuration)) {
+      setDuration("1");
+      if (!isDurationAvailable(selectedTime, 1)) setSelectedTime("");
+    }
   }, [selectedTime, duration, selectedDate, court, bookingsForDate]);
 
   useEffect(() => {
@@ -379,7 +548,16 @@ function CourtDetailPage() {
                 } as PublicProfile)
               : null
           );
-          setCourtReviews(getMockReviewsForCourt(id));
+          setCourtReviews(
+            getMockReviewsForCourt(id).map((review) => {
+              const reviewer = getMockProfile(review.reviewerId || review.playerId);
+              return {
+                ...review,
+                reviewerName: reviewer?.displayName || "CourtShare player",
+                reviewerProfileImageUrl: reviewer?.profileImageUrl || "",
+              };
+            })
+          );
           const mockHostReviews =
             court.ownerId
               ? getMockReviewsForTarget(court.ownerId).filter(
@@ -511,33 +689,20 @@ function CourtDetailPage() {
     }
 
     const bookingDuration = parseFloat(duration);
-    const hasConflict = bookingsForDate.some((b) => {
-      const existingDuration = Number(b.duration) || 1;
-      return timeRangesOverlap(
-        selectedTime,
-        bookingDuration,
-        b.time,
-        existingDuration
-      );
-    });
-
-    if (hasConflict) {
+    if (!isDurationAvailable(selectedTime, bookingDuration)) {
       setBookingStatus("conflict");
+      alert("This booking would overlap with an unavailable slot. Please choose a different time or duration.");
       return;
     }
 
-    const time24 = convertTo24Hour(selectedTime);
-    const startHour = parseInt(time24.split(":")[0], 10);
-    for (let i = 0; i < bookingDuration; i++) {
-      const hour = startHour + i;
-      const hourStr = hour.toString().padStart(2, "0") + ":00";
-      if (blockedTimes.has(hourStr)) {
-        setBookingStatus("conflict");
-        alert(
-          "This booking would overlap with blocked time slots. Please choose a different time or duration."
-        );
-        return;
-      }
+    const normalizedGuestCount = Number(guestCount);
+    if (!Number.isInteger(normalizedGuestCount) || normalizedGuestCount < 1) {
+      alert("Please enter at least 1 guest.");
+      return;
+    }
+    if (court?.maxGuests && normalizedGuestCount > court.maxGuests) {
+      alert(`This court allows up to ${court.maxGuests} guests.`);
+      return;
     }
 
     setPlayerWaiverOpen(true);
@@ -604,6 +769,8 @@ function CourtDetailPage() {
           duration: Math.round(parseFloat(duration)),
           status: "pending",
           courtNumber: selectedCourtNumber,
+          guestCount: Number(guestCount) || 1,
+          initialMessage: initialMessage.trim().slice(0, 1000),
         });
 
         setBookingStatus("success");
@@ -633,6 +800,8 @@ function CourtDetailPage() {
           time: selectedTime,
           durationMinutes: durationMinutes,
           courtNumber: selectedCourtNumber,
+          guestCount: Number(guestCount) || 1,
+          initialMessage: initialMessage.trim().slice(0, 500),
         }),
       });
 
@@ -672,8 +841,25 @@ function CourtDetailPage() {
     ? calculateBookingPriceBreakdown(court.price || 0, durationMinutesForPrice)
     : null;
   const isOwnCourt = !!user && court?.ownerId === user.uid;
-  const latestCourtReview = courtReviews[0];
 
+  // ─── Derived display values ──────────────────────────────────────────────
+  const courtImages = (court?.imageUrls?.length ? court.imageUrls : [court?.imageUrl]).filter(
+    Boolean
+  ) as string[];
+
+  const displayRating =
+    court?.rating != null ? court.rating.toFixed(1) : null;
+  const reviewCount = court?.reviewCount ?? courtReviews.length;
+  const checkInLabel =
+    court?.checkInType === "self"
+      ? "Self check-in"
+      : court?.checkInType === "host"
+        ? "Check-in with host"
+        : "";
+
+  const top3Reviews = courtReviews.slice(0, 3);
+
+  // ─── Loading / error states ───────────────────────────────────────────────
   if (loading) {
     return (
       <LoadingScreen
@@ -685,7 +871,7 @@ function CourtDetailPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-500 font-medium">{error}</p>
         </div>
@@ -695,7 +881,7 @@ function CourtDetailPage() {
 
   if (!court) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/30 to-teal-50/30 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-500 font-medium">Court not found</p>
         </div>
@@ -704,226 +890,751 @@ function CourtDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/20">
-      {/* Header - Modernized */}
-      <div className="glass border-b border-gray-200/50 backdrop-blur-xl">
-        <div className="container py-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mb-4 font-semibold group"
-            onClick={() => router.push("/")}
-          >
-            <ArrowLeft className="w-5 h-5 mr-2 group-hover:-translate-x-1 transition-transform" />
-            Back to Browse
-          </Button>
+    <div className="min-h-screen bg-slate-50">
+      {/* ── Global app header ── */}
+      <AppHeader />
+
+      {/* ── Title / location / rating — above gallery ── */}
+      <div className="max-w-7xl mx-auto px-4 pt-6 pb-4">
+        <button
+          type="button"
+          onClick={() => router.push("/")}
+          className="flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors mb-4 group"
+        >
+          <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
+          Back to Browse
+        </button>
+
+        <h1 className="text-3xl font-black text-slate-950 leading-tight">
+          {court.name}
+        </h1>
+
+        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+          <div className="flex items-center gap-1.5 text-slate-600">
+            <MapPin className="h-4 w-4 shrink-0 text-[var(--site-accent)]" />
+            <span>{court.location}</span>
+          </div>
+          {(displayRating || reviewCount > 0) && (
+            <div className="flex items-center gap-1.5">
+              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+              {displayRating && (
+                <span className="font-semibold text-slate-900">{displayRating}</span>
+              )}
+              {reviewCount > 0 && (
+                <button
+                  type="button"
+                  onClick={scrollToReviews}
+                  className="text-slate-500 underline-offset-2 hover:underline hover:text-slate-800 transition-colors"
+                >
+                  ({reviewCount} {reviewCount === 1 ? "review" : "reviews"})
+                </button>
+              )}
+            </div>
+          )}
+          {/* Key fact pills */}
+          {court.indoor != null && (
+            <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-0.5 text-xs font-medium text-slate-700">
+              {court.indoor ? "Indoor" : "Outdoor"}
+            </span>
+          )}
+          {court.surface && (
+            <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-0.5 text-xs font-medium text-slate-700">
+              {court.surface}
+            </span>
+          )}
+          {(court.numberOfCourts ?? 1) > 1 && (
+            <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-0.5 text-xs font-medium text-slate-700">
+              {court.numberOfCourts} courts
+            </span>
+          )}
+          {court.maxGuests != null && (
+            <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-0.5 text-xs font-medium text-slate-700">
+              Up to {court.maxGuests} guests
+            </span>
+          )}
         </div>
       </div>
 
-      <div className="container py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
-          <div className="space-y-6">
-            <CourtListingGalleryCard
-              listingKey={id || ""}
-              court={court}
-              latestCourtReview={latestCourtReview}
-              onOpenCourtReviews={() => setCourtReviewsDialogOpen(true)}
-              hourlyPriceDollars={court.price}
-            />
-            <CourtListingHostCard
-              hostProfile={hostProfile}
-              hostReviews={hostReviews}
-              ownerId={court.ownerId}
-            />
+      {/* ── Image Gallery ── */}
+	      <div className="w-full bg-slate-50">
+        {/* Desktop gallery: selected main photo + thumbnail rail */}
+        <div className="hidden lg:block relative">
+          <div className="max-w-7xl mx-auto px-4 pt-4">
+	            <div className="grid h-[520px] grid-cols-[minmax(0,1fr)_180px] gap-3 rounded-[32px] border border-slate-200 bg-white p-3 shadow-sm">
+              <div
+                className="group relative cursor-pointer overflow-hidden rounded-[26px] bg-slate-800"
+                onClick={() => {
+                  setShowImageModal(true);
+                }}
+              >
+                {courtImages[currentImageIndex] && (
+                  <img
+                    src={courtImages[currentImageIndex]}
+                    alt={court.name}
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+                  />
+                )}
+
+                {courtImages.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setShowImageModal(true);
+                    }}
+                    className="absolute bottom-4 right-4 flex items-center gap-1.5 rounded-2xl bg-white/95 px-4 py-2 text-sm font-bold text-slate-900 shadow-lg backdrop-blur transition hover:bg-white"
+                  >
+                    <span className="text-base">⊞</span>
+                    View all {courtImages.length}
+                  </button>
+                )}
+              </div>
+
+              <div className="flex min-h-0 flex-col gap-3 overflow-y-auto pr-1">
+                {courtImages.map((img, index) => (
+                  <button
+                    key={`${img}-${index}`}
+                    type="button"
+                    onClick={() => setCurrentImageIndex(index)}
+                    className={cn(
+	                      "relative h-24 shrink-0 overflow-hidden rounded-2xl border-2 bg-slate-100 transition",
+	                      index === currentImageIndex
+	                        ? "border-slate-950 shadow-[0_0_0_3px_rgba(15,23,42,0.08)]"
+	                        : "border-slate-200 opacity-75 hover:border-slate-400 hover:opacity-100"
+                    )}
+                    aria-label={`Show photo ${index + 1}`}
+                  >
+                    <img
+                      src={img}
+                      alt={`${court.name} photo ${index + 1}`}
+                      className="h-full w-full object-cover"
+                    />
+	                  </button>
+                ))}
+              </div>
+            </div>
           </div>
+        </div>
 
-          {/* Booking Form */}
-          <div className="space-y-4 lg:sticky lg:top-8">
-              <Card className="shadow-elegant border-0 rounded-3xl">
-                <CardHeader className="bg-gradient-to-br from-emerald-500 via-emerald-600 to-teal-600 text-white border-0 rounded-t-3xl">
-                  <CardTitle className="text-2xl font-black tracking-tight">
-                    Book This Court
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6 pt-8 space-y-6">
-                  {/* Court Number Selection (only for multi-court listings) */}
-                  {court.numberOfCourts && court.numberOfCourts > 1 && (
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium flex items-center gap-2">
-                        <Users className="w-4 h-4" />
-                        Court Number
-                      </Label>
-                      <Select
-                        value={String(selectedCourtNumber)}
-                        onValueChange={(v) => {
-                          setSelectedCourtNumber(Number(v));
-                          setSelectedTime("");
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-lg">
-                          {Array.from({ length: court.numberOfCourts }, (_, i) => i + 1).map((n) => (
-                            <SelectItem key={n} value={String(n)} className="hover:bg-green-50 cursor-pointer">
-                              Court {n}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+        {/* Mobile gallery: carousel */}
+        <div className="lg:hidden relative h-64 sm:h-80 overflow-hidden">
+          {courtImages.length > 0 && (
+            <>
+              <img
+                src={courtImages[currentImageIndex]}
+                alt={court.name}
+                className="w-full h-full object-cover cursor-pointer"
+                onClick={() => setShowImageModal(true)}
+              />
+              {courtImages.length > 1 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentImageIndex((i) =>
+                        i === 0 ? courtImages.length - 1 : i - 1
+                      )
+                    }
+                    className="absolute left-3 top-1/2 -translate-y-1/2 h-9 w-9 flex items-center justify-center rounded-full bg-white/80 backdrop-blur-sm shadow text-slate-800 hover:bg-white transition-colors"
+                    aria-label="Previous photo"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentImageIndex((i) =>
+                        i === courtImages.length - 1 ? 0 : i + 1
+                      )
+                    }
+                    className="absolute right-3 top-1/2 -translate-y-1/2 h-9 w-9 flex items-center justify-center rounded-full bg-white/80 backdrop-blur-sm shadow text-slate-800 hover:bg-white transition-colors"
+                    aria-label="Next photo"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                    {courtImages.map((_, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setCurrentImageIndex(i)}
+                        className={cn(
+                          "h-1.5 rounded-full transition-all",
+                          i === currentImageIndex
+                            ? "w-5 bg-white"
+                            : "w-1.5 bg-white/50"
+                        )}
+                        aria-label={`Go to photo ${i + 1}`}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Fullscreen image lightbox ── */}
+      {showImageModal && (
+        <div className="fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center">
+          <button
+            type="button"
+            onClick={() => setShowImageModal(false)}
+            className="absolute top-4 right-4 h-10 w-10 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors z-10"
+            aria-label="Close"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          {courtImages.length > 1 && (
+            <>
+              <button
+                type="button"
+                onClick={() =>
+                  setCurrentImageIndex((i) =>
+                    i === 0 ? courtImages.length - 1 : i - 1
+                  )
+                }
+                className="absolute left-4 top-1/2 -translate-y-1/2 h-11 w-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+                aria-label="Previous"
+              >
+                <ChevronLeft className="h-6 w-6" />
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setCurrentImageIndex((i) =>
+                    i === courtImages.length - 1 ? 0 : i + 1
+                  )
+                }
+                className="absolute right-4 top-1/2 -translate-y-1/2 h-11 w-11 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20 transition-colors"
+                aria-label="Next"
+              >
+                <ChevronRight className="h-6 w-6" />
+              </button>
+            </>
+          )}
+          <div className="max-w-5xl max-h-[90vh] w-full px-16">
+            {courtImages[currentImageIndex] && (
+              <img
+                src={courtImages[currentImageIndex]}
+                alt={`${court.name} – photo ${currentImageIndex + 1}`}
+                className="w-full h-full object-contain max-h-[85vh] rounded-xl"
+              />
+            )}
+            <p className="text-center text-white/60 text-sm mt-3">
+              {currentImageIndex + 1} / {courtImages.length}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Main content ── */}
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-10">
+          {/* ─────────────── LEFT COLUMN ─────────────── */}
+          <div className="space-y-8 min-w-0">
+
+            {/* ── Meet your host ── */}
+            {hostProfile && (
+              <>
+                <section className="space-y-4">
+                  <SectionHeader>Meet Your Host</SectionHeader>
+
+                  <button
+                    type="button"
+                    onClick={() => setHostProfileDialogOpen(true)}
+                    className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:bg-slate-50 transition-colors text-left"
+                  >
+                    <Avatar className="h-14 w-14 shrink-0 border-2 border-white shadow-md">
+                      <AvatarImage
+                        src={hostProfile.profileImageUrl || undefined}
+                        alt={hostProfile.displayName}
+                      />
+                      <AvatarFallback className="bg-emerald-100 text-xl font-bold text-emerald-800">
+                        {hostProfile.displayName?.trim().charAt(0).toUpperCase() || "H"}
+                      </AvatarFallback>
+                    </Avatar>
+
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-950 text-base leading-snug">
+                        {hostProfile.displayName}
+                      </p>
+                      {hostProfile.ownerRating != null ? (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                          <span className="text-sm font-semibold text-slate-700">
+                            {hostProfile.ownerRating.toFixed(1)}
+                          </span>
+                          {(hostProfile.ownerReviewCount ?? 0) > 0 && (
+                            <span className="text-sm text-slate-500">
+                              · {hostProfile.ownerReviewCount} {hostProfile.ownerReviewCount === 1 ? "host review" : "host reviews"}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-500 mt-0.5">New host</p>
+                      )}
+                      {hostProfile.memberSince && (
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {formatMemberSince(hostProfile.memberSince)}
+                        </p>
+                      )}
                     </div>
-                  )}
+                  </button>
+                </section>
+                <Divider />
+              </>
+            )}
 
-                  {/* Date Selection */}
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="date"
-                      className="text-sm font-medium flex items-center gap-2"
-                    >
-                      <Calendar className="w-4 h-4" />
-                      Date
-                    </Label>
-                    <ReactDatePicker
-                      selected={selectedDate}
-                      onChange={(date) => setSelectedDate(date)}
-                      dateFormat="MM/dd/yyyy"
-                      placeholderText="Select date"
-                      minDate={new Date()}
-                      filterDate={filterBlockedDates}
-                      className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            {/* ── About this court ── */}
+            {court.description && (
+              <>
+                <section className="space-y-3">
+                  <SectionHeader>Description</SectionHeader>
+                  <p className="text-slate-700 leading-7 whitespace-pre-line">
+                    {court.description}
+                  </p>
+                </section>
+                <Divider />
+              </>
+            )}
+
+            {/* ── Amenities ── */}
+            {court.amenities && court.amenities.length > 0 && (
+              <>
+                <section className="space-y-4">
+                  <SectionHeader>Amenities</SectionHeader>
+                  <div className="grid grid-cols-2 gap-3">
+                    {court.amenities.map((slug) => (
+                      <div key={slug} className="flex items-center gap-3 text-sm text-slate-700">
+                        <AmenityIcon slug={slug} className="text-[var(--site-accent)]" />
+                        <span>{AMENITY_LABELS[slug] ?? slug.replace(/_/g, " ")}</span>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+                <Divider />
+              </>
+            )}
+
+            {checkInLabel && (
+              <>
+                <section className="space-y-3">
+                  <SectionHeader>Check-In</SectionHeader>
+                  <div className="flex items-center gap-3 text-sm text-slate-700">
+                    <Shield className="h-4 w-4 shrink-0 text-[var(--site-accent)]" />
+                    <span>{checkInLabel}</span>
+                  </div>
+                  <p className="text-sm text-slate-500">
+                    Detailed check-in instructions are shared after the host accepts your booking request.
+                  </p>
+                </section>
+                <Divider />
+              </>
+            )}
+
+            {/* ── Court Rules ── */}
+            {(court.speakersPolicy ||
+              (court.houseRules && court.houseRules.length > 0) ||
+              court.additionalRules) && (
+              <>
+                <section className="space-y-4">
+                  <SectionHeader>Court Rules</SectionHeader>
+                  {court.speakersPolicy && (
+                    <SpeakersRow
+                      policy={court.speakersPolicy}
+                      start={court.quietHoursStart}
+                      end={court.quietHoursEnd}
+                    />
+                  )}
+                  {court.houseRules && court.houseRules.length > 0 && (
+                    <ul className="space-y-2">
+                      {court.houseRules.map((rule) => (
+                        <li key={rule} className="flex items-center gap-3 text-sm text-slate-700">
+                          <Check className="h-4 w-4 shrink-0 text-emerald-500" />
+                          <span>{HOUSE_RULE_LABELS[rule] ?? rule.replace(/_/g, " ")}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {court.additionalRules && (
+                    <p className="text-sm text-slate-700 leading-6 whitespace-pre-line">
+                      {court.additionalRules}
+                    </p>
+                  )}
+                </section>
+                <Divider />
+              </>
+            )}
+
+            {/* ── Location map ── */}
+            {court.latitude != null && court.longitude != null && (
+              <>
+                <section className="space-y-4">
+                  <SectionHeader>Approximate Location</SectionHeader>
+                  <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
+                    <iframe
+                      title="Court location"
+                      src={`https://www.openstreetmap.org/export/embed.html?bbox=${court.longitude - 0.025},${court.latitude - 0.012},${court.longitude + 0.025},${court.latitude + 0.012}&layer=mapnik`}
+                      className="w-full h-56 sm:h-72 border-0"
+                      loading="lazy"
                     />
                   </div>
+                  <p className="flex items-center gap-1.5 text-sm text-slate-500">
+                    <MapPin className="h-4 w-4 shrink-0" />
+                    Exact address shared after booking
+                  </p>
+                </section>
+                <Divider />
+              </>
+            )}
 
-                  {/* Time Selection */}
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="time"
-                      className="text-sm font-medium flex items-center gap-2"
-                    >
-                      <Clock className="w-4 h-4" />
-                      Time
-                    </Label>
-                    <Select
-                      value={selectedTime}
-                      onValueChange={setSelectedTime}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select time" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-lg">
-                        {availableTimeSlots.map((time) => (
-                          <SelectItem
-                            key={time}
-                            value={time}
-                            className="hover:bg-green-50 cursor-pointer"
-                          >
-                            {time}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+            {/* ── Reviews ── */}
+            {courtReviews.length > 0 && (
+              <>
+                <section ref={reviewsRef} className="space-y-5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <SectionHeader>Reviews</SectionHeader>
+	                      {displayRating && (
+	                        <span className="flex items-center gap-1 text-slate-500 text-base">
+	                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+	                          <span className="font-semibold text-slate-800">{displayRating}</span>
+	                          <span className="text-sm text-slate-500">
+	                            ({reviewCount} {reviewCount === 1 ? "review" : "reviews"})
+	                          </span>
+	                        </span>
+	                      )}
+                    </div>
                   </div>
 
-                  {/* Duration Selection */}
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="duration"
-                      className="text-sm font-medium flex items-center gap-2"
+                  {/* Top 3 reviews */}
+                  <div className="space-y-4">
+                    {top3Reviews.map((review) => (
+                      <div
+                        key={review.id}
+                        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                      >
+	                        <div className="mb-3 flex items-start justify-between gap-3">
+	                          <div className="flex min-w-0 items-center gap-3">
+	                            <Avatar className="h-10 w-10 border border-slate-200">
+	                              <AvatarImage src={review.reviewerProfileImageUrl || undefined} />
+	                              <AvatarFallback className="bg-slate-100 text-xs font-bold text-slate-700">
+	                                {(review.reviewerName || "P").charAt(0).toUpperCase()}
+	                              </AvatarFallback>
+	                            </Avatar>
+	                            <div className="min-w-0">
+	                              <p className="truncate text-sm font-bold text-slate-950">
+	                                {review.reviewerName || "CourtShare player"}
+	                              </p>
+	                              <div className="mt-1 flex items-center gap-1">
+	                                {[1, 2, 3, 4, 5].map((v) => (
+	                                  <Star
+	                                    key={v}
+	                                    className="h-4 w-4"
+	                                    fill={v <= review.rating ? "rgb(245 158 11)" : "transparent"}
+	                                    color={v <= review.rating ? "rgb(245 158 11)" : "rgb(148 163 184)"}
+	                                  />
+	                                ))}
+	                              </div>
+	                            </div>
+	                          </div>
+	                          <span className="text-xs text-slate-500 shrink-0">
+	                            {formatReviewDate(review.createdAt)}
+	                          </span>
+                        </div>
+                        {review.comment?.trim() ? (
+                          <p className="text-sm leading-6 text-slate-700">
+                            {review.comment}
+                          </p>
+                        ) : (
+                          <p className="text-sm text-slate-400">No comments.</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* View all reviews button */}
+                  {courtReviews.length > 3 && (
+                    <button
+                      type="button"
+                      onClick={() => setCourtReviewsDialogOpen(true)}
+                      className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
                     >
-                      <Users className="w-4 h-4" />
-                      Duration (hours)
-                    </Label>
-                    <Select value={duration} onValueChange={setDuration}>
-                      <SelectTrigger>
+                      View all {courtReviews.length} reviews
+                    </button>
+                  )}
+                </section>
+              </>
+            )}
+          </div>
+
+          {/* ─────────────── RIGHT COLUMN — Sticky booking card ─────────────── */}
+          <div className="lg:sticky lg:top-24 lg:self-start space-y-4">
+            <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              {/* Price header */}
+              <div className="px-6 pt-6 pb-4 border-b border-slate-100">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-black text-slate-950">
+                    ${court.price}
+                  </span>
+                  <span className="text-slate-500 font-medium">/hr</span>
+                </div>
+                {displayRating && reviewCount > 0 && (
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                    <span className="text-sm font-semibold text-slate-700">{displayRating}</span>
+                    <span className="text-sm text-slate-500">
+                      · {reviewCount} {reviewCount === 1 ? "review" : "reviews"}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="px-6 py-5 space-y-5">
+                {/* Court number (multi-court only) */}
+                {court.numberOfCourts && court.numberOfCourts > 1 && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-700 block">
+                      Court
+                    </label>
+                    <Select
+                      value={String(selectedCourtNumber)}
+                      onValueChange={(v) => {
+                        setSelectedCourtNumber(Number(v));
+                        setSelectedTime("");
+                      }}
+                    >
+                      <SelectTrigger className="rounded-xl border-slate-200">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-white border border-gray-200 shadow-lg rounded-lg">
-                        {durations.map((dur) => (
+                      <SelectContent className="bg-white border border-slate-200 shadow-lg rounded-xl">
+                        {Array.from(
+                          { length: court.numberOfCourts },
+                          (_, i) => i + 1
+                        ).map((n) => (
                           <SelectItem
-                            key={dur}
-                            value={dur}
-                            className="hover:bg-green-50 cursor-pointer"
+                            key={n}
+                            value={String(n)}
+                            className="hover:bg-emerald-50 cursor-pointer"
                           >
-                            {dur} {parseFloat(dur) === 1 ? "hour" : "hours"}
+                            Court {n}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
+                )}
 
-                  {/* Price Summary */}
-                  <div className="border-t border-gray-200 pt-4 space-y-2">
-                    {court.numberOfCourts && court.numberOfCourts > 1 && (
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Court</span>
-                        <span className="font-medium">Court {selectedCourtNumber}</span>
+                {/* Date picker */}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                    <Calendar className="h-4 w-4" />
+                    Date
+                  </label>
+                  <div className="relative">
+                    <Calendar className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <ReactDatePicker
+                      selected={selectedDate}
+                      onChange={(date) => {
+                        setSelectedDate(date);
+                        setSelectedTime("");
+                      }}
+                      dateFormat="MMM d, yyyy"
+                      placeholderText="Choose date"
+                      minDate={new Date()}
+                      filterDate={filterBlockedDates}
+                      className="court-booking-date-input w-full"
+                      wrapperClassName="w-full"
+                      popperClassName="z-[90]"
+                      calendarClassName="courtshare-calendar"
+                      popperPlacement="bottom-start"
+                      showPopperArrow={false}
+                    />
+                  </div>
+                </div>
+                {/* Time slot pills */}
+                {selectedDate && (
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-700 block">
+                      Start time
+                    </label>
+                    {fetchingBookings ? (
+                      <p className="text-sm text-slate-500 py-2">
+                        Checking availability...
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {startTimeOptions.map(({ time, unavailableReason }) => (
+                          <button
+                            key={time}
+                            type="button"
+                            disabled={!!unavailableReason}
+                            title={unavailableReason || undefined}
+                            onClick={() => {
+                              setSelectedTime(time);
+                              if (!isDurationAvailable(time, parseFloat(duration))) {
+                                setDuration("1");
+                              }
+                            }}
+                            className={cn(
+                              "rounded-xl border px-2 py-2 text-xs font-semibold transition-all",
+                              unavailableReason &&
+                                "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 line-through opacity-70",
+                              selectedTime === time && !unavailableReason
+                                ? "border-[var(--site-accent)] bg-emerald-50 text-emerald-700 shadow-sm"
+                                : !unavailableReason &&
+                                  "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                            )}
+                          >
+                            {time}
+                          </button>
+                        ))}
                       </div>
                     )}
-                    <div className="flex justify-between text-sm">
-                      <span>
-                        Court rental ({duration}{" "}
-                        {parseFloat(duration) === 1 ? "hour" : "hours"})
-                      </span>
-                      <span>${formatCents(priceBreakdown?.totalAmountCents || 0)}</span>
-                    </div>
-                    <div className="flex justify-between font-semibold text-lg border-t border-gray-200 pt-2">
-                      <span>Authorized today</span>
-                      <span className="text-green-600">
-                        ${formatCents(priceBreakdown?.totalAmountCents || 0)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      Your card is authorized for the court price now and only
-                      charged if the host accepts within 24 hours.
-                    </p>
                   </div>
+                )}
 
-                  {/* Book Button */}
-                  <Button
-                    className="w-full bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-600 hover:from-emerald-600 hover:via-emerald-700 hover:to-teal-700 text-white font-semibold py-3 shadow-md hover:shadow-lg transition-all duration-200"
-                    size="lg"
-                    disabled={
-                      !selectedDate ||
-                      !selectedTime ||
-                      bookingStatus === "loading" ||
-                      fetchingBookings ||
-                      authLoading ||
-                      isOwnCourt
-                    }
-                    onClick={handleCheckout}
-                  >
-                    {isOwnCourt
-                      ? "You host this court"
-                      : bookingStatus === "loading"
-                        ? "Processing..."
-                        : "Request Booking"}
-                  </Button>
-                  {isOwnCourt && (
-                    <p className="text-sm text-center text-slate-500">
-                      Hosts cannot book their own courts.
-                    </p>
-                  )}
+                {/* Duration pill buttons */}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700 block">
+                    Duration
+                  </label>
+                  <div className="flex gap-2">
+                    {durationOptions.map(({ value: dur, available }) => (
+                      <button
+                        key={dur}
+                        type="button"
+                        disabled={!available}
+                        onClick={() => setDuration(dur)}
+                        className={cn(
+                          "flex-1 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all",
+                          !available &&
+                            "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-70",
+                          available && duration === dur
+                            ? "border-[var(--site-accent)] bg-emerald-50 text-emerald-700 shadow-sm"
+                            : available &&
+                              "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                        )}
+                      >
+                        {dur} {parseFloat(dur) === 1 ? "hr" : "hrs"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-                  {bookingStatus === "conflict" && (
-                    <p className="text-red-500 text-sm text-center">
-                      This time slot is already booked. Please choose another.
-                    </p>
-                  )}
-                  {bookingStatus === "error" && (
-                    <p className="text-red-500 text-sm text-center">
-                      Something went wrong. Please try again.
-                    </p>
-                  )}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700 block">
+                    Guests
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={court.maxGuests || undefined}
+                    value={guestCount}
+                    onChange={(event) => {
+                      const digits = event.target.value.replace(/\D/g, "");
+                      if (!digits) {
+                        setGuestCount("");
+                        return;
+                      }
+                      const cappedGuests =
+                        court.maxGuests && court.maxGuests > 0
+                          ? Math.min(Number(digits), court.maxGuests)
+                          : Number(digits);
+                      setGuestCount(String(cappedGuests));
+                    }}
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-800 shadow-sm transition-colors focus:border-[var(--site-accent)] focus:outline-none focus:ring-4 focus:ring-[color-mix(in_srgb,var(--site-accent)_13%,transparent)]"
+                    placeholder="1"
+                  />
+                  {court.maxGuests ? (
+                    <p className="text-xs text-slate-500">Up to {court.maxGuests} guests.</p>
+                  ) : null}
+                </div>
 
-                  <p className="text-xs text-muted-foreground text-center">
-                    Secure payment processing. Hosts have 24 hours to accept.
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700 block">
+                    Message to host
+                  </label>
+                  <textarea
+                    value={initialMessage}
+                    onChange={(event) => setInitialMessage(event.target.value)}
+                    maxLength={500}
+                    rows={3}
+                    className="w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-medium leading-5 text-slate-800 shadow-sm transition-colors placeholder:text-slate-400 focus:border-[var(--site-accent)] focus:outline-none focus:ring-4 focus:ring-[color-mix(in_srgb,var(--site-accent)_13%,transparent)]"
+                    placeholder="Share arrival notes or anything the host should know..."
+                  />
+                </div>
+
+                {/* Price breakdown */}
+                <div className="rounded-2xl bg-slate-50 border border-slate-200 p-4 space-y-2">
+                  <div className="flex justify-between text-sm text-slate-600">
+                    <span>
+                      {duration} {parseFloat(duration) === 1 ? "hr" : "hrs"} × ${court.price}/hr
+                    </span>
+                    <span className="font-medium text-slate-800">
+                      ${formatCents(priceBreakdown?.totalAmountCents || 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-200">
+                    <span>Total</span>
+                    <span className="text-[var(--site-accent)]">
+                      ${formatCents(priceBreakdown?.totalAmountCents || 0)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* CTA button */}
+                <Button
+                  className="w-full rounded-2xl bg-[var(--site-accent)] hover:opacity-90 text-white font-bold py-3 text-base shadow-md transition-all"
+                  size="lg"
+                  disabled={
+                    !selectedDate ||
+                    !selectedTime ||
+                    bookingStatus === "loading" ||
+                    fetchingBookings ||
+                    authLoading ||
+                    isOwnCourt
+                  }
+                  onClick={handleCheckout}
+                >
+                  {isOwnCourt
+                    ? "You host this court"
+                    : bookingStatus === "loading"
+                      ? "Processing..."
+                      : "Request Booking"}
+                </Button>
+
+                {isOwnCourt && (
+                  <p className="text-xs text-center text-slate-500">
+                    Hosts cannot book their own courts.
                   </p>
-                </CardContent>
-              </Card>
+                )}
+
+                {bookingStatus === "conflict" && (
+                  <p className="text-red-500 text-xs text-center">
+                    This time slot is already booked. Please choose another.
+                  </p>
+                )}
+                {bookingStatus === "error" && (
+                  <p className="text-red-500 text-xs text-center">
+                    Something went wrong. Please try again.
+                  </p>
+                )}
+
+                {/* Note */}
+                <p className="text-xs text-slate-500 text-center leading-5">
+                  Hosts have 24 hours to accept. Your card is authorized now and
+                  only charged upon acceptance.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
+      {/* ── Dialogs ── */}
       <WaiverAcknowledgmentDialog
         open={playerWaiverOpen}
         onOpenChange={setPlayerWaiverOpen}
@@ -944,6 +1655,137 @@ function CourtDetailPage() {
         title="All court reviews"
         reviews={courtReviews}
       />
+
+      {/* ── Host profile dialog (inline, controlled by hostProfileDialogOpen) ── */}
+      {hostProfile && (
+        <Dialog open={hostProfileDialogOpen} onOpenChange={setHostProfileDialogOpen}>
+          <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto rounded-3xl border-slate-200 sm:max-w-xl">
+            <DialogHeader>
+              <DialogTitle className="text-left text-xl font-bold text-slate-950">
+                {hostProfile.displayName}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-6 pt-2">
+              <Card className="rounded-[32px] border-slate-200 shadow-sm">
+                <CardContent className="grid gap-8 p-8 sm:grid-cols-[1fr_170px] sm:p-10">
+                  <div className="flex flex-col items-center text-center">
+                    <Avatar className="h-28 w-28 border-4 border-white shadow-md md:h-32 md:w-32">
+                      <AvatarImage
+                        src={hostProfile.profileImageUrl || undefined}
+                        alt={hostProfile.displayName}
+                      />
+                      <AvatarFallback className="bg-emerald-100 text-3xl font-bold text-emerald-800">
+                        {hostProfile.displayName?.trim().charAt(0).toUpperCase() || "H"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <h2 className="mt-5 text-2xl font-bold text-slate-950 md:text-3xl">
+                      {hostProfile.displayName}
+                    </h2>
+                    <div className="mt-3 flex flex-wrap justify-center gap-2">
+                      <Badge variant="secondary">Court host</Badge>
+                      {hostProfile.ownerRating != null && (
+                        <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 mr-1" />
+                          {hostProfile.ownerRating.toFixed(1)} host rating
+                        </Badge>
+                      )}
+                    </div>
+                    {hostProfile.bio ? (
+                      <p className="mt-5 max-w-sm text-sm leading-6 text-slate-600 md:text-base md:leading-7">
+                        {hostProfile.bio}
+                      </p>
+                    ) : (
+                      <p className="mt-5 max-w-sm text-sm leading-6 text-slate-500 md:text-base md:leading-7">
+                        This member has not added a bio yet.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid content-center divide-y divide-slate-200">
+                    <div className="py-4 first:pt-0">
+                      <p className="text-3xl font-black text-slate-950">
+                        {hostProfile.listingsCount ?? 0}
+                      </p>
+                      <p className="text-sm font-semibold text-slate-600">Listings</p>
+                    </div>
+                    <div className="py-4">
+                      <p className="text-3xl font-black text-slate-950">
+                        {hostProfile.ownerReviewCount ?? hostReviews.length}
+                      </p>
+                      <p className="text-sm font-semibold text-slate-600">Reviews</p>
+                    </div>
+                    <div className="py-4">
+                      <p className="text-3xl font-black text-slate-950">
+                        {hostProfile.memberSince
+                          ? Math.max(
+                              0,
+                              (new Date().getFullYear() -
+                                new Date(hostProfile.memberSince).getFullYear()) *
+                                12 +
+                                new Date().getMonth() -
+                                new Date(hostProfile.memberSince).getMonth()
+                            )
+                          : 0}
+                      </p>
+                      <p className="text-sm font-semibold text-slate-600">
+                        Months on CourtShare
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-[32px] border-slate-200 shadow-sm">
+                <CardHeader>
+                  <h3 className="text-xl font-bold text-slate-950">Host reviews</h3>
+                  <p className="text-sm text-slate-500">
+                    Feedback from players after completed bookings.
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {hostReviews.length === 0 ? (
+                    <p className="rounded-2xl border border-dashed border-slate-200 p-6 text-sm text-slate-500">
+                      No host reviews yet.
+                    </p>
+                  ) : (
+                    [...hostReviews]
+                      .sort(
+                        (a, b) =>
+                          new Date(b.createdAt || 0).getTime() -
+                          new Date(a.createdAt || 0).getTime()
+                      )
+                      .map((review) => (
+                        <div
+                          key={review.id}
+                          className="rounded-2xl border border-slate-200 p-4"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                              <span className="font-semibold text-slate-950">
+                                {review.rating}/5
+                              </span>
+                              <Badge variant="outline">Host review</Badge>
+                            </div>
+                            <span className="text-xs text-slate-500">
+                              {formatReviewDate(review.createdAt)}
+                            </span>
+                          </div>
+                          {review.comment ? (
+                            <p className="mt-3 text-sm leading-6 text-slate-700">
+                              {review.comment}
+                            </p>
+                          ) : null}
+                        </div>
+                      ))
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type Dispatch, type SetStateAction } from "react";
 import { useRouter } from "next/navigation";
 import { db, getStorageInstance, isMockMode } from "@/lib/firebase";
 import { collection, addDoc, doc, serverTimestamp, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -34,6 +35,7 @@ import {
 import {
   ArrowLeft,
   CheckCircle2,
+  Info,
   Upload,
   Calendar as CalendarIcon,
   Clock,
@@ -62,6 +64,59 @@ interface CourtFormData {
   longitude: string;
 }
 
+const AMENITY_OPTIONS = [
+  { value: "on_site_parking", label: "On-site parking" },
+  { value: "free_street_parking", label: "Free street parking" },
+  { value: "wifi", label: "WiFi" },
+  { value: "restrooms", label: "Restrooms" },
+  { value: "balls_provided", label: "Balls provided" },
+  { value: "night_lights", label: "Night lights" },
+  { value: "water_provided", label: "Water provided" },
+  { value: "towels_provided", label: "Towels provided" },
+];
+
+const SPACE_GREAT_FOR_OPTIONS = [
+  "Casual Play",
+  "Competitive Play",
+  "Lessons/Training",
+  "Photoshoots/Content",
+];
+
+const HOUSE_RULES_OPTIONS = [
+  { value: "no_smoking", label: "No smoking" },
+  { value: "no_alcohol", label: "No alcohol" },
+  { value: "no_outside_food", label: "No outside food or drinks" },
+  { value: "court_shoes_required", label: "Court shoes required" },
+  { value: "no_pets", label: "No pets" },
+  { value: "guests_must_sign_in", label: "Guests must sign in" },
+];
+
+const COURT_TYPE_OPTIONS = ["Hard Court", "Grass Court", "Clay Court"];
+
+const RequiredStar = () => <span className="text-red-500">*</span>;
+
+const formatTakeHome = (price: string) => {
+  const amount = Number(price);
+  return Number.isFinite(amount) && amount > 0
+    ? `$${Math.round(amount * 0.9).toLocaleString()}`
+    : "$0";
+};
+
+const deriveLocationFromAddress = (address: string) => {
+  const parts = address
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length >= 3) {
+    const hasCountry = parts[parts.length - 1].toLowerCase() === "usa";
+    const statePart = hasCountry ? parts[parts.length - 2] : parts[parts.length - 1];
+    const cityPart = hasCountry ? parts[parts.length - 3] : parts[parts.length - 2];
+    const state = statePart.split(/\s+/)[0] || statePart;
+    return cityPart && state ? `${cityPart}, ${state}` : address;
+  }
+  return address;
+};
+
 const CreateListing = () => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
@@ -70,6 +125,18 @@ const CreateListing = () => {
   const pendingListingDataRef = useRef<CourtFormData | null>(null);
   const [ownerWaiverOpen, setOwnerWaiverOpen] = useState(false);
   const [ownerWaiverChecked, setOwnerWaiverChecked] = useState(false);
+  const [checkInType, setCheckInType] = useState<"self" | "host" | "">("");
+  const [courtType, setCourtType] = useState("Hard Court");
+  const [courtSetting, setCourtSetting] = useState<"outdoor" | "indoor">("outdoor");
+  const [amenities, setAmenities] = useState<string[]>([]);
+  const [parkingSpaces, setParkingSpaces] = useState("");
+  const [spaceGreatFor, setSpaceGreatFor] = useState<string[]>([]);
+  const [maxGuests, setMaxGuests] = useState<string>("");
+  const [speakersPolicy, setSpeakersPolicy] = useState<"allowed" | "not_allowed" | "quiet_hours_only" | "">("");
+  const [quietHoursStart, setQuietHoursStart] = useState<string>("");
+  const [quietHoursEnd, setQuietHoursEnd] = useState<string>("");
+  const [houseRules, setHouseRules] = useState<string[]>([]);
+  const [additionalRules, setAdditionalRules] = useState<string>("");
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
 
@@ -100,6 +167,7 @@ const CreateListing = () => {
       longitude: "",
     },
   });
+  const watchedPricePerHour = form.watch("pricePerHour");
 
   const timeSlots = [
     "06:00", "07:00", "08:00", "09:00", "10:00", "11:00", "12:00",
@@ -124,6 +192,17 @@ const CreateListing = () => {
   const toggleAlwaysBlockedTime = (time: string) => {
     setAlwaysBlockedTimes(prev =>
       prev.includes(time) ? prev.filter(t => t !== time) : [...prev, time].sort()
+    );
+  };
+
+  const toggleArrayValue = (
+    value: string,
+    setter: Dispatch<SetStateAction<string[]>>
+  ) => {
+    setter((current) =>
+      current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value]
     );
   };
 
@@ -186,8 +265,18 @@ const CreateListing = () => {
   /** Validates form; opens waiver dialog before Firestore write. */
   const trySubmitListing = (data: CourtFormData) => {
     setError("");
-    if (!data.courtName || !data.location || !data.fullAddress || !data.pricePerHour || !data.description) {
+    const derivedLocation = deriveLocationFromAddress(data.fullAddress);
+    form.setValue("location", derivedLocation);
+    if (!data.courtName || !data.fullAddress || !data.pricePerHour || !data.description) {
       setError("Please fill in all required fields.");
+      return;
+    }
+    if (!/^\d+$/.test(data.pricePerHour)) {
+      setError("Price per hour must be a whole dollar amount.");
+      return;
+    }
+    if (!checkInType || !data.accessInstructions) {
+      setError("Please select a check-in option and add check-in instructions.");
       return;
     }
     if (!user) {
@@ -225,11 +314,26 @@ const CreateListing = () => {
 
       const courtDoc: any = {
         name: data.courtName,
-        location: data.location,
+        location: deriveLocationFromAddress(data.fullAddress),
         address: data.fullAddress,
         accessInstructions: data.accessInstructions,
+        checkInType,
+        checkInInstructions: data.accessInstructions,
         price: Number(data.pricePerHour),
         description: data.description,
+        surface: courtType,
+        indoor: courtSetting === "indoor",
+        amenities,
+        parkingSpaces: amenities.includes("on_site_parking")
+          ? Number(parkingSpaces) || null
+          : null,
+        spaceGreatFor,
+        maxGuests: maxGuests ? Number(maxGuests) : null,
+        speakersPolicy: speakersPolicy || null,
+        quietHoursStart: speakersPolicy === "quiet_hours_only" ? quietHoursStart || null : null,
+        quietHoursEnd: speakersPolicy === "quiet_hours_only" ? quietHoursEnd || null : null,
+        houseRules,
+        additionalRules,
         imageUrl: imageUrls[0],
         imageUrls,
         ownerId: user.uid,
@@ -338,11 +442,11 @@ const CreateListing = () => {
             </div>
             <div className="rounded-[24px] border border-emerald-100 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-800">
               Draft first, publish after payout setup
-            </div>
-          </div>
-        </div>
+		                    </div>
+	          </div>
+	        </div>
 
-        <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[340px_minmax(0,1fr)]">
+	        <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[340px_minmax(0,1fr)]">
           <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
             <Card className={sectionCardClass}>
               <CardContent className="p-6">
@@ -395,7 +499,7 @@ const CreateListing = () => {
               <CardContent className="space-y-8 p-6">
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(trySubmitListing)} className="space-y-8">
-                    <div className="space-y-5">
+	                    <div className="space-y-5 rounded-[28px] border border-slate-200 bg-slate-50 p-5">
                       <div>
                         <h3 className="text-lg font-black text-slate-950">
                           Basics
@@ -404,102 +508,372 @@ const CreateListing = () => {
                           Name, location, pricing, and a short description.
                         </p>
                       </div>
-                      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                      <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
                         <FormField control={form.control} name="courtName" render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-sm font-semibold">Court Name</FormLabel>
+                            <FormLabel className="text-sm font-semibold">
+                              Court Name <RequiredStar />
+                            </FormLabel>
                             <FormControl>
                               <Input placeholder="e.g. Brentwood Backyard Court" className={inputClass} {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                        <FormField control={form.control} name="location" render={({ field }) => (
+	                            </FormControl>
+                            <p className="mt-2 text-xs font-medium text-slate-500">
+                              The exact address will only be provided to the player once you accept their booking request.
+                            </p>
+	                            <FormMessage />
+	                          </FormItem>
+	                        )} />
+                        <FormField control={form.control} name="fullAddress" render={({ field }) => (
                           <FormItem>
-                            <FormLabel className="text-sm font-semibold">Location</FormLabel>
                             <FormControl>
-                              <Input placeholder="Los Angeles, CA" className={inputClass} {...field} />
+                              <AddressAutocomplete
+                                value={field.value}
+                                onChange={(address, coordinates) => {
+                                  field.onChange(address);
+                                  form.setValue("location", deriveLocationFromAddress(address));
+                                  if (coordinates) {
+                                    form.setValue("latitude", coordinates.latitude.toString());
+                                    form.setValue("longitude", coordinates.longitude.toString());
+                                  }
+                                }}
+                                placeholder="Complete street address"
+                                className={inputClass}
+                                label="Full Address *"
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
                         )} />
                       </div>
 
-                    <FormField control={form.control} name="fullAddress" render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <AddressAutocomplete
-                            value={field.value}
-                            onChange={(address, coordinates) => {
-                              field.onChange(address);
-                              if (coordinates) {
-                                form.setValue("latitude", coordinates.latitude.toString());
-                                form.setValue("longitude", coordinates.longitude.toString());
-                              }
-                            }}
-                            placeholder="Complete street address"
-                            className={inputClass}
-                            label="Full Address"
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-
-                    <FormField control={form.control} name="accessInstructions" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-semibold">Access Instructions</FormLabel>
-                        <FormControl>
-                          <Textarea placeholder="Gate code, building access, parking info, where players should enter..." className={textareaClass} {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
-
-                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                      <FormField control={form.control} name="pricePerHour" render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-sm font-semibold">Price per Hour (USD)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="25.00" type="number" step="0.01" className={inputClass} {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
-
-                      {/* Number of Bookable Courts */}
-                      <FormItem>
-                        <FormLabel className="text-sm font-semibold">Number of Bookable Courts</FormLabel>
-                        <Select
-                          value={String(numberOfCourts)}
-                          onValueChange={(v) => setNumberOfCourts(parseInt(v, 10))}
-                        >
-                          <SelectTrigger className={inputClass}>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="rounded-xl border border-slate-200 bg-white shadow-lg">
-                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-                              <SelectItem key={n} value={String(n)} className="cursor-pointer hover:bg-emerald-50 hover:text-emerald-700">
-                                {n} {n === 1 ? "court" : "courts"}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {numberOfCourts === 1 ? "Single court listing" : `Club listing with ${numberOfCourts} bookable courts`}
-                        </p>
-                      </FormItem>
-                    </div>
-
-                    <FormField control={form.control} name="description" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-sm font-semibold">Description</FormLabel>
+	                    <FormField control={form.control} name="description" render={({ field }) => (
+	                      <FormItem>
+	                        <FormLabel className="text-sm font-semibold">
+	                          Description <RequiredStar />
+                        </FormLabel>
                         <FormControl>
                           <Textarea placeholder="Describe your court's surface, lighting, amenities, privacy, and anything players should know." className={textareaClass} {...field} />
                         </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
+	                        <FormMessage />
+	                      </FormItem>
+	                    )} />
+
+	                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+	                      <FormItem>
+	                        <FormLabel className="text-sm font-semibold">Court Type</FormLabel>
+	                        <Select value={courtType} onValueChange={setCourtType}>
+		                          <SelectTrigger className={`${inputClass} text-sm`}>
+	                            <SelectValue />
+	                          </SelectTrigger>
+	                          <SelectContent className="rounded-xl border border-slate-200 bg-white shadow-lg">
+	                            {COURT_TYPE_OPTIONS.map((type) => (
+		                              <SelectItem key={type} value={type} className="cursor-pointer text-sm hover:bg-emerald-50 hover:text-emerald-700">
+	                                {type}
+	                              </SelectItem>
+	                            ))}
+	                          </SelectContent>
+	                        </Select>
+	                      </FormItem>
+
+	                      <FormItem>
+	                        <FormLabel className="text-sm font-semibold">Indoor / Outdoor</FormLabel>
+	                        <Select value={courtSetting} onValueChange={(value) => setCourtSetting(value as "outdoor" | "indoor")}>
+		                          <SelectTrigger className={`${inputClass} text-sm`}>
+	                            <SelectValue />
+	                          </SelectTrigger>
+	                          <SelectContent className="rounded-xl border border-slate-200 bg-white shadow-lg">
+		                            <SelectItem value="outdoor" className="cursor-pointer text-sm hover:bg-emerald-50 hover:text-emerald-700">Outdoor</SelectItem>
+		                            <SelectItem value="indoor" className="cursor-pointer text-sm hover:bg-emerald-50 hover:text-emerald-700">Indoor</SelectItem>
+	                          </SelectContent>
+	                        </Select>
+	                      </FormItem>
+	                    </div>
+
+	                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+	                      <FormField control={form.control} name="pricePerHour" render={({ field }) => (
+	                        <FormItem>
+	                          <FormLabel className="flex items-center gap-2 text-sm font-semibold">
+	                            Price per Hour (USD) <RequiredStar />
+	                            <span className="group relative inline-flex">
+	                              <Info className="h-4 w-4 text-slate-400" />
+	                              <span className="pointer-events-none absolute left-1/2 top-6 z-30 hidden w-64 -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-3 text-xs font-medium leading-5 text-slate-600 shadow-xl group-hover:block">
+	                                CourtShare takes a 10% fee from this price. The remaining 90% is your estimated host take-home before any taxes or adjustments.
+	                              </span>
+	                            </span>
+	                          </FormLabel>
+	                          <FormControl>
+	                            <Input
+	                              placeholder="25"
+	                              type="number"
+	                              step="1"
+	                              min="1"
+	                              inputMode="numeric"
+	                              className={inputClass}
+	                              {...field}
+	                              onChange={(event) =>
+	                                field.onChange(event.target.value.replace(/\D/g, ""))
+	                              }
+	                            />
+	                          </FormControl>
+	                          <p className="mt-1 text-xs font-bold text-[var(--site-accent)]">
+	                            Your take home will be {formatTakeHome(watchedPricePerHour)}/hr
+	                          </p>
+	                          <FormMessage />
+	                        </FormItem>
+	                      )} />
+
+	                      <FormItem>
+	                        <FormLabel className="text-sm font-semibold">Number of Bookable Courts</FormLabel>
+	                        <Select
+	                          value={String(numberOfCourts)}
+	                          onValueChange={(v) => setNumberOfCourts(parseInt(v, 10))}
+	                        >
+	                          <SelectTrigger className={`${inputClass} text-sm`}>
+	                            <SelectValue />
+	                          </SelectTrigger>
+	                          <SelectContent className="rounded-xl border border-slate-200 bg-white shadow-lg">
+	                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+	                              <SelectItem key={n} value={String(n)} className="cursor-pointer text-sm hover:bg-emerald-50 hover:text-emerald-700">
+	                                {n} {n === 1 ? "court" : "courts"}
+	                              </SelectItem>
+	                            ))}
+	                          </SelectContent>
+	                        </Select>
+	                        <p className="mt-1 text-xs text-slate-500">
+	                          {numberOfCourts === 1 ? "Single court listing" : `Club listing with ${numberOfCourts} bookable courts`}
+	                        </p>
+	                      </FormItem>
+	                    </div>
+
+	                    <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+	                      <Info className="h-4 w-4 shrink-0 text-slate-400" />
+		                      <p className="text-sm text-slate-600">
+		                        <span className="font-semibold">Cancellation Policy:</span> Full refund if cancelled 24 hours before court time.
+		                      </p>
+		                    </div>
+	                    </div>
+
+		                    <div className="space-y-4 rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+	                      <div>
+	                        <h3 className="text-lg font-black text-slate-950">
+	                          Check-in <RequiredStar />
+	                        </h3>
+	                        <p className="mt-1 text-sm text-slate-500">
+	                          Tell players how they will access the court.
+	                        </p>
+	                      </div>
+	                      <div className="grid gap-3 md:grid-cols-2">
+	                        {[
+	                          { value: "self" as const, label: "Self-check in" },
+	                          { value: "host" as const, label: "Check-in with host" },
+	                        ].map((option) => (
+	                          <label
+	                            key={option.value}
+	                            className="flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-bold text-slate-800"
+	                          >
+	                            <Checkbox
+	                              checked={checkInType === option.value}
+	                              onCheckedChange={(checked) =>
+	                                setCheckInType(checked ? option.value : "")
+	                              }
+	                            />
+	                            {option.label}
+	                          </label>
+	                        ))}
+	                      </div>
+	                      <FormField control={form.control} name="accessInstructions" render={({ field }) => (
+	                        <FormItem>
+	                          <FormLabel className="text-sm font-semibold">
+	                            Check-in Instructions <RequiredStar />
+	                          </FormLabel>
+		                          <FormControl>
+		                            <Textarea placeholder="Gate code, building access, where players should enter, and anything they need for check-in..." className={textareaClass} {...field} />
+		                          </FormControl>
+                              <p className="mt-2 text-xs font-medium text-slate-500">
+                                Check-in instructions will only be provided to the player once you accept their booking request.
+                              </p>
+		                          <FormMessage />
+		                        </FormItem>
+		                      )} />
+	                    </div>
+
+                    <div className="space-y-5 rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                      <div>
+                        <h3 className="text-lg font-black text-slate-950">
+                          Amenities
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Select everything players can use during their booking.
+                        </p>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {AMENITY_OPTIONS.map((option) => (
+                          <label
+                            key={option.value}
+                            className="flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-bold text-slate-800"
+                          >
+                            <Checkbox
+                              checked={amenities.includes(option.value)}
+                              onCheckedChange={() =>
+                                toggleArrayValue(option.value, setAmenities)
+                              }
+                            />
+                            {option.label}
+                          </label>
+                        ))}
+                      </div>
+                      {amenities.includes("on_site_parking") && (
+                        <div className="max-w-xs">
+                          <FormLabel className="text-sm font-semibold">
+                            Up to how many cars?
+                          </FormLabel>
+                          <Input
+                            type="number"
+                            min="1"
+                            placeholder="2"
+                            value={parkingSpaces}
+                            onChange={(event) => setParkingSpaces(event.target.value)}
+                            className={`${inputClass} mt-2`}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-5 rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                      <div>
+                        <h3 className="text-lg font-black text-slate-950">
+                          This space is great for
+                        </h3>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Help players understand the best uses for your court.
+                        </p>
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {SPACE_GREAT_FOR_OPTIONS.map((option) => (
+                          <label
+                            key={option}
+                            className="flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-bold text-slate-800"
+                          >
+                            <Checkbox
+                              checked={spaceGreatFor.includes(option)}
+                              onCheckedChange={() =>
+                                toggleArrayValue(option, setSpaceGreatFor)
+                              }
+                            />
+                            {option}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-5 rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+	                      <div>
+	                        <h3 className="text-lg font-black text-slate-950">Court Rules</h3>
+	                        <p className="mt-1 text-sm text-slate-500">
+	                          Let guests know what's expected during their booking.
+	                        </p>
+	                      </div>
+
+	                      <FormItem>
+	                        <FormLabel className="text-sm font-semibold">Max Guests</FormLabel>
+	                        <FormControl>
+	                          <Input
+	                            type="number"
+	                            min="1"
+	                            placeholder="e.g. 6"
+	                            value={maxGuests}
+	                            onChange={(e) => setMaxGuests(e.target.value.replace(/\D/g, ""))}
+	                            className={`${inputClass} max-w-[200px]`}
+	                          />
+	                        </FormControl>
+	                        <p className="mt-1 text-xs text-slate-500">Maximum number of people allowed at the court during a booking.</p>
+	                      </FormItem>
+
+	                      <div className="space-y-3">
+                        <FormLabel className="text-sm font-semibold">Music & Speakers</FormLabel>
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          {[
+                            { value: "allowed", label: "Speakers allowed" },
+                            { value: "quiet_hours_only", label: "Quiet hours only" },
+                            { value: "not_allowed", label: "No speakers" },
+                          ].map((option) => (
+                            <label
+                              key={option.value}
+                              className="flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-bold text-slate-800"
+                            >
+                              <Checkbox
+                                checked={speakersPolicy === option.value}
+                                onCheckedChange={(checked) =>
+                                  setSpeakersPolicy(checked ? option.value as "allowed" | "not_allowed" | "quiet_hours_only" : "")
+                                }
+                              />
+                              {option.label}
+                            </label>
+                          ))}
+                        </div>
+                        {speakersPolicy === "quiet_hours_only" && (
+                          <div className="grid gap-4 sm:grid-cols-2">
+                            <div>
+                              <FormLabel className="text-sm font-semibold">Quiet hours start</FormLabel>
+                              <Select value={quietHoursStart} onValueChange={setQuietHoursStart}>
+                                <SelectTrigger className={`${inputClass} mt-2`}>
+                                  <SelectValue placeholder="Select time" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl border border-slate-200 bg-white shadow-lg">
+                                  {timeSlots.map((time) => (
+                                    <SelectItem key={time} value={time} className="cursor-pointer hover:bg-emerald-50 hover:text-emerald-700">
+                                      {formatTimeDisplay(time)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <FormLabel className="text-sm font-semibold">Quiet hours end</FormLabel>
+                              <Select value={quietHoursEnd} onValueChange={setQuietHoursEnd}>
+                                <SelectTrigger className={`${inputClass} mt-2`}>
+                                  <SelectValue placeholder="Select time" />
+                                </SelectTrigger>
+                                <SelectContent className="rounded-xl border border-slate-200 bg-white shadow-lg">
+                                  {timeSlots.map((time) => (
+                                    <SelectItem key={time} value={time} className="cursor-pointer hover:bg-emerald-50 hover:text-emerald-700">
+                                      {formatTimeDisplay(time)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-3">
+                        <FormLabel className="text-sm font-semibold">House Rules</FormLabel>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {HOUSE_RULES_OPTIONS.map((rule) => (
+                            <label
+                              key={rule.value}
+                              className="flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm font-bold text-slate-800"
+                            >
+                              <Checkbox
+                                checked={houseRules.includes(rule.value)}
+                                onCheckedChange={() => toggleArrayValue(rule.value, setHouseRules)}
+                              />
+                              {rule.label}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <FormLabel className="text-sm font-semibold">Additional Rules</FormLabel>
+                        <Textarea
+                          placeholder="Any other rules or expectations guests should know about..."
+                          value={additionalRules}
+                          onChange={(e) => setAdditionalRules(e.target.value)}
+                          className={`${textareaClass} mt-2 min-h-[80px]`}
+                        />
+                      </div>
                     </div>
 
                     {/* Location Coordinates */}
@@ -538,7 +912,7 @@ const CreateListing = () => {
                     <div className="space-y-5">
                       <div>
                         <h3 className="text-lg font-black text-slate-950">
-                          Photos
+                          Photos <RequiredStar />
                         </h3>
                         <p className="mt-1 text-sm text-slate-500">
                           Add clear photos of the court, entrance, and any amenities players can use.

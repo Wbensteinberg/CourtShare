@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Star } from "lucide-react";
 
 export type ReviewsListDialogReview = {
@@ -9,6 +10,8 @@ export type ReviewsListDialogReview = {
   rating: number;
   comment?: string;
   createdAt?: string | null;
+  reviewerName?: string;
+  reviewerProfileImageUrl?: string;
 };
 
 type ReviewsListDialogProps = {
@@ -60,9 +63,18 @@ export default function ReviewsListDialog({
                   key={review.id}
                   className="rounded-2xl border border-slate-200 bg-white p-4"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center gap-0.5">
+	                  <div className="flex items-start justify-between gap-3">
+	                    <div className="flex items-center gap-2">
+	                      <Avatar className="h-9 w-9 border border-slate-200">
+	                        <AvatarImage src={review.reviewerProfileImageUrl || undefined} />
+	                        <AvatarFallback className="bg-slate-100 text-xs font-bold text-slate-700">
+	                          {(review.reviewerName || "P").charAt(0).toUpperCase()}
+	                        </AvatarFallback>
+	                      </Avatar>
+	                      <span className="text-sm font-bold text-slate-900">
+	                        {review.reviewerName || "CourtShare player"}
+	                      </span>
+	                      <div className="flex items-center gap-0.5">
                         {[1, 2, 3, 4, 5].map((v) => (
                           <Star
                             key={v}
@@ -95,4 +107,3 @@ export default function ReviewsListDialog({
     </Dialog>
   );
 }
-

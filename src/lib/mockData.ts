@@ -56,6 +56,8 @@ export type MockBooking = {
   status: string;
   cancelReason?: string;
   courtNumber?: number;
+  guestCount?: number;
+  initialMessage?: string;
   createdAt?: string;
   sessionId?: string;
   conversationId?: string;
@@ -172,13 +174,15 @@ const buildMockConversationForBooking = (
   const player = db.users[booking.userId];
   const owner = court ? db.users[court.ownerId] : null;
   const conversationId = `booking_${booking.id}`;
-  const lastMessageText = formatBookingRequestMessage(
+  const bookingRequestText = formatBookingRequestMessage(
     court?.name,
     booking.date,
     booking.time,
     booking.duration,
     booking.courtNumber
   );
+  const initialMessage = booking.initialMessage?.trim().slice(0, 1000) || "";
+  const lastMessageText = initialMessage || bookingRequestText;
   const existingConversation = db.conversations.find(
     (conversation) => conversation.id === conversationId
   );
@@ -210,12 +214,24 @@ const buildMockConversationForBooking = (
       id: "booking_request",
       conversationId,
       senderId: booking.userId,
-      body: lastMessageText,
+      body: bookingRequestText,
       createdAt: booking.createdAt || now,
       type: "booking_request" as const,
       bookingId: booking.id,
       courtId: booking.courtId,
     },
+    initialMessage: initialMessage
+      ? {
+          id: "initial_message",
+          conversationId,
+          senderId: booking.userId,
+          body: initialMessage,
+          createdAt: booking.createdAt || now,
+          type: "text" as const,
+          bookingId: booking.id,
+          courtId: booking.courtId,
+        }
+      : null,
   };
 };
 
@@ -255,6 +271,19 @@ const createImageDataUrl = (title: string, accent: string) => {
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 };
 
+const createAvatarDataUrl = (initials: string, accent: string) => {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">
+      <rect width="160" height="160" rx="80" fill="${accent}" />
+      <circle cx="122" cy="36" r="30" fill="rgba(255,255,255,0.16)" />
+      <circle cx="38" cy="126" r="42" fill="rgba(255,255,255,0.12)" />
+      <text x="80" y="94" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="48" font-weight="800">${initials}</text>
+    </svg>
+  `;
+
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+};
+
 const mockMemberSinceMonthsAgo = (monthsAgo: number) => {
   const d = new Date();
   d.setMonth(d.getMonth() - monthsAgo);
@@ -267,7 +296,7 @@ const createSeedDb = (): MockDb => {
     email: "demo@courtshare.co",
     displayName: "Riley Chen",
     bio: "League player, early-morning hitter, and part-time court host.",
-    profileImageUrl: "",
+    profileImageUrl: createAvatarDataUrl("RC", "#1b2534"),
     isOwner: false,
     createdAt: mockMemberSinceMonthsAgo(10),
   };
@@ -277,7 +306,7 @@ const createSeedDb = (): MockDb => {
     email: "jamie@courtshare.co",
     displayName: "Jamie Brooks",
     bio: "Weekend doubles player.",
-    profileImageUrl: "",
+    profileImageUrl: createAvatarDataUrl("JB", "#0f766e"),
     isOwner: false,
     createdAt: mockMemberSinceMonthsAgo(14),
   };
@@ -287,7 +316,7 @@ const createSeedDb = (): MockDb => {
     email: "taylor@courtshare.co",
     displayName: "Taylor Morgan",
     bio: "Competitive USTA player.",
-    profileImageUrl: "",
+    profileImageUrl: createAvatarDataUrl("TM", "#334155"),
     isOwner: false,
     createdAt: mockMemberSinceMonthsAgo(5),
   };
@@ -1022,12 +1051,13 @@ const createSeedDb = (): MockDb => {
   };
 
   bookings.forEach((booking) => {
-    const { conversation, message } = buildMockConversationForBooking(
-      db,
-      booking
-    );
-    db.conversations.push(conversation);
-    db.messages.push(message);
+	    const { conversation, message, initialMessage } = buildMockConversationForBooking(
+	      db,
+	      booking
+	    );
+	    db.conversations.push(conversation);
+	    db.messages.push(message);
+	    if (initialMessage) db.messages.push(initialMessage);
   });
 
   return db;
@@ -1082,12 +1112,13 @@ const normalizeMockDb = (db: MockDb): MockDb => {
         (conversation) => conversation.id === conversationId
       )
     ) {
-      const { conversation, message } = buildMockConversationForBooking(
-        normalized,
-        booking
-      );
-      normalized.conversations.push(conversation);
-      normalized.messages.push(message);
+	      const { conversation, message, initialMessage } = buildMockConversationForBooking(
+	        normalized,
+	        booking
+	      );
+	      normalized.conversations.push(conversation);
+	      normalized.messages.push(message);
+	      if (initialMessage) normalized.messages.push(initialMessage);
       booking.conversationId = conversationId;
     }
   });
@@ -1310,10 +1341,10 @@ export const createMockBookingRequestConversation = (
   const conversationId = `booking_${booking.id}`;
 
   updateMockDb((db) => {
-    const { conversation, message } = buildMockConversationForBooking(
-      db,
-      booking
-    );
+	    const { conversation, message, initialMessage } = buildMockConversationForBooking(
+	      db,
+	      booking
+	    );
     const existingConversation = db.conversations.find(
       (item) => item.id === conversationId
     );
@@ -1324,16 +1355,17 @@ export const createMockBookingRequestConversation = (
         )
       : [conversation, ...db.conversations];
 
-    db.messages = [
-      message,
-      ...db.messages.filter(
-        (item) =>
-          !(
-            item.conversationId === conversationId &&
-            item.id === "booking_request"
-          )
-      ),
-    ];
+	    db.messages = [
+	      message,
+	      ...(initialMessage ? [initialMessage] : []),
+	      ...db.messages.filter(
+	        (item) =>
+	          !(
+	            item.conversationId === conversationId &&
+	            (item.id === "booking_request" || item.id === "initial_message")
+	          )
+	      ),
+	    ];
 
     db.bookings = db.bookings.map((item) =>
       item.id === booking.id ? { ...item, conversationId } : item

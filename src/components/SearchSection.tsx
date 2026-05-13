@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import * as SelectPrimitive from "@radix-ui/react-select";
-import { Check, Search } from "lucide-react";
+import { CalendarDays, Check, Search } from "lucide-react";
 import ReactDatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import type { Coordinates } from "@/lib/geolocation";
@@ -226,7 +226,8 @@ const SearchSection = ({
 
           <div className="group flex min-h-[4.5rem] min-w-0 flex-1 flex-col justify-center gap-0.5 px-4 py-3 transition-[box-shadow,background-color] focus-within:relative focus-within:z-[1] focus-within:rounded-2xl focus-within:bg-white focus-within:shadow-[0_6px_24px_rgba(15,23,42,0.12)] focus-within:ring-1 focus-within:ring-slate-200/90 md:min-h-[3.25rem] md:rounded-full md:px-5 md:py-2.5 md:focus-within:rounded-full">
             <span className="text-xs font-semibold text-slate-900">Date</span>
-            <div className="w-full min-w-0">
+            <div className="relative flex w-full min-w-0 items-center">
+              <CalendarDays className="pointer-events-none absolute right-0 h-4 w-4 text-slate-400" />
               <ReactDatePicker
                 selected={date}
                 onChange={(value) => {
@@ -249,7 +250,7 @@ const SearchSection = ({
                 }
                 popperPlacement="bottom-start"
                 popperClassName="z-[70]"
-                calendarClassName="search-calendar"
+                calendarClassName="courtshare-calendar search-calendar"
                 wrapperClassName="w-full"
                 showPopperArrow={false}
                 minDate={new Date()}

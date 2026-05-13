@@ -121,7 +121,15 @@ export async function POST(req: NextRequest) {
 
   // SECURITY FIX 1: Only accept courtId, date, time, and durationMinutes from client
   // DO NOT accept price - fetch from court document
-  const { courtId, date, time, durationMinutes, courtNumber } = await req.json();
+  const {
+    courtId,
+    date,
+    time,
+    durationMinutes,
+    courtNumber,
+    guestCount,
+    initialMessage,
+  } = await req.json();
 
   try {
     // SECURITY: Validate all inputs
@@ -200,6 +208,26 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
+
+    const guestCountNum = guestCount == null || guestCount === "" ? 1 : Number(guestCount);
+    if (!Number.isInteger(guestCountNum) || guestCountNum < 1) {
+      return NextResponse.json(
+        { error: "Guest count must be at least 1" },
+        { status: 400 }
+      );
+    }
+    if (
+      typeof courtData.maxGuests === "number" &&
+      courtData.maxGuests > 0 &&
+      guestCountNum > courtData.maxGuests
+    ) {
+      return NextResponse.json(
+        { error: `This court allows up to ${courtData.maxGuests} guests` },
+        { status: 400 }
+      );
+    }
+    const normalizedInitialMessage =
+      typeof initialMessage === "string" ? initialMessage.trim().slice(0, 500) : "";
 
     // Check max advance booking days
     const maxAdvanceDays = courtData.maxAdvanceBookingDays;
@@ -433,6 +461,8 @@ export async function POST(req: NextRequest) {
         date,
         time,
         durationMinutes: durationMinutesNum.toString(),
+        guestCount: guestCountNum.toString(),
+        initialMessage: normalizedInitialMessage,
         ownerId,
         courtNumber: String(courtNumberNum),
         pricePerHour: pricePerHour.toString(),
@@ -490,6 +520,7 @@ export async function POST(req: NextRequest) {
       metadata: {
         ...sessionParams.payment_intent_data?.metadata,
         ownerId,
+        guestCount: guestCountNum.toString(),
         transferToOwner: transferToOwner ? "true" : "false",
         hostPayoutMode,
         stripeConnectAccountId: transferToOwner ? stripeAccountId || "" : "",

@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Clock, Star } from "lucide-react";
+import { Clock, KeyRound, MapPin, Star } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import LoadingScreen from "@/components/LoadingScreen";
 import ReviewsListDialog, { type ReviewsListDialogReview } from "@/components/ReviewsListDialog";
@@ -44,6 +44,8 @@ type Court = {
   location: string;
   address?: string;
   accessInstructions?: string;
+  checkInType?: "self" | "host";
+  checkInInstructions?: string;
   price?: number;
   description: string;
   imageUrl: string;
@@ -604,6 +606,9 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
       ? playerProfile.playerRating.toFixed(1)
       : "New";
   const playerReviewCountForCard = playerProfile?.playerReviewCount ?? 0;
+  const canViewPrivateArrivalDetails = ["confirmed", "completed"].includes(booking.status);
+  const privateCheckInInstructions =
+    court.checkInInstructions || court.accessInstructions || "";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/20">
@@ -665,6 +670,47 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
 
           {/* Column 2: this-booking review (completed) + host / player profile */}
           <div className="flex flex-col gap-6">
+            {canViewPrivateArrivalDetails && (court.address || privateCheckInInstructions) && (
+              <Card className="border-0 shadow-elegant rounded-3xl">
+                <CardContent className="space-y-5 p-6">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Arrival Details
+                    </p>
+                    <h2 className="mt-1 text-xl font-black text-slate-950">
+                      Address and check-in
+                    </h2>
+                  </div>
+                  {court.address && (
+                    <div className="flex gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[var(--site-accent)]" />
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Exact address
+                        </p>
+                        <p className="mt-1 text-sm font-semibold leading-6 text-slate-900">
+                          {court.address}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {privateCheckInInstructions && (
+                    <div className="flex gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-[var(--site-accent)]" />
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Check-in instructions
+                        </p>
+                        <p className="mt-1 whitespace-pre-line text-sm font-medium leading-6 text-slate-900">
+                          {privateCheckInInstructions}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {booking.status === "completed" && otherPartyReviewForThisBooking && (
               <Card className="border-0 shadow-elegant rounded-3xl">
                 <CardContent className="p-6">
@@ -884,4 +930,3 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
     </div>
   );
 }
-

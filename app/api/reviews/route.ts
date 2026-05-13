@@ -50,6 +50,8 @@ const toPublicReview = (reviewDoc: any) => {
     id: reviewDoc.id,
     bookingId: review.bookingId,
     courtId: review.courtId,
+    reviewerId: review.reviewerId,
+    playerId: review.playerId,
     reviewerRole: review.reviewerRole,
     targetType: review.targetType,
     rating: review.rating,
@@ -94,7 +96,39 @@ export async function GET(req: NextRequest) {
             new Date(a.createdAt || 0).getTime()
         );
 
-      return NextResponse.json({ reviews });
+      const reviewerIds = [
+        ...new Set(
+          reviews
+            .map((review) => review.reviewerId || review.playerId)
+            .filter(Boolean)
+        ),
+      ];
+      const reviewerProfiles = new Map<string, { displayName: string; profileImageUrl: string }>();
+      await Promise.all(
+        reviewerIds.map(async (reviewerId) => {
+          const userDoc = await db.collection("users").doc(reviewerId).get();
+          const userData = userDoc.exists ? userDoc.data() : null;
+          reviewerProfiles.set(reviewerId, {
+            displayName:
+              typeof userData?.displayName === "string" && userData.displayName.trim()
+                ? userData.displayName.trim()
+                : "CourtShare player",
+            profileImageUrl:
+              typeof userData?.profileImageUrl === "string" ? userData.profileImageUrl : "",
+          });
+        })
+      );
+
+      return NextResponse.json({
+        reviews: reviews.map((review) => {
+          const reviewer = reviewerProfiles.get(review.reviewerId || review.playerId);
+          return {
+            ...review,
+            reviewerName: reviewer?.displayName || "CourtShare player",
+            reviewerProfileImageUrl: reviewer?.profileImageUrl || "",
+          };
+        }),
+      });
     }
 
     const reviewerId = await getAuthUserId(req);

@@ -106,6 +106,8 @@ export async function createBookingFromPaidCheckoutSession(
   const expectedAmountCents = priceBreakdown.totalAmountCents;
   const actualAmountCents = session.amount_total || 0;
   const newCourtNumber = Number(metadata.courtNumber) || 1;
+  const guestCount = metadata.guestCount ? Number(metadata.guestCount) : 1;
+  const initialMessage = String(metadata.initialMessage || "").trim().slice(0, 1000);
 
   const existingBookingsSnapshot = await db
     .collection("bookings")
@@ -148,8 +150,10 @@ export async function createBookingFromPaidCheckoutSession(
     userId: metadata.userId,
     date: metadata.date,
     time: metadata.time,
-    courtNumber: newCourtNumber,
-    duration: durationMinutes / 60,
+	    courtNumber: newCourtNumber,
+	    guestCount,
+	    initialMessage,
+	    duration: durationMinutes / 60,
     durationMinutes,
     status: "pending",
     createdAt: new Date(),
@@ -183,9 +187,11 @@ export async function createBookingFromPaidCheckoutSession(
     ownerName,
     date: metadata.date,
     time: metadata.time,
-    durationMinutes,
-    courtNumber: newCourtNumber,
-  });
+	    durationMinutes,
+	    courtNumber: newCourtNumber,
+	    guestCount,
+	    initialMessage,
+	  });
 
   return {
     status: "created",

@@ -42,6 +42,7 @@ export type MockApiCourtRow = {
   amenities?: string[];
   rating?: number;
   reviewCount?: number;
+  maxGuests?: number | null;
 };
 
 export type MockApiBookingRow = {
@@ -55,6 +56,8 @@ export type MockApiBookingRow = {
   status: string;
   cancelReason?: string;
   courtNumber?: number;
+  guestCount?: number;
+  initialMessage?: string;
   createdAt?: string;
   expiresAt?: string;
   sessionId?: string;
