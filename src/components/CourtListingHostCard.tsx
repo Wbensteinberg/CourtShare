@@ -168,7 +168,7 @@ export default function CourtListingHostCard({
                   <h2 className="mt-5 text-2xl font-bold text-slate-950 md:text-3xl">{hostName}</h2>
                   <div className="mt-3 flex flex-wrap justify-center gap-2">
                     <Badge variant="secondary">
-                      {hostProfile?.isOwner ? "Court host" : "Player"}
+                      {hostProfile?.isOwner ? "Host" : "Player"}
                     </Badge>
                     {(hostProfile?.playerReviewCount ?? 0) > 0 &&
                     hostProfile?.playerRating != null ? (

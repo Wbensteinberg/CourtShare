@@ -17,7 +17,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import CourtListingHostCard from "@/components/CourtListingHostCard";
 import { useAuth } from "@/lib/AuthContext";
 import { db, isMockMode } from "@/lib/firebase";
 import {
@@ -26,6 +33,7 @@ import {
   getMockConversationsForUser,
   getMockMessagesForConversation,
   getMockProfile,
+  getMockReviewsForTarget,
   getMockUserDisplayName,
   markMockConversationRead,
   updateMockBooking,
@@ -33,7 +41,7 @@ import {
   type MockMessage,
 } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
-import { CalendarDays, Check, MessageCircle, Send, UserRound, X } from "lucide-react";
+import { CalendarDays, Check, MessageCircle, Send, Star, X } from "lucide-react";
 
 type Conversation = MockConversation & {
   createdAt?: any;
@@ -60,8 +68,26 @@ type Booking = {
 };
 
 type ParticipantProfile = {
+  uid?: string;
   displayName: string;
   profileImageUrl: string;
+  bio?: string;
+  isOwner?: boolean;
+  playerRating?: number | null;
+  playerReviewCount?: number;
+  ownerRating?: number | null;
+  ownerReviewCount?: number;
+  memberSince?: string | null;
+  confirmedBookingsCount?: number;
+  listingsCount?: number;
+};
+
+type ParticipantReview = {
+  id: string;
+  rating: number;
+  comment?: string;
+  createdAt?: string | null;
+  targetType?: string;
 };
 
 const getDateValue = (value: any) => {
@@ -101,6 +127,30 @@ const formatTextDates = (text?: string) =>
     formatFullDate(date)
   );
 
+const formatProfileReviewDate = (value?: string | null) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+};
+
+const getMonthCountFromMemberSince = (iso?: string | null) => {
+  if (!iso) return 0;
+  const start = new Date(iso);
+  if (Number.isNaN(start.getTime())) return 0;
+  const now = new Date();
+  return Math.max(
+    0,
+    (now.getFullYear() - start.getFullYear()) * 12 +
+      now.getMonth() -
+      start.getMonth()
+  );
+};
+
 const getProfileDisplayName = (
   profile: Record<string, any> | undefined,
   fallback: string
@@ -121,6 +171,7 @@ const formatFallbackName = (uid: string, role: "player" | "owner") => {
 
 const getBookingSummary = (conversation: Conversation) => {
   const pieces = [
+    conversation.courtName || "Court booking",
     formatFullDate(conversation.bookingDate),
     conversation.bookingTime,
     conversation.bookingDurationMinutes
@@ -145,6 +196,8 @@ function MessagesPageContent() {
   const [participantProfiles, setParticipantProfiles] = useState<
     Record<string, ParticipantProfile>
   >({});
+  const [participantReviews, setParticipantReviews] = useState<Record<string, ParticipantReview[]>>({});
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -243,11 +296,19 @@ function MessagesPageContent() {
               const profile = getMockProfile(participantId);
               return [
                 participantId,
-                {
-                  displayName:
-                    profile?.displayName || getMockUserDisplayName(participantId),
-                  profileImageUrl: profile?.profileImageUrl || "",
-                },
+	                {
+	                  uid: participantId,
+	                  displayName:
+	                    profile?.displayName || getMockUserDisplayName(participantId),
+	                  profileImageUrl: profile?.profileImageUrl || "",
+	                  bio: profile?.bio || "",
+	                  isOwner: profile?.isOwner || false,
+	                  playerRating: profile?.playerRating ?? null,
+	                  playerReviewCount: profile?.playerReviewCount ?? 0,
+	                  ownerRating: profile?.ownerRating ?? null,
+	                  ownerReviewCount: profile?.ownerReviewCount ?? 0,
+	                  memberSince: profile?.createdAt ?? null,
+	                },
               ];
             })
           )
@@ -264,17 +325,27 @@ function MessagesPageContent() {
           return [
             participantId,
             res.ok && data.profile
-              ? {
-                  displayName: getProfileDisplayName(
-                    data.profile,
-                    "CourtShare user"
-                  ),
+	              ? {
+	                  uid: data.profile.uid || participantId,
+	                  displayName: getProfileDisplayName(
+	                    data.profile,
+	                    "CourtShare user"
+	                  ),
                   profileImageUrl:
-                    typeof data.profile.profileImageUrl === "string"
-                      ? data.profile.profileImageUrl
-                      : "",
-                }
-              : { displayName: "CourtShare user", profileImageUrl: "" },
+	                    typeof data.profile.profileImageUrl === "string"
+	                      ? data.profile.profileImageUrl
+	                      : "",
+	                  bio: data.profile.bio || "",
+	                  isOwner: Boolean(data.profile.isOwner),
+	                  playerRating: data.profile.playerRating ?? null,
+	                  playerReviewCount: data.profile.playerReviewCount ?? 0,
+	                  ownerRating: data.profile.ownerRating ?? null,
+	                  ownerReviewCount: data.profile.ownerReviewCount ?? 0,
+	                  memberSince: data.profile.memberSince ?? null,
+	                  confirmedBookingsCount: data.profile.confirmedBookingsCount ?? 0,
+	                  listingsCount: data.profile.listingsCount ?? 0,
+	                }
+	              : { uid: participantId, displayName: "CourtShare user", profileImageUrl: "" },
           ] as const;
         })
       );
@@ -290,6 +361,52 @@ function MessagesPageContent() {
     };
 
     loadParticipantNames();
+	  }, [conversations]);
+
+  useEffect(() => {
+    const loadParticipantReviews = async () => {
+      const participantIds = Array.from(
+        new Set(conversations.flatMap((conversation) => conversation.participantIds))
+      ).filter(Boolean);
+
+      if (participantIds.length === 0) {
+        setParticipantReviews({});
+        return;
+      }
+
+      if (isMockMode) {
+        setParticipantReviews(
+          Object.fromEntries(
+            participantIds.map((participantId) => [
+              participantId,
+              getMockReviewsForTarget(participantId) as ParticipantReview[],
+            ])
+          )
+        );
+        return;
+      }
+
+      const entries = await Promise.allSettled(
+        participantIds.map(async (participantId) => {
+          const res = await fetch(`/api/reviews?targetUserId=${encodeURIComponent(participantId)}`);
+          const data = await res.json().catch(() => ({}));
+          return [
+            participantId,
+            res.ok && Array.isArray(data.reviews) ? data.reviews : [],
+          ] as const;
+        })
+      );
+
+      setParticipantReviews(
+        Object.fromEntries(
+          entries.flatMap((entry) =>
+            entry.status === "fulfilled" ? [entry.value] : []
+          )
+        )
+      );
+    };
+
+    loadParticipantReviews();
   }, [conversations]);
 
   useEffect(() => {
@@ -453,10 +570,40 @@ function MessagesPageContent() {
     !!user && !!selectedConversation && selectedConversation.ownerId === user.uid;
   const canActOnSelectedBooking =
     isSelectedOwner && selectedBooking?.status === "pending";
+  const selectedOtherParticipantId = selectedConversation
+    ? getOtherParticipantId(selectedConversation)
+    : "";
+  const selectedOtherParticipantProfile = selectedConversation
+    ? getOtherParticipantProfile(selectedConversation)
+    : undefined;
+  const selectedOtherParticipantName = selectedConversation
+    ? getOtherParticipantName(selectedConversation)
+    : "";
+  const selectedOtherParticipantRole =
+    selectedConversation?.ownerId === selectedOtherParticipantId ||
+    selectedOtherParticipantProfile?.isOwner
+      ? "Host"
+      : "Player";
+  const selectedOtherParticipantReviews =
+    (selectedOtherParticipantId && participantReviews[selectedOtherParticipantId]) || [];
+  const selectedOtherParticipantHostReviews = selectedOtherParticipantReviews.filter(
+    (review) => review.targetType === "court_owner"
+  );
+  const selectedOtherParticipantPlayerReviews = selectedOtherParticipantReviews.filter(
+    (review) => review.targetType === "player"
+  );
+  const selectedOtherParticipantRating =
+    selectedOtherParticipantRole === "Host"
+      ? selectedOtherParticipantProfile?.ownerRating
+      : selectedOtherParticipantProfile?.playerRating;
+  const selectedOtherParticipantReviewCount =
+    selectedOtherParticipantRole === "Host"
+      ? selectedOtherParticipantProfile?.ownerReviewCount ?? selectedOtherParticipantHostReviews.length
+      : selectedOtherParticipantProfile?.playerReviewCount ?? selectedOtherParticipantPlayerReviews.length;
 
   const openParticipantProfile = (conversation: Conversation) => {
     const participantId = getOtherParticipantId(conversation);
-    if (participantId) router.push(`/profile/${participantId}`);
+    if (participantId) setProfileDialogOpen(true);
   };
 
   const updateConversationStatus = async (
@@ -737,22 +884,19 @@ function MessagesPageContent() {
           <div className="flex min-h-[620px] flex-col">
             {selectedConversation ? (
               <>
-                <div className="flex flex-col gap-3 border-b border-slate-200 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-4 border-b border-slate-200 p-5 xl:flex-row xl:items-center xl:justify-between">
                   <button
                     type="button"
-                    className="flex items-center gap-3 rounded-2xl text-left transition hover:bg-slate-50"
+                    className="flex items-center gap-3 rounded-2xl text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
                     onClick={() => openParticipantProfile(selectedConversation)}
                   >
                     <Avatar className="h-12 w-12">
                       <AvatarImage
-                        src={
-                          getOtherParticipantProfile(selectedConversation)
-                            ?.profileImageUrl || undefined
-                        }
-                        alt={getOtherParticipantName(selectedConversation)}
+                        src={selectedOtherParticipantProfile?.profileImageUrl || undefined}
+                        alt={selectedOtherParticipantName}
                       />
                       <AvatarFallback className="bg-emerald-100 font-semibold text-emerald-800">
-                        {getOtherParticipantName(selectedConversation)
+                        {selectedOtherParticipantName
                           .trim()
                           .charAt(0)
                           .toUpperCase() || "U"}
@@ -760,23 +904,16 @@ function MessagesPageContent() {
                     </Avatar>
                     <div>
                       <h2 className="text-lg font-semibold text-slate-950">
-                        {getOtherParticipantName(selectedConversation)}
+                        {selectedOtherParticipantName}
                       </h2>
                       <p className="text-sm text-slate-500">
-                        {selectedConversation.courtName || "Court booking"}
+                        {selectedOtherParticipantRole}
                       </p>
                     </div>
-                  </button>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      variant="outline"
-                      className="rounded-xl"
-                      onClick={() => openParticipantProfile(selectedConversation)}
-                    >
-                      View profile
-                    </Button>
-                    <Badge
-                      className={cn(
+	                  </button>
+	                  <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+	                    <Badge
+	                      className={cn(
                         "w-fit hover:bg-amber-100",
                         selectedBooking?.status === "confirmed"
                           ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
@@ -795,62 +932,45 @@ function MessagesPageContent() {
                             ? "Cancelled"
                             : selectedBooking?.status === "expired"
                               ? "Expired"
-                              : "Booking request"}
-                    </Badge>
-                  </div>
-                </div>
-
-                <div className="border-b border-slate-200 bg-slate-50/70 p-5">
-                  <Card className="rounded-2xl border-slate-200 shadow-none">
-                    <CardContent className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_auto]">
-                      <div className="flex flex-wrap gap-x-5 gap-y-2">
-                        {shouldShowBookingParticipant && (
-                          <div className="flex items-center gap-2 text-sm text-slate-600">
-                            <UserRound className="h-4 w-4 text-emerald-600" />
-                            {getPlayerName(selectedConversation)}
-                          </div>
-                        )}
-                        <div className="flex items-center gap-2 text-sm text-slate-600">
-                        <CalendarDays className="h-4 w-4 text-emerald-600" />
-                        {getBookingSummary(selectedConversation)}
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-2 lg:justify-end">
-                        {canActOnSelectedBooking && (
-                          <>
-                            <Button
-                              className="rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
-                              onClick={() => handleBookingDecision("accepted")}
-                              disabled={updatingBooking}
-                            >
-                              <Check className="mr-2 h-4 w-4" />
-                              Accept
-                            </Button>
-                            <Button
-                              variant="outline"
-                              className="rounded-xl border-black text-black hover:bg-slate-100 hover:text-black"
-                              onClick={() => handleBookingDecision("declined")}
-                              disabled={updatingBooking}
-                            >
-                              <X className="mr-2 h-4 w-4" />
-                              Decline
-                            </Button>
-                          </>
-                        )}
+	                              : "Booking request"}
+	                    </Badge>
+	                    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+	                      <CalendarDays className="h-4 w-4 text-emerald-600" />
+	                      {getBookingSummary(selectedConversation)}
+	                    </div>
+	                    {canActOnSelectedBooking && (
+                      <>
+                        <Button
+                          className="rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
+                          onClick={() => handleBookingDecision("accepted")}
+                          disabled={updatingBooking}
+                        >
+                          <Check className="mr-2 h-4 w-4" />
+                          Accept
+                        </Button>
                         <Button
                           variant="outline"
-                          className="rounded-xl"
-                          onClick={() =>
-                            selectedConversation.bookingId &&
-                            router.push(`/booking/${selectedConversation.bookingId}`)
-                          }
-                          disabled={!selectedConversation.bookingId}
+                          className="rounded-xl border-black text-black hover:bg-slate-100 hover:text-black"
+                          onClick={() => handleBookingDecision("declined")}
+                          disabled={updatingBooking}
                         >
-                          View booking
+                          <X className="mr-2 h-4 w-4" />
+                          Decline
                         </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
+                      </>
+                    )}
+                    <Button
+                      variant="outline"
+                      className="rounded-xl"
+                      onClick={() =>
+                        selectedConversation.bookingId &&
+                        router.push(`/booking/${selectedConversation.bookingId}`)
+                      }
+                      disabled={!selectedConversation.bookingId}
+                    >
+                      View booking
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="flex-1 space-y-4 overflow-y-auto p-5">
@@ -920,7 +1040,124 @@ function MessagesPageContent() {
               </div>
             )}
           </div>
-        </section>
+	        </section>
+	        {selectedOtherParticipantRole === "Host" ? (
+	          <CourtListingHostCard
+	            hostProfile={
+	              selectedOtherParticipantProfile
+	                ? { ...selectedOtherParticipantProfile, isOwner: true }
+	                : null
+	            }
+            hostReviews={selectedOtherParticipantHostReviews}
+            ownerId={selectedOtherParticipantId || undefined}
+            avatarImageUrl={selectedOtherParticipantProfile?.profileImageUrl || undefined}
+            triggerVariant="none"
+            open={profileDialogOpen}
+            onOpenChange={setProfileDialogOpen}
+          />
+        ) : (
+          <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
+            <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto rounded-3xl border-slate-200 sm:max-w-xl">
+              <DialogHeader>
+                <DialogTitle className="text-left text-xl font-bold text-slate-950">
+                  {selectedOtherParticipantName || "Player"}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-6 pt-2">
+                <Card className="rounded-[32px] border-slate-200 shadow-sm">
+                  <CardContent className="grid gap-8 p-8 sm:grid-cols-[1fr_170px] sm:p-10">
+                    <div className="flex flex-col items-center text-center">
+                      <Avatar className="h-28 w-28 border-4 border-white shadow-md md:h-32 md:w-32">
+                        <AvatarImage
+                          src={selectedOtherParticipantProfile?.profileImageUrl || undefined}
+                          alt={selectedOtherParticipantName || "Player"}
+                        />
+                        <AvatarFallback className="bg-emerald-100 text-3xl font-bold text-emerald-800">
+                          {(selectedOtherParticipantName || "P").trim().charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <h2 className="mt-5 text-2xl font-bold text-slate-950 md:text-3xl">
+                        {selectedOtherParticipantName || "Player"}
+                      </h2>
+                      <div className="mt-3 flex flex-wrap justify-center gap-2">
+                        <Badge variant="secondary">Player</Badge>
+                        {selectedOtherParticipantRating != null ? (
+                          <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                            Player rating {selectedOtherParticipantRating.toFixed(1)}
+                          </Badge>
+                        ) : null}
+                      </div>
+                      {selectedOtherParticipantProfile?.bio ? (
+                        <p className="mt-5 max-w-sm text-sm leading-6 text-slate-600 md:text-base md:leading-7">
+                          {selectedOtherParticipantProfile.bio}
+                        </p>
+                      ) : (
+                        <p className="mt-5 max-w-sm text-sm leading-6 text-slate-500 md:text-base md:leading-7">
+                          This member has not added a bio yet.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="grid content-center divide-y divide-slate-200">
+                      <div className="py-4 first:pt-0">
+                        <p className="text-3xl font-black text-slate-950">
+                          {selectedOtherParticipantProfile?.confirmedBookingsCount ?? 0}
+                        </p>
+                        <p className="text-sm font-semibold text-slate-600">Bookings</p>
+                      </div>
+                      <div className="py-4">
+                        <p className="text-3xl font-black text-slate-950">
+                          {selectedOtherParticipantReviewCount}
+                        </p>
+                        <p className="text-sm font-semibold text-slate-600">Reviews</p>
+                      </div>
+                      <div className="py-4">
+                        <p className="text-3xl font-black text-slate-950">
+                          {getMonthCountFromMemberSince(selectedOtherParticipantProfile?.memberSince)}
+                        </p>
+                        <p className="text-sm font-semibold text-slate-600">Months on CourtShare</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-[32px] border-slate-200 shadow-sm">
+                  <CardContent className="space-y-4 p-6">
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-950">Reviews</h3>
+                      <p className="text-sm text-slate-500">
+                        Feedback from completed CourtShare bookings.
+                      </p>
+                    </div>
+                    {selectedOtherParticipantPlayerReviews.length === 0 ? (
+                      <p className="rounded-2xl border border-dashed border-slate-200 p-6 text-sm text-slate-500">
+                        No reviews yet.
+                      </p>
+                    ) : (
+                      selectedOtherParticipantPlayerReviews.map((review) => (
+                        <div key={review.id} className="rounded-2xl border border-slate-200 p-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex items-center gap-2">
+                              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                              <span className="font-semibold text-slate-950">{review.rating}/5</span>
+                              <Badge variant="outline">Player review</Badge>
+                            </div>
+                            <span className="text-xs text-slate-500">
+                              {formatProfileReviewDate(review.createdAt)}
+                            </span>
+                          </div>
+                          {review.comment ? (
+                            <p className="mt-3 text-sm leading-6 text-slate-700">{review.comment}</p>
+                          ) : null}
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </main>
     </div>
   );
