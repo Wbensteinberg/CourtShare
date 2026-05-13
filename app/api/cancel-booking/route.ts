@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { adminDb, adminAuth } from "@/lib/firebase-admin";
+import { isBookingCancellable } from "@/lib/bookingDates";
 import { sendOwnerCancellationNotification, sendPlayerCancellationConfirmation } from "@/lib/email";
 import { releaseBookingPayment } from "@/lib/stripeBookingPayments";
 import { isMockApiMode } from "@/lib/mockApiMode";
@@ -63,9 +64,17 @@ export async function POST(req: NextRequest) {
     }
 
     const bookingData = bookingDoc.data()!;
-    if (bookingData.userId !== userId) {
+    const courtDoc = await adminDb
+      .collection("courts")
+      .doc(bookingData.courtId)
+      .get();
+    const courtData = courtDoc.exists ? courtDoc.data() : null;
+    const isPlayerCancellation = bookingData.userId === userId;
+    const isHostCancellation = courtData?.ownerId === userId;
+
+    if (!isPlayerCancellation && !isHostCancellation) {
       return NextResponse.json(
-        { error: "You can only cancel your own bookings" },
+        { error: "Only the player or court host can cancel this booking" },
         { status: 403 }
       );
     }
@@ -77,17 +86,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (
+      isPlayerCancellation &&
+      bookingData.status === "confirmed" &&
+      !isBookingCancellable(
+        {
+          date: String(bookingData.date || ""),
+          time: String(bookingData.time || ""),
+        },
+        24 * 60
+      )
+    ) {
+      return NextResponse.json(
+        { error: "Confirmed bookings can only be cancelled at least 24 hours before court time" },
+        { status: 400 }
+      );
+    }
+
+    const cancelReason = isHostCancellation
+      ? "host_cancellation"
+      : "player_cancellation";
+
     const releasedPayment = await releaseBookingPayment(
       stripe,
       bookingData.sessionId,
       bookingId,
-      "player_cancellation"
+      cancelReason
     );
 
     // Update booking status
     await adminDb.collection("bookings").doc(bookingId).update({
       status: "cancelled",
-      cancelReason: "player_cancellation",
+      cancelReason,
       cancelledAt: new Date(),
       paymentStatus: releasedPayment.paymentStatus,
       ...(releasedPayment.refundId ? { refundId: releasedPayment.refundId } : {}),
@@ -95,11 +125,6 @@ export async function POST(req: NextRequest) {
 
     // Send email to owner (non-blocking)
     try {
-      const courtDoc = await adminDb
-        .collection("courts")
-        .doc(bookingData.courtId)
-        .get();
-      const courtData = courtDoc.exists ? courtDoc.data() : null;
       const ownerDoc = courtData?.ownerId
         ? await adminDb.collection("users").doc(courtData.ownerId).get()
         : null;
@@ -114,7 +139,7 @@ export async function POST(req: NextRequest) {
           ? bookingData.totalAmountCents / 100
           : (courtData?.price || 0) * (bookingData.duration || 1);
 
-      if (ownerData?.email) {
+      if (isPlayerCancellation && ownerData?.email) {
         await sendOwnerCancellationNotification({
           courtName: courtData?.name || "Court",
           ownerEmail: ownerData.email,
@@ -127,7 +152,7 @@ export async function POST(req: NextRequest) {
           paymentStatus: releasedPayment.paymentStatus,
         });
       }
-      if (playerData?.email) {
+      if (isPlayerCancellation && playerData?.email) {
         await sendPlayerCancellationConfirmation({
           courtName: courtData?.name || "Court",
           playerEmail: playerData.email,

@@ -25,6 +25,7 @@ import CourtListingHostCard from "@/components/CourtListingHostCard";
 import {
   formatBookingDateLong,
   formatPendingBookingTimeRemaining,
+  parseBookingDateTime,
   isBookingReviewable,
 } from "@/lib/bookingDates";
 import {
@@ -453,16 +454,12 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
   // Cancel eligibility
   const hoursUntilReservation = useMemo(() => {
     if (!booking) return null;
-    const [timePart, period] = (booking.time || "").split(" ");
-    if (!timePart) return null;
-    const [hStr, mStr] = timePart.split(":");
-    let h = parseInt(hStr, 10);
-    const m = parseInt(mStr || "0", 10);
-    if (period === "PM" && h !== 12) h += 12;
-    if (period === "AM" && h === 12) h = 0;
-    const d = new Date(booking.date);
-    d.setHours(h, m, 0, 0);
-    return (d.getTime() - now.getTime()) / (1000 * 60 * 60);
+    try {
+      const bookingDateTime = parseBookingDateTime(booking.date, booking.time);
+      return (bookingDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+    } catch {
+      return null;
+    }
   }, [booking, now]);
 
   const isWithin24Hours = hoursUntilReservation != null && hoursUntilReservation < 24;

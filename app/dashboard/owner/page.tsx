@@ -1949,7 +1949,7 @@ export default function OwnerDashboard() {
       >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Confirm Accept Booking</DialogTitle>
+            <DialogTitle>Accept Booking</DialogTitle>
             <DialogDescription>
               Accept this booking request? The guest will be notified and the time slot will be reserved.
             </DialogDescription>
@@ -2008,7 +2008,7 @@ export default function OwnerDashboard() {
               ) : (
                 <>
                   <Check className="h-4 w-4 mr-2" />
-                  Confirm Accept
+                  Accept
                 </>
               )}
             </Button>
