@@ -398,6 +398,10 @@ export async function POST(req: NextRequest) {
                 time: metadata.time,
                 duration: durationHours,
                 price: price,
+                initialMessage:
+                  typeof metadata.initialMessage === "string"
+                    ? metadata.initialMessage
+                    : "",
               });
               console.log("[WEBHOOK] Owner notification email sent");
             } else {

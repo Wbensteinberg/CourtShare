@@ -90,6 +90,8 @@ interface PublicReview {
   courtId: string;
   reviewerId?: string;
   ownerId?: string;
+  reviewerName?: string;
+  reviewerProfileImageUrl?: string;
   reviewerRole?: string;
   targetType?: string;
   rating: number;
@@ -277,6 +279,11 @@ export default function ProfilePage() {
               courtId: review.courtId,
               reviewerId: review.reviewerId,
               ownerId: review.ownerId,
+              reviewerName:
+                getMockProfile(review.reviewerId)?.displayName ||
+                "CourtShare player",
+              reviewerProfileImageUrl:
+                getMockProfile(review.reviewerId)?.profileImageUrl || "",
               reviewerRole: review.reviewerRole,
               targetType: review.targetType,
               rating: review.rating,
@@ -1007,6 +1014,10 @@ export default function ProfilePage() {
                       <div className="mt-8 grid gap-8 md:grid-cols-2">
                         {playerReviews.map((review) => {
                           const court = courtsById[review.courtId];
+                          const reviewerName =
+                            review.reviewerName?.trim() || "Court host";
+                          const reviewerImageUrl =
+                            review.reviewerProfileImageUrl || "";
                           return (
                           <button
                             type="button"
@@ -1018,13 +1029,16 @@ export default function ProfilePage() {
                               <div className="min-w-0">
                                 <div className="flex items-center gap-3">
                                   <Avatar className="h-11 w-11 border border-slate-200">
-                                    <AvatarImage src="" alt="Court host" />
+                                    <AvatarImage
+                                      src={reviewerImageUrl}
+                                      alt={reviewerName}
+                                    />
                                     <AvatarFallback className="bg-slate-100 text-sm font-bold text-slate-700">
-                                      H
+                                      {reviewerName.charAt(0).toUpperCase()}
                                     </AvatarFallback>
                                   </Avatar>
                                   <p className="truncate text-lg font-black text-slate-950">
-                                    Court host
+                                    {reviewerName}
                                   </p>
                                 </div>
                                 <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-medium text-slate-500">

@@ -41,6 +41,7 @@ Product-facing routes map roughly as: **Home / Search** → `/courts`; **Court D
 
 - All conversations for the signed-in user.
 - Each thread: dated message history; link or control to view the other participant’s public profile; link to **Booking Details** for the booking when applicable.
+- User-authored messages should go through `POST /api/conversations/send-message`, not direct client Firestore writes, so each message is saved, unread state is updated, and every other participant receives an email containing the message body.
 
 ### Upcoming Bookings (`/upcoming`)
 
@@ -105,11 +106,11 @@ Firestore `users/{uid}` stores profile and account state: `uid`, `email`, `displ
 
 Firestore `courts/{courtId}` stores court listings: `name`, `location`, `address`, `accessInstructions`, `price` as dollars per hour, `description`, `imageUrl`, `imageUrls`, `ownerId`, optional `latitude` and `longitude`, `numberOfCourts`, `maxAdvanceBookingDays`, `blockedDates`, date-specific `blockedTimes`, global `alwaysBlockedTimes`, `alwaysBlockedTimesByDay`, multi-court `courtSpecificAlwaysBlockedTimes`, `courtSpecificAlwaysBlockedTimesByDay`, `surface`, `indoor`, `amenities`, `rating`, `reviewCount`, and `createdAt`. Images are uploaded to Firebase Storage under `courts/...` when not in mock mode.
 
-Firestore `bookings/{bookingId}` stores booking requests created after Stripe Checkout completes and the card authorization exists: `courtId`, `userId`, `date`, `time`, `courtNumber`, `duration` in hours for backward compatibility, `durationMinutes`, `status` as one of `pending`, `confirmed`, `completed`, `cancelled`, `rejected`, or `expired`, optional `cancelReason`, `createdAt`, `expiresAt`, `expiredAt`, `confirmedAt`, `capturedAt`, `sessionId`, `paymentIntentId`, `paymentStatus`, `refundId`, `totalAmountCents`, `expectedAmountCents`, and optional `conversationId`. Pending booking requests are actionable for 24 hours; after that they should be treated as expired, hidden from pending counts/lists, and not allowed to block future checkout attempts. Upcoming and host dashboards should expire stale pending bookings on load. If a booking points at a deleted or unreadable court, never display the raw `courtId`; use a neutral label such as `Court unavailable`. Mock mode stores equivalent `MockUserProfile`, `MockCourt`, `MockBooking`, `MockConversation`, and `MockMessage` shapes in browser storage through `src/lib/mockData.ts`.
+Firestore `bookings/{bookingId}` stores booking requests created after Stripe Checkout completes and the card authorization exists: `courtId`, `userId`, `date`, `time`, `courtNumber`, `duration` in hours for backward compatibility, `durationMinutes`, `status` as one of `pending`, `confirmed`, `completed`, `cancelled`, `rejected`, or `expired`, optional `cancelReason`, `createdAt`, `expiresAt`, `expiredAt`, `confirmedAt`, `capturedAt`, `sessionId`, `paymentIntentId`, `paymentStatus`, `refundId`, `totalAmountCents`, `expectedAmountCents`, optional `conversationId`, and notification bookkeeping such as `checkInReminderSentAt`, `playerReviewReminderCount`, `playerReviewReminderLastSentAt`, `ownerReviewReminderCount`, and `ownerReviewReminderLastSentAt`. Pending booking requests are actionable for 24 hours; after that they should be treated as expired, hidden from pending counts/lists, and not allowed to block future checkout attempts. Upcoming and host dashboards should expire stale pending bookings on load; the scheduled notification route also expires stale pending bookings, releases/refunds payment, and emails the player. If a booking points at a deleted or unreadable court, never display the raw `courtId`; use a neutral label such as `Court unavailable`. Mock mode stores equivalent `MockUserProfile`, `MockCourt`, `MockBooking`, `MockConversation`, and `MockMessage` shapes in browser storage through `src/lib/mockData.ts`.
 
 Firestore `conversations/{conversationId}` stores lightweight booking-related messaging state: `participantIds`, `playerId`, `playerName`, `ownerId`, `ownerName`, `courtId`, `courtName`, `bookingId`, booking summary fields such as `bookingDate`, `bookingTime`, `bookingDurationMinutes`, and `bookingCourtNumber`, `status`, last-message metadata, unread recipients, and timestamps. Booking request conversations use deterministic IDs like `booking_{bookingId}` and contain a `messages` subcollection. Keep conversation creation idempotent because Stripe webhooks and checkout finalization can be retried. Do not display raw Firebase UIDs in messaging or dashboard UI; fetch/use profile display names, then email prefixes, then generic labels such as `Player` or `Court host`. The messages page should load the selected booking and let hosts accept or decline pending requests directly from the conversation header while still calling the protected booking API routes for payment capture or authorization release.
 
-Firestore `reviews/{bookingId}_{reviewerRole}` stores one review per booking participant role: `bookingId`, `courtId`, `playerId`, `ownerId`, `reviewerId`, `reviewerRole` (`player` or legacy `owner` for host reviews), `revieweeId`, `targetType` (`court_owner` or `player`), whole-star `rating` from 1 to 5, `comment`, `createdAt`, and `updatedAt`. Players review the host and court together, which updates both `courts/{courtId}.rating/reviewCount` and the host's `ownerRating/ownerReviewCount`; hosts review players, which updates the player's `playerRating/playerReviewCount`. Reviews are available for one week after the booking end instant per `isBookingReviewable` in `src/lib/bookingDates.ts`. Public profile pages show received player and host reviews; court detail pages show host identity, host review aggregates, court review aggregates, and a recent court review before checkout.
+Firestore `reviews/{bookingId}_{reviewerRole}` stores one review per booking participant role: `bookingId`, `courtId`, `playerId`, `ownerId`, `reviewerId`, `reviewerRole` (`player` or legacy `owner` for host reviews), `revieweeId`, `targetType` (`court_owner` or `player`), whole-star `rating` from 1 to 5, `comment`, `createdAt`, and `updatedAt`. Players review the host and court together, which updates both `courts/{courtId}.rating/reviewCount` and the host's `ownerRating/ownerReviewCount`; hosts review players, which updates the player's `playerRating/playerReviewCount`. Reviews are available for one week after the booking end instant per `isBookingReviewable` in `src/lib/bookingDates.ts`. Public profile and court review queries only show a review after the paired review for that booking exists, so one party cannot read the other party's review before submitting their own; authenticated dashboard review-state checks still return the caller's own submitted reviews immediately.
 
 ## Backend — Architecture and API Reference
 
@@ -141,12 +142,19 @@ Firestore `reviews/{bookingId}_{reviewerRole}` stores one review per booking par
 | **`/api/reviews`** | `GET` | **None** for public queries; **Bearer** for private | **Public:** `?targetUserId=` or `?courtId=` (court reviews use `targetType === "court_owner"`). **Authenticated:** `?bookingIds=id1,id2` — caller’s submitted reviews for dashboard UI state. |
 | **`/api/reviews`** | `POST` | **Bearer** required | Submit **one review per role per booking** (`bookingId`, whole-star `rating`, optional `comment`). Server verifies participant role, booking completed/confirmed and **`isBookingReviewable`** window in `src/lib/bookingDates.ts`, and updates court + user aggregates in a transaction. |
 
+### Messaging and scheduled notifications
+
+| Route | Method | Auth | Purpose |
+| --- | --- | --- | --- |
+| **`/api/conversations/send-message`** | `POST` | **Bearer** | Save a participant-authored conversation message, update last-message/unread metadata, and email every other participant with the message body. Body: **`conversationId`**, **`body`**. |
+| **`/api/notifications/send-scheduled`** | `GET` / `POST` | **Vercel Cron** (`Authorization: Bearer $CRON_SECRET` when configured) | Hourly job from `vercel.json`: expire stale pending bookings and email players, send review reminder emails roughly 1 hour / 2 days / 5 days after eligible bookings when either side has not reviewed, and post a 24-hour check-in reminder message with listing check-in instructions into the booking conversation, which also emails the player. |
+
 ### Booking checkout and payment lifecycle (Stripe)
 
 | Route | Method | Auth | Purpose |
 | --- | --- | --- | --- |
 | **`/api/create-checkout-session`** | `POST` | **Bearer** | Validates slot, conflicts, advance rules, **server-side price** from `courts/{courtId}`; rate-limited; Stripe Checkout with **manual capture** metadata. Body: **`courtId`**, **`date`**, **`time`**, **`durationMinutes`**, optional **`courtNumber`**. |
-| **`/api/finalize-checkout-session`** | `POST` | **Bearer** | Client success path: **`sessionId`** verified for caller; **`createBookingFromPaidCheckoutSession`** (idempotent by session; shared with webhook logic). |
+| **`/api/finalize-checkout-session`** | `POST` | **Bearer** | Client success path: **`sessionId`** verified for caller; **`createBookingFromPaidCheckoutSession`** (idempotent by session; shared with webhook logic); when this path creates the booking first, send the host booking-request email immediately so local/dev flows do not depend on Stripe webhook delivery. |
 | **`/api/stripe-webhook`** | `POST` | **Stripe signature** (`stripe-signature` + `STRIPE_WEBHOOK_SECRET`) | e.g. **`checkout.session.completed`**: pending booking, payment metadata, **`expiresAt`**, conversation, host email, conflict handling. |
 | **`/api/accept-booking`** | `POST` | **Bearer** (court **host**) | Pending + window; **capture** PaymentIntent; **`confirmed`**; payout / transfer per metadata. |
 | **`/api/reject-booking`** | `POST` | **Bearer** (host) | Release uncaptured auth (or refund); **`rejected`**; player email. |
@@ -167,7 +175,7 @@ Firestore `reviews/{bookingId}_{reviewerRole}` stores one review per booking par
 
 ### Not implemented as REST (Firestore + rules instead)
 
-Use **Firestore queries** (and rules) for: player bookings by `userId`, host reservations via `bookings` joined with `courts` where `ownerId == uid`, **messages** (`conversations` + `messages` subcollections), **create/edit listings** and Storage uploads. If you need a strict BFF with no client booking reads, add routes such as **`/api/bookings`** or **`/api/conversations`**—they are not in the repo today.
+Use **Firestore queries** (and rules) for: player bookings by `userId`, host reservations via `bookings` joined with `courts` where `ownerId == uid`, conversation reads (`conversations` + `messages` subcollections), **create/edit listings** and Storage uploads. User-authored conversation writes that need paired email should use `POST /api/conversations/send-message`. If you need a strict BFF with no client booking reads, add routes such as **`/api/bookings`**—they are not in the repo today.
 
 ### Quick reference — all `app/api/**/route.ts` handlers
 
@@ -183,6 +191,8 @@ Use **Firestore queries** (and rules) for: player bookings by `userId`, host res
 10. `POST /api/stripe/create-connect-account`
 11. `POST /api/stripe/check-account-status`
 12. `POST /api/send-booking-confirmation`
+13. `POST /api/conversations/send-message`
+14. `GET` + `POST /api/notifications/send-scheduled`
 
 ## Security Protections And Considerations
 
@@ -204,7 +214,7 @@ Security gaps to keep in mind: enforce Firestore and Storage rules to match thes
 
 ## Transactional Email
 
-Transactional emails are generated in `src/lib/email.ts` and should match CourtShare's restrained green marketplace theme. Avoid decorative emoji/checkmark headings, fake excitement, or casual icon-heavy copy. Use a CourtShare-branded green header with the tennis-ball logo from `${NEXT_PUBLIC_APP_URL}/icon.png` (falling back to `https://courtshare.co/icon.png`), clear booking detail tables, one primary CTA, and precise payment language: new booking request emails should say the player's card is authorized and will only be captured if accepted within 24 hours; confirmation emails should say payment has been captured; declined/cancelled/expired messaging should say the authorization was released or the payment was refunded depending on the actual Stripe outcome.
+Transactional emails are generated in `src/lib/email.ts` and should match CourtShare's restrained green marketplace theme. Avoid decorative emoji/checkmark headings, fake excitement, or casual icon-heavy copy. Use a CourtShare-branded green header with the tennis-ball logo from `${NEXT_PUBLIC_APP_URL}/icon.png` (falling back to `https://courtshare.co/icon.png`), clear booking detail tables, one primary CTA, and precise payment language: new booking request emails should say the player's card is authorized and will only be captured if accepted within 24 hours; confirmation emails should say payment has been captured; declined/cancelled/expired messaging should say the authorization was released or the payment was refunded depending on the actual Stripe outcome. Every in-app user-authored message and system check-in reminder message should have a paired email containing the message body, with reply links back to `/messages?conversationId=...`.
 
 ## Improvement Areas
 

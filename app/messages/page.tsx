@@ -3,7 +3,6 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  addDoc,
   collection,
   doc,
   getDoc,
@@ -567,38 +566,45 @@ function MessagesPageContent() {
 
     setSending(true);
     try {
+      let sentMessage: Message;
       if (isMockMode) {
         await createMockMessage(selectedConversation.id, user.uid, body);
+        sentMessage = {
+          id: `local-${Date.now()}`,
+          conversationId: selectedConversation.id,
+          senderId: user.uid,
+          body,
+          createdAt: new Date().toISOString(),
+          type: "text",
+        };
       } else {
-        await addDoc(
-          collection(db, "conversations", selectedConversation.id, "messages"),
-          {
-            senderId: user.uid,
+        const idToken = await user.getIdToken();
+        const res = await fetch("/api/conversations/send-message", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            conversationId: selectedConversation.id,
             body,
-            createdAt: serverTimestamp(),
-            type: "text",
-          }
-        );
-        await updateDoc(doc(db, "conversations", selectedConversation.id), {
-          lastMessageText: body,
-          lastMessageAt: serverTimestamp(),
-          lastMessageSenderId: user.uid,
-          unreadBy: selectedConversation.participantIds.filter(
-            (participantId) => participantId !== user.uid
-          ),
-          updatedAt: serverTimestamp(),
+          }),
         });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to send message");
+        }
+        sentMessage = data.message || {
+          id: `local-${Date.now()}`,
+          conversationId: selectedConversation.id,
+          senderId: user.uid,
+          body,
+          createdAt: new Date().toISOString(),
+          type: "text",
+        };
       }
 
       setDraft("");
-      const sentMessage: Message = {
-        id: `local-${Date.now()}`,
-        conversationId: selectedConversation.id,
-        senderId: user.uid,
-        body,
-        createdAt: new Date().toISOString(),
-        type: "text",
-      };
       setMessages((current) => [...current, sentMessage]);
       setConversations((current) =>
         current

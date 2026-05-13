@@ -407,16 +407,6 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
     };
   }, [authLoading, bookingId, user]);
 
-  useEffect(() => {
-    if (!booking || !court || !viewerRole) return;
-    if (booking.status !== "completed") return;
-
-    const reviewable = isBookingReviewable(booking, new Date()) && booking.status === "completed";
-    if (reviewable && !reviewedBooking) {
-      setReviewDialogOpen(true);
-    }
-  }, [booking, court, reviewedBooking, viewerRole]);
-
   const statusBadge = (status: string) => {
     switch (status) {
       case "pending":
@@ -429,6 +419,12 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
         return (
           <Badge className="rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-2 text-base font-black text-white shadow-md">
             Confirmed (Upcoming)
+          </Badge>
+        );
+      case "past_confirmed":
+        return (
+          <Badge className="rounded-full bg-slate-900 px-4 py-2 text-base font-black text-white">
+            Past Booking
           </Badge>
         );
       case "rejected":
@@ -445,6 +441,34 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
   };
 
   const now = useMemo(() => new Date(), [bookingId, loading]);
+  const bookingStart = useMemo(() => {
+    if (!booking) return null;
+    try {
+      const value = parseBookingDateTime(booking.date, booking.time);
+      return Number.isNaN(value.getTime()) ? null : value;
+    } catch {
+      return null;
+    }
+  }, [booking]);
+  const bookingIsPast = !!bookingStart && bookingStart.getTime() < now.getTime();
+  const displayStatus = useMemo(() => {
+    if (!booking) return "";
+    if (booking.status === "confirmed" && bookingIsPast) {
+      return "past_confirmed";
+    }
+    return booking.status;
+  }, [booking, bookingIsPast]);
+
+  useEffect(() => {
+    if (!booking || !court || !viewerRole) return;
+    if (!["completed", "past_confirmed"].includes(displayStatus)) return;
+
+    const reviewable = isBookingReviewable(booking, new Date());
+    if (reviewable && !reviewedBooking) {
+      setReviewDialogOpen(true);
+    }
+  }, [booking, court, displayStatus, reviewedBooking, viewerRole]);
+
   const pendingTimeRemaining = useMemo(() => {
     if (!booking) return null;
     if (booking.status !== "pending") return null;
@@ -455,19 +479,21 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
   const hoursUntilReservation = useMemo(() => {
     if (!booking) return null;
     try {
-      const bookingDateTime = parseBookingDateTime(booking.date, booking.time);
-      return (bookingDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+      if (!bookingStart) return null;
+      return (bookingStart.getTime() - now.getTime()) / (1000 * 60 * 60);
     } catch {
       return null;
     }
-  }, [booking, now]);
+  }, [booking, bookingStart, now]);
 
   const isWithin24Hours = hoursUntilReservation != null && hoursUntilReservation < 24;
   const playerCanCancel =
-    booking?.status === "pending" ||
-    (booking?.status === "confirmed" && !isWithin24Hours);
-  const playerCancelWithin24 = booking?.status === "confirmed" && isWithin24Hours;
-  const hostCanCancel = booking?.status === "confirmed";
+    !bookingIsPast &&
+    (booking?.status === "pending" ||
+      (booking?.status === "confirmed" && !isWithin24Hours));
+  const playerCancelWithin24 =
+    !bookingIsPast && booking?.status === "confirmed" && isWithin24Hours;
+  const hostCanCancel = !bookingIsPast && booking?.status === "confirmed";
 
   const otherParticipant = useMemo(() => {
     if (!booking || !court || !viewerRole) return null;
@@ -508,7 +534,13 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
 
   /** On completed bookings: the other party’s review for this specific reservation. */
   const otherPartyReviewForThisBooking = useMemo(() => {
-    if (!booking || booking.status !== "completed" || !viewerRole) return null;
+    if (
+      !booking ||
+      !["completed", "past_confirmed"].includes(displayStatus) ||
+      !viewerRole
+    ) {
+      return null;
+    }
     if (viewerRole === "player") {
       return (
         playerReviews.find(
@@ -525,7 +557,7 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
       ) ||
       null
     );
-  }, [booking, courtReviews, hostReviews, playerReviews, viewerRole]);
+  }, [booking, courtReviews, displayStatus, hostReviews, playerReviews, viewerRole]);
 
   /** Mirrors signed-in profile “About Me” stats (confirmed trips, review count, tenure). */
   const playerAboutMeStats = useMemo(() => {
@@ -723,7 +755,8 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
       : "New";
   const playerReviewCountForCard = playerProfile?.playerReviewCount ?? 0;
   const canViewPrivateArrivalDetails =
-    viewerRole === "player" && ["confirmed", "completed"].includes(booking.status);
+    viewerRole === "player" &&
+    ["confirmed", "completed", "past_confirmed"].includes(displayStatus);
   const privateCheckInInstructions =
     court.checkInInstructions || court.accessInstructions || "";
   const fallbackBookingCostCents =
@@ -770,7 +803,7 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
             <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="space-y-3">
-                  <div>{statusBadge(booking.status)}</div>
+                  <div>{statusBadge(displayStatus)}</div>
                   <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm text-slate-600">
                     <span className="font-semibold text-slate-900">
                       {formatBookingDateLong(booking.date)}
@@ -892,7 +925,7 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
                 </div>
               )}
 
-              {viewerRole === "player" && booking.status === "confirmed" && (
+              {viewerRole === "player" && displayStatus === "confirmed" && (
                 <details className="group mt-4 rounded-2xl border border-slate-200 bg-white">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-slate-950">
                     <span>See check-in details</span>

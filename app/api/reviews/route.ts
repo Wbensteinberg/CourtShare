@@ -96,9 +96,19 @@ export async function GET(req: NextRequest) {
             new Date(a.createdAt || 0).getTime()
         );
 
+      const pairedReviewChecks = await Promise.all(
+        reviews.map(async (review) => {
+          const otherRole = review.reviewerRole === "player" ? "owner" : "player";
+          const pairedReviewId = `${review.bookingId}_${otherRole}`;
+          const pairedReviewDoc = await db.collection("reviews").doc(pairedReviewId).get();
+          return pairedReviewDoc.exists;
+        })
+      );
+      const visibleReviews = reviews.filter((_, index) => pairedReviewChecks[index]);
+
       const reviewerIds = [
         ...new Set(
-          reviews
+          visibleReviews
             .map((review) => review.reviewerId || review.playerId)
             .filter(Boolean)
         ),
@@ -120,7 +130,7 @@ export async function GET(req: NextRequest) {
       );
 
       return NextResponse.json({
-        reviews: reviews.map((review) => {
+        reviews: visibleReviews.map((review) => {
           const reviewer = reviewerProfiles.get(review.reviewerId || review.playerId);
           return {
             ...review,

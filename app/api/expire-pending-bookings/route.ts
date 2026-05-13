@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { isPendingBookingExpired } from "@/lib/bookingDates";
 import { releaseBookingPayment } from "@/lib/stripeBookingPayments";
+import { sendPlayerBookingExpiredNotification } from "@/lib/email";
 import { isMockApiMode } from "@/lib/mockApiMode";
 import { mockExpirePendingBookingsPOST } from "@/lib/mockApiServer";
 
@@ -81,6 +82,37 @@ export async function POST(req: NextRequest) {
             ? { refundId: releasedPayment.refundId }
             : {}),
         });
+
+        try {
+          const playerDoc = await db
+            .collection("users")
+            .doc(bookingData.userId)
+            .get();
+          const playerData = playerDoc.exists ? playerDoc.data() : null;
+          const price =
+            typeof bookingData.totalAmountCents === "number"
+              ? bookingData.totalAmountCents / 100
+              : (courtData.price || 0) * (bookingData.duration || 1);
+
+          if (playerData?.email) {
+            await sendPlayerBookingExpiredNotification({
+              courtName: courtData.name || "Court",
+              playerEmail: playerData.email,
+              playerName: playerData.displayName || playerData.name,
+              date: bookingData.date,
+              time: bookingData.time,
+              duration: bookingData.duration || 1,
+              price,
+              paymentStatus: releasedPayment.paymentStatus,
+            });
+          }
+        } catch (emailErr: any) {
+          console.warn(
+            "[EXPIRE-PENDING-BOOKINGS] Failed to send expiration email:",
+            emailErr.message || emailErr
+          );
+        }
+
         expiredBookingIds.push(bookingId);
       })
     );

@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { adminDb, adminAuth } from "@/lib/firebase-admin";
 import { isBookingCancellable } from "@/lib/bookingDates";
-import { sendOwnerCancellationNotification, sendPlayerCancellationConfirmation } from "@/lib/email";
+import {
+  sendOwnerCancellationNotification,
+  sendPlayerCancellationConfirmation,
+  sendPlayerHostCancellationNotification,
+} from "@/lib/email";
 import { releaseBookingPayment } from "@/lib/stripeBookingPayments";
 import { isMockApiMode } from "@/lib/mockApiMode";
 import { mockCancelBookingPOST } from "@/lib/mockApiServer";
@@ -154,6 +158,18 @@ export async function POST(req: NextRequest) {
       }
       if (isPlayerCancellation && playerData?.email) {
         await sendPlayerCancellationConfirmation({
+          courtName: courtData?.name || "Court",
+          playerEmail: playerData.email,
+          playerName: playerData.displayName || playerData.name,
+          date: bookingData.date,
+          time: bookingData.time,
+          duration: bookingData.duration || 1,
+          price,
+          paymentStatus: releasedPayment.paymentStatus,
+        });
+      }
+      if (isHostCancellation && playerData?.email) {
+        await sendPlayerHostCancellationNotification({
           courtName: courtData?.name || "Court",
           playerEmail: playerData.email,
           playerName: playerData.displayName || playerData.name,

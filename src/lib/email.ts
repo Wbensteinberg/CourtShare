@@ -36,6 +36,50 @@ const emailHeader = (title: string) => `
   </div>
 `;
 
+const escapeHtml = (value: unknown) =>
+  String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+const formatBookingEmailDate = (date: string) =>
+  new Date(`${date}T12:00:00`).toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+const sendEmail = async ({
+  to,
+  subject,
+  html,
+  logLabel,
+}: {
+  to: string;
+  subject: string;
+  html: string;
+  logLabel: string;
+}) => {
+  if (!resend) {
+    console.warn(`[EMAIL] Resend not initialized, skipping ${logLabel}`);
+    return;
+  }
+
+  const result = await resend.emails.send({
+    from: getFromEmail(),
+    to,
+    subject,
+    html,
+  });
+
+  if (result.error) {
+    throw new Error(result.error.message || `Failed to send ${logLabel}`);
+  }
+};
+
 export interface BookingEmailData {
   bookingId: string;
   courtName: string;
@@ -48,6 +92,7 @@ export interface BookingEmailData {
   time: string;
   duration: number;
   price: number;
+  initialMessage?: string;
 }
 
 type PaymentReleaseStatus = "authorization_released" | "refunded" | "no_payment";
@@ -121,6 +166,16 @@ export async function sendOwnerBookingNotification(
               <p style="font-size: 16px;">You have received a new booking request for <strong>${
                 data.courtName
               }</strong>. The player's card has been authorized; payment will only be captured if you accept within 24 hours.</p>
+              ${
+                data.initialMessage?.trim()
+                  ? `
+              <div style="background: ${pageBg}; padding: 18px; border-radius: 10px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
+                <p style="margin: 0 0 8px; color: ${mutedTextColor}; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;">Player message</p>
+                <p style="white-space: pre-wrap; margin: 0; color: ${textColor};">${escapeHtml(data.initialMessage)}</p>
+              </div>
+              `
+                  : ""
+              }
               
               <div style="background: ${pageBg}; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
                 <h2 style="margin-top: 0; color: ${brandGreen}; font-size: 20px;">Booking Details</h2>
@@ -478,6 +533,39 @@ export async function sendPlayerCancellationConfirmation(
   }
 }
 
+export async function sendPlayerHostCancellationNotification(
+  data: PlayerCancellationConfirmationData
+): Promise<void> {
+  const formattedDate = formatBookingEmailDate(data.date);
+
+  await sendEmail({
+    to: data.playerEmail,
+    subject: `Host cancelled: ${data.courtName} on ${formattedDate}`,
+    logLabel: "player host cancellation email",
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: ${textColor}; max-width: 600px; margin: 0 auto; padding: 20px; background: ${pageBg};">
+          ${emailHeader("Booking cancelled by host")}
+          <div style="background: ${cardBg}; padding: 30px; border-radius: 0 0 14px 14px; border: 1px solid ${borderColor}; border-top: none;">
+            <p style="font-size: 16px;">Hello${data.playerName ? ` ${escapeHtml(data.playerName)}` : ""},</p>
+            <p style="font-size: 16px;">The host cancelled your reservation for <strong>${escapeHtml(data.courtName)}</strong>.</p>
+            <div style="background: ${pageBg}; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
+              <p style="margin: 0 0 8px;"><strong>Date:</strong> ${formattedDate}</p>
+              <p style="margin: 0 0 8px;"><strong>Time:</strong> ${escapeHtml(data.time)} (${data.duration}h)</p>
+              <p style="margin: 0;"><strong>Payment:</strong> ${paymentReleaseCopy(data.paymentStatus, data.price)}</p>
+            </div>
+            <div style="margin-top: 20px; text-align: center;">
+              <a href="${appUrl}/courts" style="display: inline-block; background: ${brandGreen}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Browse Courts</a>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  });
+}
+
 export interface RejectionEmailData {
   courtName: string;
   playerEmail: string;
@@ -541,4 +629,136 @@ export async function sendPlayerRejectionNotification(
     console.error("[EMAIL] Failed to send player rejection email:", error);
     throw error;
   }
+}
+
+export interface ExpiredBookingEmailData {
+  courtName: string;
+  playerEmail: string;
+  playerName?: string;
+  date: string;
+  time: string;
+  duration: number;
+  price: number;
+  paymentStatus?: PaymentReleaseStatus;
+}
+
+export async function sendPlayerBookingExpiredNotification(
+  data: ExpiredBookingEmailData
+): Promise<void> {
+  const formattedDate = formatBookingEmailDate(data.date);
+
+  await sendEmail({
+    to: data.playerEmail,
+    subject: `Booking request expired: ${data.courtName} on ${formattedDate}`,
+    logLabel: "player booking expired email",
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: ${textColor}; max-width: 600px; margin: 0 auto; padding: 20px; background: ${pageBg};">
+          ${emailHeader("Booking request expired")}
+          <div style="background: ${cardBg}; padding: 30px; border-radius: 0 0 14px 14px; border: 1px solid ${borderColor}; border-top: none;">
+            <p style="font-size: 16px;">Hello${data.playerName ? ` ${escapeHtml(data.playerName)}` : ""},</p>
+            <p style="font-size: 16px;">Your booking request for <strong>${escapeHtml(data.courtName)}</strong> expired because the host did not accept it within 24 hours.</p>
+            <div style="background: ${pageBg}; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
+              <p style="margin: 0 0 8px;"><strong>Date:</strong> ${formattedDate}</p>
+              <p style="margin: 0 0 8px;"><strong>Time:</strong> ${escapeHtml(data.time)} (${data.duration}h)</p>
+              <p style="margin: 0;"><strong>Payment:</strong> ${paymentReleaseCopy(data.paymentStatus, data.price)}</p>
+            </div>
+            <div style="margin-top: 20px; text-align: center;">
+              <a href="${appUrl}/courts" style="display: inline-block; background: ${brandGreen}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Browse Courts</a>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  });
+}
+
+export interface ConversationMessageEmailData {
+  recipientEmail: string;
+  recipientName?: string;
+  senderName?: string;
+  courtName?: string;
+  messageBody: string;
+  conversationId: string;
+}
+
+export async function sendConversationMessageEmail(
+  data: ConversationMessageEmailData
+): Promise<void> {
+  const sender = data.senderName?.trim() || "CourtShare";
+  const courtLine = data.courtName?.trim()
+    ? ` about ${escapeHtml(data.courtName)}`
+    : "";
+
+  await sendEmail({
+    to: data.recipientEmail,
+    subject: `New message from ${sender}${data.courtName ? ` about ${data.courtName}` : ""}`,
+    logLabel: "conversation message email",
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: ${textColor}; max-width: 600px; margin: 0 auto; padding: 20px; background: ${pageBg};">
+          ${emailHeader("New message")}
+          <div style="background: ${cardBg}; padding: 30px; border-radius: 0 0 14px 14px; border: 1px solid ${borderColor}; border-top: none;">
+            <p style="font-size: 16px;">Hello${data.recipientName ? ` ${escapeHtml(data.recipientName)}` : ""},</p>
+            <p style="font-size: 16px;"><strong>${escapeHtml(sender)}</strong> sent you a message${courtLine}.</p>
+            <div style="background: ${pageBg}; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
+              <p style="white-space: pre-wrap; margin: 0; color: ${textColor};">${escapeHtml(data.messageBody)}</p>
+            </div>
+            <div style="margin-top: 20px; text-align: center;">
+              <a href="${appUrl}/messages?conversationId=${encodeURIComponent(data.conversationId)}" style="display: inline-block; background: ${brandGreen}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Reply in CourtShare</a>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  });
+}
+
+export interface ReviewReminderEmailData {
+  recipientEmail: string;
+  recipientName?: string;
+  bookingId: string;
+  courtName: string;
+  date: string;
+  time: string;
+  revieweeName?: string;
+}
+
+export async function sendReviewReminderEmail(
+  data: ReviewReminderEmailData
+): Promise<void> {
+  const formattedDate = formatBookingEmailDate(data.date);
+  const revieweeText = data.revieweeName?.trim()
+    ? ` for ${escapeHtml(data.revieweeName)}`
+    : "";
+
+  await sendEmail({
+    to: data.recipientEmail,
+    subject: `Reminder: review ${data.courtName}`,
+    logLabel: "review reminder email",
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: ${textColor}; max-width: 600px; margin: 0 auto; padding: 20px; background: ${pageBg};">
+          ${emailHeader("Leave a review")}
+          <div style="background: ${cardBg}; padding: 30px; border-radius: 0 0 14px 14px; border: 1px solid ${borderColor}; border-top: none;">
+            <p style="font-size: 16px;">Hello${data.recipientName ? ` ${escapeHtml(data.recipientName)}` : ""},</p>
+            <p style="font-size: 16px;">Please leave a review${revieweeText} from your booking at <strong>${escapeHtml(data.courtName)}</strong>.</p>
+            <div style="background: ${pageBg}; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
+              <p style="margin: 0 0 8px;"><strong>Date:</strong> ${formattedDate}</p>
+              <p style="margin: 0;"><strong>Time:</strong> ${escapeHtml(data.time)}</p>
+            </div>
+            <div style="margin-top: 20px; text-align: center;">
+              <a href="${appUrl}/booking/${encodeURIComponent(data.bookingId)}" style="display: inline-block; background: ${brandGreen}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Leave Review</a>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  });
 }

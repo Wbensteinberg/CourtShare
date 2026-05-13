@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { createBookingFromPaidCheckoutSession } from "@/lib/bookingCreation";
+import { sendOwnerBookingNotification } from "@/lib/email";
 import { isMockApiMode } from "@/lib/mockApiMode";
 import { mockFinalizeCheckoutSessionPOST } from "@/lib/mockApiServer";
 
@@ -72,6 +73,63 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await createBookingFromPaidCheckoutSession(adminDb, session);
+
+    if (result.status === "created") {
+      try {
+        const bookingDoc = await adminDb
+          .collection("bookings")
+          .doc(result.bookingId)
+          .get();
+        const bookingData = bookingDoc.exists ? bookingDoc.data() : null;
+
+        if (bookingData) {
+          const [courtDoc, playerDoc] = await Promise.all([
+            adminDb.collection("courts").doc(bookingData.courtId).get(),
+            adminDb.collection("users").doc(bookingData.userId).get(),
+          ]);
+          const courtData = courtDoc.exists ? courtDoc.data() : null;
+          const playerData = playerDoc.exists ? playerDoc.data() : null;
+          const ownerId = bookingData.ownerId || courtData?.ownerId;
+          const ownerDoc = ownerId
+            ? await adminDb.collection("users").doc(ownerId).get()
+            : null;
+          const ownerData = ownerDoc?.exists ? ownerDoc.data() : null;
+          const duration =
+            typeof bookingData.duration === "number"
+              ? bookingData.duration
+              : typeof bookingData.durationMinutes === "number"
+                ? bookingData.durationMinutes / 60
+                : 1;
+          const price =
+            typeof bookingData.totalAmountCents === "number"
+              ? bookingData.totalAmountCents / 100
+              : (courtData?.price || 0) * duration;
+
+          if (courtData && ownerData?.email) {
+            await sendOwnerBookingNotification({
+              bookingId: result.bookingId,
+              courtName: courtData.name || "Court",
+              courtAddress: courtData.address || courtData.location,
+              playerName: playerData?.displayName || playerData?.name,
+              playerEmail: playerData?.email || session.customer_email || userId,
+              ownerName: ownerData.displayName || ownerData.name,
+              ownerEmail: ownerData.email,
+              date: bookingData.date,
+              time: bookingData.time,
+              duration,
+              price,
+              initialMessage: bookingData.initialMessage || "",
+            });
+          }
+        }
+      } catch (emailError: any) {
+        console.warn(
+          "[FINALIZE CHECKOUT] Failed to send host booking request email:",
+          emailError?.message || emailError
+        );
+      }
+    }
+
     return NextResponse.json(result);
   } catch (err: any) {
     console.error("[FINALIZE CHECKOUT] Failed:", err?.message || err);

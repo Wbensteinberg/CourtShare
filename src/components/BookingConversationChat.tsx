@@ -1,16 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
-  addDoc,
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
-import { db, isMockMode } from "@/lib/firebase";
+import { isMockMode } from "@/lib/firebase";
 import { useAuth } from "@/lib/AuthContext";
 import { getMockConversationsForUser, getMockMessagesForConversation, createMockMessage, type MockConversation, type MockMessage } from "@/lib/mockData";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -119,27 +110,25 @@ export default function BookingConversationChat({
           return;
         }
 
-        const conversationDoc = await getDoc(doc(db, "conversations", conversationId));
-        if (!conversationDoc.exists()) {
-          setError("Conversation not found.");
+        const idToken = await user.getIdToken();
+        const res = await fetch(
+          `/api/conversations/${encodeURIComponent(conversationId)}`,
+          {
+            headers: { Authorization: `Bearer ${idToken}` },
+          }
+        );
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          setError(data.error || "Conversation not found.");
           setConversation(null);
           setMessages([]);
           return;
         }
 
-        const conversationData = conversationDoc.data() as Conversation;
         if (cancelled) return;
-        setConversation(conversationData);
-
-        const messageSnap = await getDocs(
-          collection(db, "conversations", conversationId, "messages")
-        );
-        const messageData: Message[] = messageSnap.docs.map((m) => ({
-          id: m.id,
-          ...(m.data() as any),
-        }));
-        messageData.sort((a, b) => getDateValue(a.createdAt).getTime() - getDateValue(b.createdAt).getTime());
-        setMessages(messageData);
+        setConversation(data.conversation as Conversation);
+        setMessages((data.messages || []) as Message[]);
       } catch (err: any) {
         setError(err.message || "Failed to load messages.");
         setConversation(null);
@@ -172,32 +161,23 @@ export default function BookingConversationChat({
         return;
       }
 
-      await addDoc(collection(db, "conversations", conversationId, "messages"), {
-        senderId: user.uid,
-        body,
-        createdAt: serverTimestamp(),
-        type: "text",
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/conversations/send-message", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ conversationId, body }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to send message");
+      }
 
-      const unreadBy = conversation.participantIds.filter((participantId) => participantId !== user.uid);
-      await updateDoc(doc(db, "conversations", conversationId), {
-        lastMessageText: body,
-        lastMessageAt: serverTimestamp(),
-        lastMessageSenderId: user.uid,
-        unreadBy,
-        updatedAt: serverTimestamp(),
-      });
-
-      // Reload to reflect serverTimestamp ordering.
-      const messageSnap = await getDocs(collection(db, "conversations", conversationId, "messages"));
-      const messageData: Message[] = messageSnap.docs.map((m) => ({
-        id: m.id,
-        ...(m.data() as any),
-      }));
-      messageData.sort(
-        (a, b) => getDateValue(a.createdAt).getTime() - getDateValue(b.createdAt).getTime()
-      );
-      setMessages(messageData);
+      if (data.message) {
+        setMessages((prev) => [...prev, data.message as Message]);
+      }
       setDraft("");
     } catch (err: any) {
       alert(err.message || "Failed to send message.");
@@ -220,7 +200,16 @@ export default function BookingConversationChat({
   if (error) {
     return (
       <Card className="rounded-3xl border-slate-200 p-6 shadow-sm">
-        <p className="text-sm font-medium text-red-600">{error}</p>
+        <div className="flex items-start gap-3 text-sm text-slate-600">
+          <MessageCircle className="mt-0.5 h-5 w-5 shrink-0 text-slate-400" />
+          <div>
+            <p className="font-semibold text-slate-900">Messages unavailable</p>
+            <p className="mt-1 leading-6">
+              This booking is still visible, but the conversation could not be
+              loaded right now.
+            </p>
+          </div>
+        </div>
       </Card>
     );
   }
@@ -280,8 +269,8 @@ export default function BookingConversationChat({
 
       {!isParticipant ? (
         <div className="p-6">
-          <p className="text-sm font-medium text-red-600">
-            You don’t have permission to view this conversation.
+          <p className="text-sm font-medium text-slate-600">
+            Messages are unavailable for this booking right now.
           </p>
         </div>
       ) : (
