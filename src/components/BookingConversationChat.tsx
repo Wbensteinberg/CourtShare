@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { CalendarDays, MessageCircle, Send } from "lucide-react";
+import { CalendarDays, MessageCircle, Star, Send } from "lucide-react";
 
 type Conversation = MockConversation & {
   createdAt?: any;
@@ -36,6 +36,11 @@ type BookingConversationChatProps = {
   otherParticipantName: string;
   otherParticipantImageUrl?: string;
   courtName?: string;
+  otherParticipantRoleLabel?: string;
+  otherParticipantRating?: string;
+  otherParticipantReviewCount?: number;
+  onParticipantClick?: () => void;
+  showBookingMeta?: boolean;
 };
 
 const getDateValue = (value: any) => {
@@ -61,6 +66,11 @@ export default function BookingConversationChat({
   otherParticipantName,
   otherParticipantImageUrl,
   courtName,
+  otherParticipantRoleLabel,
+  otherParticipantRating,
+  otherParticipantReviewCount = 0,
+  onParticipantClick,
+  showBookingMeta = true,
 }: BookingConversationChatProps) {
   const { user, loading: authLoading } = useAuth();
 
@@ -226,20 +236,39 @@ export default function BookingConversationChat({
   return (
     <Card className="rounded-3xl border-slate-200 bg-white shadow-sm overflow-hidden">
       <div className="flex items-center justify-between gap-4 border-b border-slate-200 p-4">
-        <div className="flex min-w-0 items-center gap-3">
+        <button
+          type="button"
+          onClick={onParticipantClick}
+          disabled={!onParticipantClick}
+          className={cn(
+            "flex min-w-0 items-center gap-3 rounded-2xl text-left",
+            onParticipantClick && "transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+          )}
+        >
           <Avatar className="h-10 w-10">
             <AvatarImage src={otherParticipantImageUrl || undefined} alt={otherParticipantName} />
             <AvatarFallback>{otherParticipantName.trim().charAt(0).toUpperCase() || "U"}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-slate-950">{otherParticipantName}</p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <p className="truncate text-sm font-semibold text-slate-950">{otherParticipantName}</p>
+              {otherParticipantRating && (
+                <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-700">
+                  <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                  {otherParticipantRating}
+                  <span className="font-medium text-slate-500">
+                    ({otherParticipantReviewCount})
+                  </span>
+                </span>
+              )}
+            </div>
             <p className="truncate text-xs text-slate-500">
-              {courtName ? courtName : "Court conversation"}
+              {otherParticipantRoleLabel || courtName || "Court conversation"}
             </p>
           </div>
-        </div>
+        </button>
 
-        {!!conversation.bookingDate && (
+        {showBookingMeta && !!conversation.bookingDate && (
           <div className="hidden items-center gap-2 text-xs text-slate-500 md:flex">
             <CalendarDays className="h-4 w-4 text-emerald-600" />
             <span>
@@ -314,4 +343,3 @@ export default function BookingConversationChat({
     </Card>
   );
 }
-

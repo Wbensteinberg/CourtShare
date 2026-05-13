@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import { db, isMockMode } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -13,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Clock, KeyRound, MapPin, Star } from "lucide-react";
+import { ChevronDown, Clock, KeyRound, ListChecks, MapPin, Star } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import LoadingScreen from "@/components/LoadingScreen";
 import ReviewsListDialog, { type ReviewsListDialogReview } from "@/components/ReviewsListDialog";
@@ -36,6 +37,7 @@ import {
   getMockReviewsForCourt,
   getMockReviewsForTarget,
   getMockReviewsForUser,
+  updateMockBooking,
 } from "@/lib/mockData";
 
 type Court = {
@@ -54,6 +56,8 @@ type Court = {
   indoor?: boolean;
   ownerId?: string;
   amenities?: string[];
+  houseRules?: string[];
+  additionalRules?: string;
   rating?: number;
   reviewCount?: number;
 };
@@ -69,6 +73,8 @@ type Booking = {
   durationMinutes?: number;
   status: string;
   cancelReason?: string;
+  totalAmountCents?: number;
+  expectedAmountCents?: number;
   createdAt?: any;
   expiresAt?: any;
   conversationId?: string;
@@ -131,7 +137,22 @@ const getMonthCountFromMemberSince = (iso: string | null | undefined) => {
   );
 };
 
+const formatCents = (value?: number | null) => {
+  if (typeof value !== "number" || !Number.isFinite(value)) return "";
+  return (value / 100).toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: value % 100 === 0 ? 0 : 2,
+  });
+};
+
+const humanizeSlug = (value: string) =>
+  value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
 export default function CourtBookingBookingMode({ bookingId }: { bookingId: string }) {
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
 
   const [loading, setLoading] = useState(true);
@@ -154,6 +175,7 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [reviewsDialogKind, setReviewsDialogKind] = useState<ReviewsDialogKind | null>(null);
   const [playerProfileDialogOpen, setPlayerProfileDialogOpen] = useState(false);
+  const [hostProfileDialogOpen, setHostProfileDialogOpen] = useState(false);
 
   const viewerRole = useMemo(() => {
     if (!user || !booking || !court?.ownerId) return null;
@@ -166,6 +188,8 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
     if (!booking) return `booking_${bookingId}`;
     return booking.conversationId || `booking_${booking.id}`;
   }, [booking, bookingId]);
+
+  const [isActioning, setIsActioning] = useState<"accepting" | "declining" | "cancelling" | null>(null);
 
   const latestCourtReview = courtReviews[0];
   const latestHostReview = hostReviews[0];
@@ -396,26 +420,26 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
     switch (status) {
       case "pending":
         return (
-          <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 border-yellow-200">
+          <Badge variant="secondary" className="rounded-full border-yellow-200 bg-yellow-100 px-4 py-2 text-base font-black text-yellow-700">
             Pending Approval
           </Badge>
         );
       case "confirmed":
         return (
-          <Badge className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md">
+          <Badge className="rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-2 text-base font-black text-white shadow-md">
             Confirmed (Upcoming)
           </Badge>
         );
       case "rejected":
-        return <Badge variant="destructive">Rejected</Badge>;
+        return <Badge variant="destructive" className="rounded-full px-4 py-2 text-base font-black">Rejected</Badge>;
       case "cancelled":
-        return <Badge variant="destructive">Cancelled</Badge>;
+        return <Badge variant="destructive" className="rounded-full px-4 py-2 text-base font-black">Cancelled</Badge>;
       case "expired":
-        return <Badge variant="outline">Expired</Badge>;
+        return <Badge variant="outline" className="rounded-full px-4 py-2 text-base font-black">Expired</Badge>;
       case "completed":
-        return <Badge className="bg-slate-900 text-white">Completed</Badge>;
+        return <Badge className="rounded-full bg-slate-900 px-4 py-2 text-base font-black text-white">Completed</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="outline" className="rounded-full px-4 py-2 text-base font-black">{status}</Badge>;
     }
   };
 
@@ -425,6 +449,28 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
     if (booking.status !== "pending") return null;
     return formatPendingBookingTimeRemaining(booking as any, now);
   }, [booking, now]);
+
+  // Cancel eligibility
+  const hoursUntilReservation = useMemo(() => {
+    if (!booking) return null;
+    const [timePart, period] = (booking.time || "").split(" ");
+    if (!timePart) return null;
+    const [hStr, mStr] = timePart.split(":");
+    let h = parseInt(hStr, 10);
+    const m = parseInt(mStr || "0", 10);
+    if (period === "PM" && h !== 12) h += 12;
+    if (period === "AM" && h === 12) h = 0;
+    const d = new Date(booking.date);
+    d.setHours(h, m, 0, 0);
+    return (d.getTime() - now.getTime()) / (1000 * 60 * 60);
+  }, [booking, now]);
+
+  const isWithin24Hours = hoursUntilReservation != null && hoursUntilReservation < 24;
+  const playerCanCancel =
+    booking?.status === "pending" ||
+    (booking?.status === "confirmed" && !isWithin24Hours);
+  const playerCancelWithin24 = booking?.status === "confirmed" && isWithin24Hours;
+  const hostCanCancel = booking?.status === "confirmed";
 
   const otherParticipant = useMemo(() => {
     if (!booking || !court || !viewerRole) return null;
@@ -506,6 +552,79 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
       months,
     };
   }, [booking, playerAllReceivedReviews, playerProfile]);
+
+  const handleAccept = async () => {
+    if (!booking || isActioning) return;
+    setIsActioning("accepting");
+    try {
+      if (isMockMode) {
+        await updateMockBooking(booking.id, { status: "confirmed" });
+        setBooking((prev) => prev ? { ...prev, status: "confirmed" } : null);
+      } else {
+        const idToken = await user!.getIdToken();
+        const res = await fetch("/api/accept-booking", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+          body: JSON.stringify({ bookingId: booking.id }),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to accept");
+        setBooking((prev) => prev ? { ...prev, status: "confirmed" } : null);
+      }
+    } catch (e: any) {
+      alert(e.message || "Failed to accept booking");
+    } finally {
+      setIsActioning(null);
+    }
+  };
+
+  const handleDecline = async () => {
+    if (!booking || isActioning) return;
+    setIsActioning("declining");
+    try {
+      if (isMockMode) {
+        await updateMockBooking(booking.id, { status: "rejected" });
+        setBooking((prev) => prev ? { ...prev, status: "rejected" } : null);
+      } else {
+        const idToken = await user!.getIdToken();
+        const res = await fetch("/api/reject-booking", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+          body: JSON.stringify({ bookingId: booking.id }),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to decline");
+        setBooking((prev) => prev ? { ...prev, status: "rejected" } : null);
+      }
+    } catch (e: any) {
+      alert(e.message || "Failed to decline booking");
+    } finally {
+      setIsActioning(null);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!booking || isActioning) return;
+    if (!window.confirm("Are you sure you want to cancel this booking?")) return;
+    setIsActioning("cancelling");
+    try {
+      if (isMockMode) {
+        await updateMockBooking(booking.id, { status: "cancelled" });
+        setBooking((prev) => prev ? { ...prev, status: "cancelled" } : null);
+      } else {
+        const idToken = await user!.getIdToken();
+        const res = await fetch("/api/cancel-booking", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
+          body: JSON.stringify({ bookingId: booking.id }),
+        });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to cancel");
+        setBooking((prev) => prev ? { ...prev, status: "cancelled" } : null);
+      }
+    } catch (e: any) {
+      alert(e.message || "Failed to cancel booking");
+    } finally {
+      setIsActioning(null);
+    }
+  };
 
   const handleSubmitReview = async (review: { rating: number; comment: string }) => {
     if (!user || !booking || !court) return;
@@ -606,188 +725,252 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
       ? playerProfile.playerRating.toFixed(1)
       : "New";
   const playerReviewCountForCard = playerProfile?.playerReviewCount ?? 0;
-  const canViewPrivateArrivalDetails = ["confirmed", "completed"].includes(booking.status);
+  const canViewPrivateArrivalDetails =
+    viewerRole === "player" && ["confirmed", "completed"].includes(booking.status);
   const privateCheckInInstructions =
     court.checkInInstructions || court.accessInstructions || "";
+  const fallbackBookingCostCents =
+    typeof court.price === "number"
+      ? Math.round(court.price * 100 * (booking.duration || 1))
+      : null;
+  const bookingCost = formatCents(
+    booking.totalAmountCents ?? booking.expectedAmountCents ?? fallbackBookingCostCents
+  );
+  const hostName = hostProfile?.displayName?.trim() || "Court host";
+  const hostAvatarUrl = hostProfile?.profileImageUrl || undefined;
+  const hostRatingSummary =
+    hostProfile?.ownerRating != null ? hostProfile.ownerRating.toFixed(1) : "New";
+  const hostReviewCountForCard = hostProfile?.ownerReviewCount ?? hostReviews.length;
+  const participantRatingSummary =
+    otherParticipant?.ratingValue != null ? otherParticipant.ratingValue.toFixed(1) : "New";
+  const participantReviewCount = otherParticipant?.reviewCount ?? 0;
+  const participantRoleLabel = viewerRole === "player" ? "Host" : "Player";
+  const openParticipantProfile = () => {
+    if (viewerRole === "player") {
+      setHostProfileDialogOpen(true);
+    } else {
+      setPlayerProfileDialogOpen(true);
+    }
+  };
+  const goToCourtReviews = () => router.push(`/courts/${court.id}#reviews`);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/20">
       <AppHeader />
 
-      <div className="container max-w-7xl mx-auto py-8 px-4 sm:px-6">
-        <h1 className="mb-4 text-3xl font-black tracking-tight text-slate-950 md:text-4xl">
-          Booking Details
-        </h1>
-
-        <Card className="mb-6 border-0 shadow-elegant rounded-3xl">
-          <CardContent className="flex flex-col items-start gap-3 p-5 md:p-6">
-            <div className="flex flex-wrap items-center gap-3">{statusBadge(booking.status)}</div>
-            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm text-slate-600">
-              <span className="font-semibold text-slate-900">
-                {formatBookingDateLong(booking.date)}
-              </span>
-              <span>
-                {booking.time}
-                {booking.duration ? ` · ${booking.duration}h` : ""}
-              </span>
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        <Card className="rounded-[36px] border-slate-200 bg-white shadow-elegant">
+          <CardContent className="space-y-6 p-5 md:p-8">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
+                CourtShare Booking
+              </p>
+              <h1 className="mt-2 text-3xl font-black tracking-tight text-slate-950 md:text-4xl">
+                Booking Details
+              </h1>
             </div>
 
-            {booking.status === "pending" && pendingTimeRemaining && (
-              <div className="w-full max-w-md rounded-xl border border-yellow-200 bg-yellow-50 p-3">
-                <div className="flex items-center gap-2 text-sm font-semibold text-yellow-800">
-                  <Clock className="h-4 w-4 shrink-0" />
-                  {pendingTimeRemaining}
-                </div>
-                <p className="mt-1 text-xs text-yellow-700">
-                  Host must accept before this request expires.
-                </p>
-              </div>
-            )}
-
-            {booking.cancelReason && (
-              <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
-                  Cancel reason
-                </p>
-                <p className="mt-1 text-sm font-medium text-slate-900">{booking.cancelReason}</p>
-              </div>
-            )}
-
-            <p className="text-xs text-slate-500">
-              Payment capture is tied to host acceptance.
-            </p>
-          </CardContent>
-        </Card>
-
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
-          {/* Column 1: court gallery + description / reviews (single card) */}
-          <CourtListingGalleryCard
-            listingKey={court.id}
-            court={court}
-            latestCourtReview={latestCourtReview}
-            onOpenCourtReviews={() => openReviewsDialog("court")}
-          />
-
-          {/* Column 2: this-booking review (completed) + host / player profile */}
-          <div className="flex flex-col gap-6">
-            {canViewPrivateArrivalDetails && (court.address || privateCheckInInstructions) && (
-              <Card className="border-0 shadow-elegant rounded-3xl">
-                <CardContent className="space-y-5 p-6">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Arrival Details
-                    </p>
-                    <h2 className="mt-1 text-xl font-black text-slate-950">
-                      Address and check-in
-                    </h2>
-                  </div>
-                  {court.address && (
-                    <div className="flex gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[var(--site-accent)]" />
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Exact address
-                        </p>
-                        <p className="mt-1 text-sm font-semibold leading-6 text-slate-900">
-                          {court.address}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                  {privateCheckInInstructions && (
-                    <div className="flex gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                      <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-[var(--site-accent)]" />
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          Check-in instructions
-                        </p>
-                        <p className="mt-1 whitespace-pre-line text-sm font-medium leading-6 text-slate-900">
-                          {privateCheckInInstructions}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {booking.status === "completed" && otherPartyReviewForThisBooking && (
-              <Card className="border-0 shadow-elegant rounded-3xl">
-                <CardContent className="p-6">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    {viewerRole === "player" ? "Host review for this booking" : "Player review for this booking"}
-                  </p>
-                  <div className="mt-2 flex items-center gap-1">
-                    <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                    <span className="text-sm font-semibold text-slate-900">
-                      {otherPartyReviewForThisBooking.rating}/5
+            <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="space-y-3">
+                  <div>{statusBadge(booking.status)}</div>
+                  <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm text-slate-600">
+                    <span className="font-semibold text-slate-900">
+                      {formatBookingDateLong(booking.date)}
+                    </span>
+                    <span>
+                      {booking.time}
+                      {booking.duration ? ` · ${booking.duration}h` : ""}
+                      {bookingCost ? ` · ${bookingCost}` : ""}
                     </span>
                   </div>
-                  {otherPartyReviewForThisBooking.comment ? (
-                    <p className="mt-2 text-sm leading-6 text-slate-700 whitespace-pre-line">
-                      {otherPartyReviewForThisBooking.comment}
+                  {booking.status === "pending" && (
+                    <p className="text-xs text-slate-500">
+                      Payment capture is tied to host acceptance.
                     </p>
-                  ) : (
-                    <p className="mt-2 text-sm text-slate-500">No written notes.</p>
                   )}
-                </CardContent>
-              </Card>
-            )}
+                </div>
 
-            {viewerRole === "host" ? (
-              <Card className="border-0 shadow-elegant rounded-3xl">
-                <CardContent className="p-6">
+                {booking.status === "pending" && pendingTimeRemaining && (
+                  <div className="rounded-2xl border border-yellow-200 bg-yellow-50 px-4 py-3">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-yellow-800">
+                      <Clock className="h-4 w-4 shrink-0" />
+                      {pendingTimeRemaining}
+                    </div>
+                    <p className="mt-1 text-xs text-yellow-700">
+                      {viewerRole === "host"
+                        ? "You must accept before this request expires."
+                        : "Host must accept before this request expires."}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Host: accept / decline buttons for pending bookings */}
+              {viewerRole === "host" && booking.status === "pending" && (
+                <div className="mt-4 flex gap-3">
                   <button
                     type="button"
-                    onClick={() => setPlayerProfileDialogOpen(true)}
-                    className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                    aria-label={`View profile for ${playerNameForBookingCard}`}
+                    onClick={handleAccept}
+                    disabled={!!isActioning}
+                    className="flex-1 rounded-2xl bg-[var(--site-accent)] px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[var(--site-accent-hover)] disabled:opacity-60"
                   >
-                    <Avatar className="h-14 w-14 shrink-0">
-                      <AvatarImage
-                        src={participantImageUrl}
-                        alt={playerNameForBookingCard}
-                      />
-                      <AvatarFallback className="bg-emerald-100 font-semibold text-emerald-800">
-                        {playerNameForBookingCard.trim().charAt(0).toUpperCase() || "P"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-snug text-slate-900">
-                      <span className="font-semibold text-slate-700">Booking Request From</span>
-                      <span className="font-bold text-slate-950">{playerNameForBookingCard}</span>
-                      <span className="inline-flex items-center gap-1 font-semibold">
-                        <Star className="h-4 w-4 shrink-0 fill-yellow-400 text-yellow-400" />
-                        {playerRatingSummary}
-                      </span>
-                      <span className="text-slate-600">
-                        (
-                        {playerReviewCountForCard}{" "}
-                        {playerReviewCountForCard === 1 ? "review" : "reviews"})
-                      </span>
-                    </div>
+                    {isActioning === "accepting" ? "Accepting…" : "Accept"}
                   </button>
-                </CardContent>
-              </Card>
-            ) : (
-              <CourtListingHostCard
-                hostProfile={hostProfile}
-                hostReviews={hostReviews}
-                ownerId={court.ownerId}
-                avatarImageUrl={participantImageUrl}
-              />
-            )}
-          </div>
+                  <button
+                    type="button"
+                    onClick={handleDecline}
+                    disabled={!!isActioning}
+                    className="flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    {isActioning === "declining" ? "Declining…" : "Decline"}
+                  </button>
+                </div>
+              )}
 
-          {/* Column 3: messages */}
-          <div className="lg:sticky lg:top-24 lg:self-start">
-            <BookingConversationChat
-              conversationId={conversationId}
-              otherParticipantName={participantDisplayName}
-              otherParticipantImageUrl={participantImageUrl}
-              courtName={court.name}
-            />
-          </div>
-        </div>
+              {/* Host: cancel button for confirmed bookings */}
+              {viewerRole === "host" && hostCanCancel && (
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    disabled={!!isActioning}
+                    className="w-full rounded-2xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+                  >
+                    {isActioning === "cancelling" ? "Cancelling…" : "Cancel Booking"}
+                  </button>
+                </div>
+              )}
+
+              {/* Player: cancel / disabled cancel */}
+              {viewerRole === "player" && (playerCanCancel || playerCancelWithin24) && (
+                <div className="mt-4 space-y-1.5">
+                  {playerCanCancel ? (
+                    <button
+                      type="button"
+                      onClick={handleCancel}
+                      disabled={!!isActioning}
+                      className="w-full rounded-2xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+                    >
+                      {isActioning === "cancelling" ? "Cancelling…" : "Cancel Booking"}
+                    </button>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        disabled
+                        className="w-full cursor-not-allowed rounded-2xl border border-slate-200 bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-400"
+                      >
+                        Cancel Booking
+                      </button>
+                      <p className="text-center text-xs text-slate-500">
+                        Cannot cancel within 24 hours — contact host directly.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Cancel reason — hide on rejected to avoid showing host's internal reason */}
+              {booking.cancelReason && booking.status !== "rejected" && (
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                  <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                    Cancel reason
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-slate-900">{booking.cancelReason}</p>
+                </div>
+              )}
+
+              {canViewPrivateArrivalDetails && court.address && (
+                <div className="mt-5 flex gap-3 rounded-2xl border border-slate-200 bg-white p-4">
+                  <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[var(--site-accent)]" />
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Exact address
+                    </p>
+                    <p className="mt-1 text-sm font-semibold leading-6 text-slate-900">
+                      {court.address}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {viewerRole === "player" && booking.status === "confirmed" && (
+                <details className="group mt-4 rounded-2xl border border-slate-200 bg-white">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-slate-950">
+                    <span>See check-in details</span>
+                    <ChevronDown className="h-4 w-4 text-slate-500 transition group-open:rotate-180" />
+                  </summary>
+                  <div className="space-y-5 border-t border-slate-200 px-4 py-4">
+                    {privateCheckInInstructions && (
+                      <section className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm font-bold text-slate-950">
+                          <KeyRound className="h-4 w-4 text-[var(--site-accent)]" />
+                          Check-in instructions
+                        </div>
+                        <p className="whitespace-pre-line text-sm leading-6 text-slate-700">
+                          {privateCheckInInstructions}
+                        </p>
+                      </section>
+                    )}
+
+                    {((court.houseRules && court.houseRules.length > 0) || court.additionalRules) && (
+                      <section className="space-y-2">
+                        <div className="flex items-center gap-2 text-sm font-bold text-slate-950">
+                          <ListChecks className="h-4 w-4 text-[var(--site-accent)]" />
+                          House rules
+                        </div>
+                        {court.houseRules && court.houseRules.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {court.houseRules.map((rule) => (
+                              <Badge key={rule} variant="outline" className="border-slate-200 text-slate-700">
+                                {humanizeSlug(rule)}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                        {court.additionalRules && (
+                          <p className="whitespace-pre-line text-sm leading-6 text-slate-700">
+                            {court.additionalRules}
+                          </p>
+                        )}
+                      </section>
+                    )}
+                  </div>
+                </details>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
+              <div className="space-y-5">
+                <CourtListingGalleryCard
+                  listingKey={court.id}
+                  court={court}
+                  onOpenCourtReviews={goToCourtReviews}
+                  onTitleClick={() => router.push(`/courts/${court.id}`)}
+                  hideDescription
+                  hideLatestCourtReview
+                  descriptionPreviewCourtId={court.id}
+                />
+
+              </div>
+
+              <div className="lg:sticky lg:top-24 lg:self-start">
+                <BookingConversationChat
+                  conversationId={conversationId}
+                  otherParticipantName={participantDisplayName}
+                  otherParticipantImageUrl={participantImageUrl}
+                  courtName={court.name}
+                  otherParticipantRoleLabel={participantRoleLabel}
+                  otherParticipantRating={participantRatingSummary}
+                  otherParticipantReviewCount={participantReviewCount}
+                  onParticipantClick={openParticipantProfile}
+                  showBookingMeta={false}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Dialog open={playerProfileDialogOpen} onOpenChange={setPlayerProfileDialogOpen}>
@@ -895,6 +1078,16 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
           </div>
         </DialogContent>
       </Dialog>
+
+      <CourtListingHostCard
+        hostProfile={hostProfile}
+        hostReviews={hostReviews}
+        ownerId={court.ownerId}
+        avatarImageUrl={hostAvatarUrl}
+        triggerVariant="none"
+        open={hostProfileDialogOpen}
+        onOpenChange={setHostProfileDialogOpen}
+      />
 
       <ReviewsListDialog
         open={!!reviewsDialogKind}

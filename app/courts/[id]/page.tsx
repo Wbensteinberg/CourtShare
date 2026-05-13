@@ -1293,7 +1293,7 @@ function CourtDetailPage() {
             {/* ── Reviews ── */}
             {courtReviews.length > 0 && (
               <>
-                <section ref={reviewsRef} className="space-y-5">
+                <section id="reviews" ref={reviewsRef} className="space-y-5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <SectionHeader>Reviews</SectionHeader>

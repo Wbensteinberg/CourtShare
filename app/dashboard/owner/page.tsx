@@ -213,6 +213,10 @@ export default function OwnerDashboard() {
   } | null>(null);
   const [checkingStripe, setCheckingStripe] = useState(false);
   const [connectingStripe, setConnectingStripe] = useState(false);
+  const [playerPopupUserId, setPlayerPopupUserId] = useState<string | null>(null);
+  const [playerPopupProfile, setPlayerPopupProfile] = useState<Record<string, any> | null>(null);
+  const [playerPopupReviews, setPlayerPopupReviews] = useState<PublicReview[]>([]);
+  const [playerPopupLoading, setPlayerPopupLoading] = useState(false);
   const [expandedCourtId, setExpandedCourtId] = useState<string | null>(null);
   const [earningsRange, setEarningsRange] = useState<EarningsRange>("3m");
   const [showAddCourtDialog, setShowAddCourtDialog] = useState(false);
@@ -543,6 +547,41 @@ export default function OwnerDashboard() {
 
     checkStripeAccount();
   }, [user]);
+
+  useEffect(() => {
+    if (!playerPopupUserId) {
+      setPlayerPopupProfile(null);
+      setPlayerPopupReviews([]);
+      return;
+    }
+    const fetch_ = async () => {
+      setPlayerPopupLoading(true);
+      try {
+        if (isMockMode) {
+          const p = getMockProfile(playerPopupUserId);
+          setPlayerPopupProfile(p || null);
+          setPlayerPopupReviews(getMockReviewsForTarget(playerPopupUserId) as any);
+        } else {
+          const [profRes, revRes] = await Promise.all([
+            fetch(`/api/public-profiles/${encodeURIComponent(playerPopupUserId)}`),
+            fetch(`/api/reviews?targetUserId=${encodeURIComponent(playerPopupUserId)}`),
+          ]);
+          const [profJson, revJson] = await Promise.all([
+            profRes.json().catch(() => ({})),
+            revRes.json().catch(() => ({})),
+          ]);
+          setPlayerPopupProfile(profRes.ok ? profJson.profile : null);
+          setPlayerPopupReviews(revJson.reviews || []);
+        }
+      } catch {
+        setPlayerPopupProfile(null);
+        setPlayerPopupReviews([]);
+      } finally {
+        setPlayerPopupLoading(false);
+      }
+    };
+    fetch_();
+  }, [playerPopupUserId]);
 
   const handleConnectStripe = async () => {
     if (!user) return;
@@ -1212,10 +1251,14 @@ export default function OwnerDashboard() {
                       <Clock className="mr-2 h-4 w-4 text-slate-400" />
                       {booking.time} for {booking.duration}h
                     </span>
-                    <span className="inline-flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => setPlayerPopupUserId(booking.userId)}
+                      className="inline-flex items-center text-sm font-medium text-slate-600 underline-offset-2 hover:text-slate-950 hover:underline"
+                    >
                       <User className="mr-2 h-4 w-4 text-slate-400" />
                       {getBookingPlayerName(booking)}
-                    </span>
+                    </button>
                   </div>
                   <Button
                     size="sm"
@@ -1438,7 +1481,7 @@ export default function OwnerDashboard() {
                           </div>
                         </CardHeader>
                         <CardContent className="space-y-3 border-t border-slate-100 p-4">
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-3 gap-2">
                             <Button
                               size="sm"
                               className="rounded-2xl bg-[var(--site-accent)] px-4 py-5 font-bold text-white hover:bg-[var(--site-accent-hover)]"
@@ -1465,6 +1508,15 @@ export default function OwnerDashboard() {
                                 <ChevronDown className="mr-2 h-4 w-4" />
                               )}
                               Weekly Availability
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-2xl border-slate-300 bg-white px-4 py-5 font-bold text-slate-950 hover:bg-slate-50"
+                              onClick={() => router.push(`/courts/${court.id}`)}
+                            >
+                              <ExternalLink className="mr-2 h-4 w-4" />
+                              View Listing
                             </Button>
                           </div>
 
@@ -2018,6 +2070,115 @@ export default function OwnerDashboard() {
         submitting={submittingReview}
         onSubmit={handleSubmitReview}
       />
+
+      {/* Player profile popup */}
+      {(() => {
+        const name = playerPopupProfile
+          ? getProfileDisplayName(playerPopupProfile, "Player")
+          : (playerPopupUserId ? bookingUsers[playerPopupUserId]?.displayName : null) || "Player";
+        const imageUrl = playerPopupProfile?.profileImageUrl || (playerPopupUserId ? bookingUsers[playerPopupUserId]?.profileImageUrl : null) || undefined;
+        const initial = name.trim().charAt(0).toUpperCase() || "P";
+        const bio = playerPopupProfile?.bio as string | undefined;
+        const isOwner = Boolean(playerPopupProfile?.isOwner);
+        const ownerRating = typeof playerPopupProfile?.ownerRating === "number" ? playerPopupProfile.ownerRating : null;
+        const ownerReviewCount = typeof playerPopupProfile?.ownerReviewCount === "number" ? playerPopupProfile.ownerReviewCount : 0;
+        const confirmedBookings = typeof playerPopupProfile?.confirmedBookingsCount === "number" ? playerPopupProfile.confirmedBookingsCount : 0;
+        const reviewCount = typeof playerPopupProfile?.playerReviewCount === "number" ? playerPopupProfile.playerReviewCount : playerPopupReviews.length;
+        const memberSince = playerPopupProfile?.memberSince as string | null | undefined;
+        const months = memberSince ? Math.max(0, (new Date().getFullYear() - new Date(memberSince).getFullYear()) * 12 + new Date().getMonth() - new Date(memberSince).getMonth()) : 0;
+
+        return (
+          <Dialog open={!!playerPopupUserId} onOpenChange={(open) => !open && setPlayerPopupUserId(null)}>
+            <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto rounded-3xl border-slate-200 sm:max-w-xl">
+              <DialogHeader>
+                <DialogTitle className="text-left text-xl font-bold text-slate-950">
+                  {name}
+                </DialogTitle>
+              </DialogHeader>
+
+              {playerPopupLoading ? (
+                <div className="py-12 text-center text-sm text-slate-500">Loading profile…</div>
+              ) : (
+                <div className="space-y-6 pt-2">
+                  <Card className="rounded-[32px] border-slate-200 shadow-sm">
+                    <CardContent className="grid gap-8 p-8 sm:grid-cols-[1fr_170px] sm:p-10">
+                      <div className="flex flex-col items-center text-center">
+                        <Avatar className="h-28 w-28 border-4 border-white shadow-md md:h-32 md:w-32">
+                          <AvatarImage src={imageUrl} alt={name} />
+                          <AvatarFallback className="bg-emerald-100 text-3xl font-bold text-emerald-800">
+                            {initial}
+                          </AvatarFallback>
+                        </Avatar>
+                        <h2 className="mt-5 text-2xl font-bold text-slate-950 md:text-3xl">{name}</h2>
+                        <div className="mt-3 flex flex-wrap justify-center gap-2">
+                          <Badge variant="secondary">{isOwner ? "Court host" : "Player"}</Badge>
+                          {ownerReviewCount > 0 && ownerRating != null && (
+                            <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+                              Host rating {ownerRating.toFixed(1)}
+                            </Badge>
+                          )}
+                        </div>
+                        {bio ? (
+                          <p className="mt-5 max-w-sm text-sm leading-6 text-slate-600 md:text-base md:leading-7">{bio}</p>
+                        ) : (
+                          <p className="mt-5 max-w-sm text-sm leading-6 text-slate-500 md:text-base md:leading-7">This member has not added a bio yet.</p>
+                        )}
+                      </div>
+
+                      <div className="grid content-center divide-y divide-slate-200">
+                        <div className="py-4 first:pt-0">
+                          <p className="text-3xl font-black text-slate-950">{confirmedBookings}</p>
+                          <p className="text-sm font-semibold text-slate-600">Bookings</p>
+                        </div>
+                        <div className="py-4">
+                          <p className="text-3xl font-black text-slate-950">{reviewCount}</p>
+                          <p className="text-sm font-semibold text-slate-600">Reviews</p>
+                        </div>
+                        <div className="py-4">
+                          <p className="text-3xl font-black text-slate-950">{months}</p>
+                          <p className="text-sm font-semibold text-slate-600">Months on CourtShare</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="rounded-[32px] border-slate-200 shadow-sm">
+                    <CardHeader>
+                      <h3 className="text-xl font-bold text-slate-950">Reviews</h3>
+                      <p className="text-sm text-slate-500">Feedback from completed CourtShare bookings.</p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {playerPopupReviews.length === 0 ? (
+                        <p className="rounded-2xl border border-dashed border-slate-200 p-6 text-sm text-slate-500">No reviews yet.</p>
+                      ) : (
+                        [...playerPopupReviews]
+                          .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+                          .map((review) => (
+                            <div key={review.id} className="rounded-2xl border border-slate-200 p-4">
+                              <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                                  <span className="font-semibold text-slate-950">{review.rating}/5</span>
+                                  <Badge variant="outline">
+                                    {review.targetType === "player" ? "Player review" : "Host and court review"}
+                                  </Badge>
+                                </div>
+                                <span className="text-xs text-slate-500">{formatReviewDate(review.createdAt)}</span>
+                              </div>
+                              {review.comment ? (
+                                <p className="mt-3 text-sm leading-6 text-slate-700">{review.comment}</p>
+                              ) : null}
+                            </div>
+                          ))
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </div>
   );
 }

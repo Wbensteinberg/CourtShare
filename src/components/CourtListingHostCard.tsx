@@ -68,6 +68,9 @@ type CourtListingHostCardProps = {
   ownerId?: string;
   /** Optional avatar URL when the parent already resolved the display image. */
   avatarImageUrl?: string;
+  triggerVariant?: "card" | "none";
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 export default function CourtListingHostCard({
@@ -75,8 +78,11 @@ export default function CourtListingHostCard({
   hostReviews,
   ownerId,
   avatarImageUrl,
+  triggerVariant = "card",
+  open,
+  onOpenChange,
 }: CourtListingHostCardProps) {
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [internalDialogOpen, setInternalDialogOpen] = useState(false);
 
   const hostName =
     hostProfile?.displayName?.trim() || "Court host";
@@ -104,38 +110,42 @@ export default function CourtListingHostCard({
     () => sortReviewsNewestFirst(hostReviews),
     [hostReviews]
   );
+  const dialogOpen = open ?? internalDialogOpen;
+  const setDialogOpen = onOpenChange ?? setInternalDialogOpen;
 
   return (
     <>
-      <Card className="border-0 shadow-elegant rounded-3xl">
-        <CardContent className="p-6">
-          <button
-            type="button"
-            onClick={() => setDialogOpen(true)}
-            className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-            aria-label={`View profile for ${hostName}`}
-          >
-            <Avatar className="h-14 w-14 shrink-0">
-              <AvatarImage src={avatarSrc} alt={hostName} />
-              <AvatarFallback className="bg-emerald-100 font-semibold text-emerald-800">
-                {hostName.trim().charAt(0).toUpperCase() || "H"}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-snug text-slate-900">
-              <span className="font-semibold text-slate-700">Hosted by</span>
-              <span className="font-bold text-slate-950">{hostName}</span>
-              <span className="inline-flex items-center gap-1 font-semibold">
-                <Star className="h-4 w-4 shrink-0 fill-yellow-400 text-yellow-400" />
-                {hostRatingSummary}
-              </span>
-              <span className="text-slate-600">
-                ({hostReviewCountForCard}{" "}
-                {hostReviewCountForCard === 1 ? "review" : "reviews"})
-              </span>
-            </div>
-          </button>
-        </CardContent>
-      </Card>
+      {triggerVariant === "card" && (
+        <Card className="border-0 shadow-elegant rounded-3xl">
+          <CardContent className="p-6">
+            <button
+              type="button"
+              onClick={() => setDialogOpen(true)}
+              className="flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+              aria-label={`View profile for ${hostName}`}
+            >
+              <Avatar className="h-14 w-14 shrink-0">
+                <AvatarImage src={avatarSrc} alt={hostName} />
+                <AvatarFallback className="bg-emerald-100 font-semibold text-emerald-800">
+                  {hostName.trim().charAt(0).toUpperCase() || "H"}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-snug text-slate-900">
+                <span className="font-semibold text-slate-700">Hosted by</span>
+                <span className="font-bold text-slate-950">{hostName}</span>
+                <span className="inline-flex items-center gap-1 font-semibold">
+                  <Star className="h-4 w-4 shrink-0 fill-yellow-400 text-yellow-400" />
+                  {hostRatingSummary}
+                </span>
+                <span className="text-slate-600">
+                  ({hostReviewCountForCard}{" "}
+                  {hostReviewCountForCard === 1 ? "review" : "reviews"})
+                </span>
+              </div>
+            </button>
+          </CardContent>
+        </Card>
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto rounded-3xl border-slate-200 sm:max-w-xl">
