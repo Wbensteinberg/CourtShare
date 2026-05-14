@@ -92,6 +92,7 @@ const HOUSE_RULES_OPTIONS = [
 ];
 
 const COURT_TYPE_OPTIONS = ["Hard Court", "Grass Court", "Clay Court"];
+const DEFAULT_MAX_GUESTS = 10;
 
 const RequiredStar = () => <span className="text-red-500">*</span>;
 
@@ -131,7 +132,7 @@ const CreateListing = () => {
   const [amenities, setAmenities] = useState<string[]>([]);
   const [parkingSpaces, setParkingSpaces] = useState("");
   const [spaceGreatFor, setSpaceGreatFor] = useState<string[]>([]);
-  const [maxGuests, setMaxGuests] = useState<string>("");
+  const [maxGuests, setMaxGuests] = useState<string>(String(DEFAULT_MAX_GUESTS));
   const [speakersPolicy, setSpeakersPolicy] = useState<"allowed" | "not_allowed" | "quiet_hours_only" | "">("");
   const [quietHoursStart, setQuietHoursStart] = useState<string>("");
   const [quietHoursEnd, setQuietHoursEnd] = useState<string>("");
@@ -328,7 +329,7 @@ const CreateListing = () => {
           ? Number(parkingSpaces) || null
           : null,
         spaceGreatFor,
-        maxGuests: maxGuests ? Number(maxGuests) : null,
+        maxGuests: maxGuests ? Number(maxGuests) : DEFAULT_MAX_GUESTS,
         speakersPolicy: speakersPolicy || null,
         quietHoursStart: speakersPolicy === "quiet_hours_only" ? quietHoursStart || null : null,
         quietHoursEnd: speakersPolicy === "quiet_hours_only" ? quietHoursEnd || null : null,
@@ -780,12 +781,15 @@ const CreateListing = () => {
 	                          <Input
 	                            type="number"
 	                            min="1"
-	                            placeholder="e.g. 6"
+	                            placeholder="10"
 	                            value={maxGuests}
 	                            onChange={(e) => setMaxGuests(e.target.value.replace(/\D/g, ""))}
 	                            className={`${inputClass} max-w-[200px]`}
 	                          />
 	                        </FormControl>
+	                        <p className="text-xs text-slate-500">
+	                          Defaults to {DEFAULT_MAX_GUESTS} guests if left blank.
+	                        </p>
 	                        <p className="mt-1 text-xs text-slate-500">Maximum number of people allowed at the court during a booking.</p>
 	                      </FormItem>
 

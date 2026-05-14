@@ -6,11 +6,16 @@ const resend = process.env.RESEND_API_KEY
   : null;
 const brandGreen = theme.colors.brandGreen;
 const brandGreenSoft = theme.colors.brandGreenSoft;
+const ownerRequestPrimaryGreen = brandGreen;
 const textColor = "#10231d";
 const mutedTextColor = "#64756f";
 const borderColor = "#dce7e2";
 const pageBg = "#f6faf8";
 const cardBg = "#ffffff";
+const ownerRequestDarkBg = "#07140f";
+const ownerRequestDarkPanel = "#0f211b";
+const ownerRequestDarkBorder = "#244138";
+const ownerRequestDarkMuted = "#a9bbb4";
 const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.co").replace(
   /\/$/,
   ""
@@ -31,6 +36,16 @@ const emailHeader = (title: string) => `
     <div style="background: ${brandGreen}; border-radius: 24px; padding: 28px; box-shadow: 0 18px 45px rgba(0, 134, 101, 0.18);">
       <p style="margin: 0 0 10px; color: rgba(255,255,255,0.78); font-size: 12px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;">Booking request</p>
       <h1 style="color: white; margin: 0; font-size: 30px; line-height: 1.15; letter-spacing: -0.04em;">${title}</h1>
+    </div>
+  </div>
+`;
+
+const ownerBookingRequestHeader = (title: string) => `
+  <div style="background: ${ownerRequestDarkBg}; padding: 30px 32px 0; border-radius: 30px 30px 0 0; border: 1px solid ${ownerRequestDarkBorder}; border-bottom: none;">
+    <div style="color: ${ownerRequestPrimaryGreen}; font-size: 34px; line-height: 1; font-weight: 900; letter-spacing: -0.06em; margin: 0 0 22px;">CourtShare</div>
+    <div style="background: ${ownerRequestDarkPanel}; border: 1px solid ${ownerRequestDarkBorder}; border-radius: 26px; padding: 28px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);">
+      <p style="margin: 0 0 10px; color: ${ownerRequestPrimaryGreen}; font-size: 12px; font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase;">Booking request</p>
+      <h1 style="color: #ffffff; margin: 0; font-size: 30px; line-height: 1.15; letter-spacing: -0.04em;">${title}</h1>
     </div>
   </div>
 `;
@@ -172,15 +187,16 @@ export const buildOwnerBookingNotificationEmail = (data: BookingEmailData) => {
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Respond to ${safePlayerLabel}'s Request</title>
           </head>
-          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: ${textColor}; max-width: 680px; margin: 0 auto; padding: 28px 16px; background: ${pageBg};">
-            ${emailHeader(`Respond to ${safePlayerLabel}'s request`)}
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: ${textColor}; max-width: 680px; margin: 0 auto; padding: 28px 16px; background: ${ownerRequestDarkBg};">
+            ${ownerBookingRequestHeader(`Respond to ${safePlayerLabel}'s request`)}
 
-            <div style="background: ${cardBg}; padding: 30px 32px 34px; border-radius: 0 0 28px 28px; border: 1px solid ${borderColor}; border-top: none;">
+            <div style="background: ${ownerRequestDarkBg}; padding: 18px 32px 32px; border-radius: 0 0 30px 30px; border: 1px solid ${ownerRequestDarkBorder}; border-top: none;">
+              <div style="background: ${cardBg}; border: 1px solid rgba(255, 255, 255, 0.10); border-radius: 26px; padding: 28px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);">
               <p style="font-size: 16px; margin-top: 0;">Hello${data.ownerName ? ` ${escapeHtml(data.ownerName)}` : ""},</p>
               <p style="font-size: 16px; margin-bottom: 22px; color: ${mutedTextColor};">${safePlayerLabel} requested to book <strong style="color: ${textColor};">${safeCourtName}</strong>. Their payment method is authorized, and they will only be charged if you accept before the request expires.</p>
 
               <div style="text-align: center; margin: 28px 0;">
-                <a href="${responseUrl}" style="display: inline-block; width: 100%; max-width: 360px; background: ${theme.colors.siteAccent}; color: white; padding: 15px 22px; text-decoration: none; border-radius: 999px; font-weight: 900; font-size: 16px; box-shadow: 0 14px 30px rgba(0, 134, 101, 0.22);">Accept / Decline</a>
+                <a href="${responseUrl}" style="display: inline-block; width: 100%; max-width: 360px; background: ${ownerRequestPrimaryGreen}; color: white; padding: 15px 22px; text-decoration: none; border-radius: 999px; font-weight: 900; font-size: 16px; box-shadow: 0 14px 30px rgba(0, 184, 132, 0.24);">Accept / Decline</a>
               </div>
 
               <div style="border: 1px solid ${borderColor}; border-radius: 24px; overflow: hidden; margin: 24px 0; background: ${cardBg}; box-shadow: 0 18px 55px rgba(16, 35, 29, 0.08);">
@@ -190,7 +206,7 @@ export const buildOwnerBookingNotificationEmail = (data: BookingEmailData) => {
                     : ""
                 }
                 <div style="padding: 24px;">
-                  <p style="margin: 0 0 6px; color: ${brandGreen}; font-size: 12px; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase;">New booking request</p>
+                  <p style="margin: 0 0 6px; color: ${ownerRequestPrimaryGreen}; font-size: 12px; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase;">New booking request</p>
                   <h2 style="margin: 0 0 4px; color: ${textColor}; font-size: 24px; line-height: 1.2; letter-spacing: -0.04em;">${safeCourtName}</h2>
                   ${locationLabel ? `<p style="margin: 0; color: ${mutedTextColor}; font-size: 14px;">${escapeHtml(locationLabel)}</p>` : ""}
 
@@ -242,6 +258,8 @@ export const buildOwnerBookingNotificationEmail = (data: BookingEmailData) => {
               </div>
 
               <p style="font-size: 14px; color: ${mutedTextColor}; margin-top: 24px; margin-bottom: 0;">Open the request to view the booking conversation, the player&apos;s profile, and the accept or decline controls.</p>
+              </div>
+              <p style="margin: 22px 0 0; color: ${ownerRequestDarkMuted}; font-size: 12px; text-align: center;">CourtShare sends this request because you host ${safeCourtName}.</p>
             </div>
           </body>
         </html>

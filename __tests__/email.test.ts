@@ -1,4 +1,5 @@
 import { buildOwnerBookingNotificationEmail } from "@/lib/email";
+import { theme } from "@/lib/theme";
 
 describe("owner booking request email", () => {
   it("links hosts to the booking conversation with request and payment details", () => {
@@ -31,7 +32,10 @@ describe("owner booking request email", () => {
     expect(html).toContain("1 hour 30 minutes");
     expect(html).toContain("Court 2");
     expect(html).toContain("$75.00");
-    expect(html).toContain("card has been authorized");
-    expect(html).toContain("will only be captured if you accept");
+    expect(html).toContain("Their payment method is authorized");
+    expect(html).toContain("The player has not been charged yet");
+    expect(html).toContain(`background: ${theme.colors.brandGreen}; color: white; padding: 15px`);
+    expect(html).toContain(`color: ${theme.colors.brandGreen}; font-size: 34px`);
+    expect(html).not.toContain(`background: ${theme.colors.siteAccent}; color: white; padding: 15px`);
   });
 });

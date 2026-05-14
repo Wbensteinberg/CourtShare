@@ -76,6 +76,7 @@ import {
   PLAYER_BOOKING_WAIVER_VERSION,
 } from "@/lib/waivers";
 import { isActionablePendingBooking } from "@/lib/bookingDates";
+import { isBookingBlockingSlot } from "@/lib/bookingConflicts";
 import { format } from "date-fns";
 import ReactDatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -91,6 +92,8 @@ import {
   getMockReviewsForTarget,
 } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
+
+const DEFAULT_MAX_GUESTS = 10;
 
 // ─── Court interface ────────────────────────────────────────────────────────
 interface Court {
@@ -387,8 +390,20 @@ function CourtDetailPage() {
     if ((court?.numberOfCourts || 1) <= 1) return true;
     return (b.courtNumber || 1) === selectedCourtNumber;
   }).forEach((b) => {
-    const startHour = parseInt((b.time || "").split(":")[0], 10);
-    const dur = Number(b.duration) || 1;
+    if (
+      !isBookingBlockingSlot(b, {
+        date: selectedDate?.toISOString().slice(0, 10) || b.date,
+        time: b.time,
+        durationMinutes: b.durationMinutes || (Number(b.duration) || 1) * 60,
+        courtNumber: b.courtNumber || 1,
+      })
+    ) {
+      return;
+    }
+    const startMinutes = timeToMinutes(b.time || "");
+    if (!Number.isFinite(startMinutes)) return;
+    const startHour = Math.floor(startMinutes / 60);
+    const dur = Math.ceil((b.durationMinutes || (Number(b.duration) || 1) * 60) / 60);
     for (let i = 0; i < dur; i++) {
       const hour = startHour + i;
       if (hour >= 8 && hour <= 20) {
@@ -454,11 +469,14 @@ function CourtDetailPage() {
       if ((court?.numberOfCourts || 1) <= 1) return true;
       return (b.courtNumber || 1) === selectedCourtNumber;
     });
-    return !relevantBookings.some((b) => {
-      const existingDurationMinutes = b.durationMinutes || (Number(b.duration) || 1) * 60;
-      const existingDuration = Math.ceil(existingDurationMinutes / 60);
-      return timeRangesOverlap(startTime, durationHours, b.time, existingDuration);
-    });
+    return !relevantBookings.some((b) =>
+      isBookingBlockingSlot(b, {
+        date: selectedDate.toISOString().slice(0, 10),
+        time: startTime,
+        durationMinutes: Math.round(durationHours * 60),
+        courtNumber: selectedCourtNumber,
+      })
+    );
   };
 
   const getStartTimeUnavailableReason = (time: string) => {
@@ -744,8 +762,9 @@ function CourtDetailPage() {
       alert("Please enter at least 1 guest.");
       return;
     }
-    if (court?.maxGuests && normalizedGuestCount > court.maxGuests) {
-      alert(`This court allows up to ${court.maxGuests} guests.`);
+    const maxGuests = court?.maxGuests ?? DEFAULT_MAX_GUESTS;
+    if (normalizedGuestCount > maxGuests) {
+      alert(`This court allows up to ${maxGuests} guests.`);
       return;
     }
 
@@ -996,11 +1015,9 @@ function CourtDetailPage() {
               {court.numberOfCourts} courts
             </span>
           )}
-          {court.maxGuests != null && (
-            <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-0.5 text-xs font-medium text-slate-700">
-              Up to {court.maxGuests} guests
-            </span>
-          )}
+          <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-0.5 text-xs font-medium text-slate-700">
+            Up to {court.maxGuests ?? DEFAULT_MAX_GUESTS} guests
+          </span>
         </div>
       </div>
 
@@ -1580,7 +1597,7 @@ function CourtDetailPage() {
                   <input
                     type="number"
                     min={1}
-                    max={court.maxGuests || undefined}
+                    max={court.maxGuests ?? DEFAULT_MAX_GUESTS}
                     value={guestCount}
                     onChange={(event) => {
                       const digits = event.target.value.replace(/\D/g, "");
@@ -1589,17 +1606,15 @@ function CourtDetailPage() {
                         return;
                       }
                       const cappedGuests =
-                        court.maxGuests && court.maxGuests > 0
-                          ? Math.min(Number(digits), court.maxGuests)
-                          : Number(digits);
+                        Math.min(Number(digits), court.maxGuests ?? DEFAULT_MAX_GUESTS);
                       setGuestCount(String(cappedGuests));
                     }}
                     className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-bold text-slate-800 shadow-sm transition-colors focus:border-[var(--site-accent)] focus:outline-none focus:ring-4 focus:ring-[color-mix(in_srgb,var(--site-accent)_13%,transparent)]"
                     placeholder="1"
                   />
-                  {court.maxGuests ? (
-                    <p className="text-xs text-slate-500">Up to {court.maxGuests} guests.</p>
-                  ) : null}
+                  <p className="text-xs text-slate-500">
+                    Up to {court.maxGuests ?? DEFAULT_MAX_GUESTS} guests.
+                  </p>
                 </div>
 
                 <div className="space-y-2">

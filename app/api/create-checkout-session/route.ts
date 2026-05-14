@@ -15,6 +15,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
 });
 
+const DEFAULT_MAX_GUESTS = 10;
+
 export async function POST(req: NextRequest) {
   console.log("[CHECKOUT] Request received");
 
@@ -214,13 +216,13 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    if (
-      typeof courtData.maxGuests === "number" &&
-      courtData.maxGuests > 0 &&
-      guestCountNum > courtData.maxGuests
-    ) {
+    const maxGuests =
+      typeof courtData.maxGuests === "number" && courtData.maxGuests > 0
+        ? courtData.maxGuests
+        : DEFAULT_MAX_GUESTS;
+    if (guestCountNum > maxGuests) {
       return NextResponse.json(
-        { error: `This court allows up to ${courtData.maxGuests} guests` },
+        { error: `This court allows up to ${maxGuests} guests` },
         { status: 400 }
       );
     }

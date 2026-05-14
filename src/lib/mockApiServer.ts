@@ -18,6 +18,8 @@ import {
 const makeMockId = () =>
   `m_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
 
+const DEFAULT_MAX_GUESTS = 10;
+
 /** Explicit JSON body (avoids empty-body edge cases vs NextResponse.json in some environments). */
 const mockJson = (data: unknown, init?: ResponseInit): NextResponse =>
   new NextResponse(JSON.stringify(data), {
@@ -399,13 +401,13 @@ export async function mockCreateCheckoutSessionPOST(req: NextRequest): Promise<N
   if (!Number.isInteger(guestCountNum) || guestCountNum < 1) {
     return mockJson({ error: "Guest count must be at least 1" }, { status: 400 });
   }
-  if (
-    typeof court.maxGuests === "number" &&
-    court.maxGuests > 0 &&
-    guestCountNum > court.maxGuests
-  ) {
+  const maxGuests =
+    typeof court.maxGuests === "number" && court.maxGuests > 0
+      ? court.maxGuests
+      : DEFAULT_MAX_GUESTS;
+  if (guestCountNum > maxGuests) {
     return mockJson(
-      { error: `This court allows up to ${court.maxGuests} guests` },
+      { error: `This court allows up to ${maxGuests} guests` },
       { status: 400 }
     );
   }
