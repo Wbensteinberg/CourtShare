@@ -873,7 +873,7 @@ function MessagesPageContent() {
   return (
     <div className="min-h-screen bg-slate-50">
       <AppHeader />
-      <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
         <div className="border-b border-slate-200 pb-6">
           <h1 className="text-4xl font-black tracking-tight text-slate-950">
             Messages
@@ -889,8 +889,8 @@ function MessagesPageContent() {
           </div>
         )}
 
-        <section className="grid min-h-[620px] overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-sm lg:grid-cols-[360px_1fr]">
-          <aside className="border-b border-slate-200 lg:border-b-0 lg:border-r">
+        <section className="grid overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-sm lg:h-[calc(100vh-13rem)] lg:min-h-[560px] lg:max-h-[760px] lg:grid-cols-[320px_minmax(0,1fr)]">
+          <aside className="flex max-h-[320px] min-h-0 flex-col overflow-hidden border-b border-slate-200 lg:max-h-none lg:border-b-0 lg:border-r">
             <div className="border-b border-slate-200 p-5">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
                 Inbox
@@ -902,7 +902,7 @@ function MessagesPageContent() {
                 after Firestore rules are updated.
               </div>
             ) : (
-              <div className="divide-y divide-slate-100">
+              <div className="min-h-0 flex-1 divide-y divide-slate-100 overflow-y-auto">
                 {conversations.map((conversation) => {
                   const isSelected = conversation.id === selectedConversationId;
                   const unread = user
@@ -957,7 +957,7 @@ function MessagesPageContent() {
             )}
           </aside>
 
-          <div className="flex min-h-[620px] flex-col">
+          <div className="flex min-h-[560px] min-w-0 flex-col lg:min-h-0">
             {selectedConversation ? (
               <>
                 <div className="border-b border-slate-200 bg-white p-5">
@@ -989,7 +989,7 @@ function MessagesPageContent() {
                       </div>
                     </button>
 
-                    <div className="flex w-full flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 xl:w-auto xl:min-w-[520px]">
+                    <div className="flex w-full min-w-0 flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 xl:w-[520px] xl:max-w-[58%]">
                       <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                         <div className="flex min-w-0 flex-wrap items-center gap-2">
                           <Badge
@@ -1064,7 +1064,7 @@ function MessagesPageContent() {
                   </div>
                 </div>
 
-                <div className="flex-1 space-y-4 overflow-y-auto p-5">
+                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
                   {messages.map((message) => {
                     const mine = message.senderId === user?.uid;
                     return (
@@ -1083,7 +1083,7 @@ function MessagesPageContent() {
                               : "border border-slate-200 bg-white text-slate-800"
                           )}
                         >
-                          <p className="leading-6">{formatTextDates(message.body)}</p>
+                          <p className="break-words leading-6">{formatTextDates(message.body)}</p>
                           <p
                             className={cn(
                               "mt-2 text-xs",
@@ -1099,12 +1099,12 @@ function MessagesPageContent() {
                 </div>
 
                 <div className="border-t border-slate-200 p-4">
-                  <div className="flex gap-3">
+                  <div className="flex min-w-0 gap-3">
                     <Textarea
                       value={draft}
                       onChange={(event) => setDraft(event.target.value)}
                       placeholder="Write a message..."
-                      className="min-h-12 resize-none rounded-2xl border-slate-200 bg-white"
+                      className="min-h-12 min-w-0 resize-none rounded-2xl border-slate-200 bg-white"
                     />
                     <Button
                       className="h-12 rounded-2xl bg-emerald-600 px-4 text-white hover:bg-emerald-700"

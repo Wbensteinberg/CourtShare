@@ -36,6 +36,13 @@ describe("owner booking request email", () => {
     expect(html).toContain("The player has not been charged yet");
     expect(html).toContain(`background: ${theme.colors.brandGreen}; color: white; padding: 15px`);
     expect(html).toContain(`color: ${theme.colors.brandGreen}; font-size: 34px`);
+    expect(html).toContain(
+      "linear-gradient(135deg, #f4fbf8 0%, #dff2eb 48%, #bddfd3 100%)"
+    );
+    expect(html).toContain(
+      "linear-gradient(135deg, #103c31 0%, #17624d 54%, #0d8a68 100%)"
+    );
+    expect(html).not.toContain("background: #07140f");
     expect(html).not.toContain(`background: ${theme.colors.siteAccent}; color: white; padding: 15px`);
   });
 });

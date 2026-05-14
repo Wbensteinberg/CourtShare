@@ -42,6 +42,7 @@ Product-facing routes map roughly as: **Home / Search** → `/courts`; **Court D
 
 - All conversations for the signed-in user.
 - Each thread: dated message history; link or control to view the other participant’s public profile; link to **Booking Details** for the booking when applicable.
+- Keep the inbox/chat layout centered and constrained on wide screens; use internal scroll regions for long inboxes/history instead of letting the message bar sprawl across the page.
 - User-authored messages should go through `POST /api/conversations/send-message`, not direct client Firestore writes, so each message is saved, unread state is updated, and every other participant receives an email containing the message body.
 - Accepted, declined, and cancelled booking actions should post server-side automated `booking_status` messages into the booking conversation via `postBookingStatusConversationMessage`, using the stored `conversationId` or falling back to `booking_{bookingId}`.
 - Hosts accepting from a message thread should see a confirmation dialog with the booking price breakdown (player pays, CourtShare fee, card processing, host payout). Hosts declining must enter a reason in a dialog; that reason is sent to the player in the thread and rejection email.
@@ -91,6 +92,7 @@ Product-facing routes map roughly as: **Home / Search** → `/courts`; **Court D
 ### Sign In / Sign Up
 
 - Single card, **Continue with Google** only; copy differs for sign-in vs sign-up.
+- Keep auth-card spacing tight and intentional; avoid large empty gaps between the intro copy and Google CTA.
 - **TODO:** After sign-up, dedicated onboarding to fill name and bio (and auto description) before full app use, beyond the existing “blank displayName → `/profile`” guard.
 
 ## Repo Structure
@@ -225,7 +227,7 @@ Security gaps to keep in mind: enforce Firestore and Storage rules to match thes
 
 ## Transactional Email
 
-Transactional emails are generated in `src/lib/email.ts` and should match CourtShare's restrained green marketplace theme. Avoid decorative emoji/checkmark headings, fake excitement, or casual icon-heavy copy. Use a CourtShare-branded green header with the tennis-ball logo from `${NEXT_PUBLIC_APP_URL}/icon.png` (falling back to `https://courtshare.co/icon.png`), clear booking detail tables, one primary CTA, and precise payment language: new booking request emails should say the player's card is authorized and will only be captured if accepted within 24 hours; confirmation emails should say payment has been captured; declined/cancelled/expired messaging should say the authorization was released or the payment was refunded depending on the actual Stripe outcome. Host booking-request emails should feel like a polished pending-request email, include player/request/court/payment sections, and deep-link the host to `/messages?conversationId=...` so they can accept, decline, or reply in context. Every in-app user-authored message and system check-in reminder message should have a paired email containing the message body, with reply links back to `/messages?conversationId=...`.
+Transactional emails are generated in `src/lib/email.ts` and should match CourtShare's restrained green marketplace theme. Avoid decorative emoji/checkmark headings, fake excitement, or casual icon-heavy copy. Use a CourtShare-branded green header with the tennis-ball logo from `${NEXT_PUBLIC_APP_URL}/icon.png` (falling back to `https://courtshare.co/icon.png`), clear booking detail tables, one primary CTA, and precise payment language: new booking request emails should say the player's card is authorized and will only be captured if accepted within 24 hours; confirmation emails should say payment has been captured; declined/cancelled/expired messaging should say the authorization was released or the payment was refunded depending on the actual Stripe outcome. Host booking-request emails should feel like a polished pending-request email, include player/request/court/payment sections, and deep-link the host to `/messages?conversationId=...` so they can accept, decline, or reply in context. Use a lighter CourtShare green gradient shell rather than a heavy dark block, and keep the primary CTA green tied to the same shared brand-green value as email logo/accent elements. Every in-app user-authored message and system check-in reminder message should have a paired email containing the message body, with reply links back to `/messages?conversationId=...`.
 
 Accept/reject/cancel routes should preserve their transactional booking emails; automated `booking_status` conversation messages should not trigger duplicate message emails unless you are intentionally adding a separate email path.
 

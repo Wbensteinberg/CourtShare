@@ -112,7 +112,7 @@ function AuthForm({ mode }: { mode: AuthMode }) {
         <Card className="w-full max-w-md overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-[0_24px_70px_rgba(15,23,42,0.16)]">
           <CardContent className="p-8">
             <div className="space-y-5">
-              <div className="space-y-2 text-center mb-8">
+              <div className="space-y-2 text-center">
                 <h1 className="text-3xl font-black tracking-tight text-slate-950">
                   {copy.title}
                 </h1>

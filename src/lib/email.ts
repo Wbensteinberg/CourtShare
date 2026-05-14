@@ -12,10 +12,12 @@ const mutedTextColor = "#64756f";
 const borderColor = "#dce7e2";
 const pageBg = "#f6faf8";
 const cardBg = "#ffffff";
-const ownerRequestDarkBg = "#07140f";
-const ownerRequestDarkPanel = "#0f211b";
-const ownerRequestDarkBorder = "#244138";
-const ownerRequestDarkMuted = "#a9bbb4";
+const ownerRequestShellBg =
+  "linear-gradient(135deg, #f4fbf8 0%, #dff2eb 48%, #bddfd3 100%)";
+const ownerRequestHeroBg =
+  "linear-gradient(135deg, #103c31 0%, #17624d 54%, #0d8a68 100%)";
+const ownerRequestShellBorder = "#b8d9ce";
+const ownerRequestShellMuted = "#527368";
 const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://courtshare.co").replace(
   /\/$/,
   ""
@@ -41,9 +43,9 @@ const emailHeader = (title: string) => `
 `;
 
 const ownerBookingRequestHeader = (title: string) => `
-  <div style="background: ${ownerRequestDarkBg}; padding: 30px 32px 0; border-radius: 30px 30px 0 0; border: 1px solid ${ownerRequestDarkBorder}; border-bottom: none;">
+  <div style="background: ${ownerRequestShellBg}; padding: 30px 32px 0; border-radius: 30px 30px 0 0; border: 1px solid ${ownerRequestShellBorder}; border-bottom: none;">
     <div style="color: ${ownerRequestPrimaryGreen}; font-size: 34px; line-height: 1; font-weight: 900; letter-spacing: -0.06em; margin: 0 0 22px;">CourtShare</div>
-    <div style="background: ${ownerRequestDarkPanel}; border: 1px solid ${ownerRequestDarkBorder}; border-radius: 26px; padding: 28px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.34);">
+    <div style="background: ${ownerRequestHeroBg}; border: 1px solid rgba(255, 255, 255, 0.24); border-radius: 26px; padding: 28px; box-shadow: 0 24px 70px rgba(0, 134, 101, 0.24);">
       <p style="margin: 0 0 10px; color: ${ownerRequestPrimaryGreen}; font-size: 12px; font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase;">Booking request</p>
       <h1 style="color: #ffffff; margin: 0; font-size: 30px; line-height: 1.15; letter-spacing: -0.04em;">${title}</h1>
     </div>
@@ -187,11 +189,11 @@ export const buildOwnerBookingNotificationEmail = (data: BookingEmailData) => {
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Respond to ${safePlayerLabel}'s Request</title>
           </head>
-          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: ${textColor}; max-width: 680px; margin: 0 auto; padding: 28px 16px; background: ${ownerRequestDarkBg};">
+          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: ${textColor}; max-width: 680px; margin: 0 auto; padding: 28px 16px; background: ${ownerRequestShellBg};">
             ${ownerBookingRequestHeader(`Respond to ${safePlayerLabel}'s request`)}
 
-            <div style="background: ${ownerRequestDarkBg}; padding: 18px 32px 32px; border-radius: 0 0 30px 30px; border: 1px solid ${ownerRequestDarkBorder}; border-top: none;">
-              <div style="background: ${cardBg}; border: 1px solid rgba(255, 255, 255, 0.10); border-radius: 26px; padding: 28px; box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);">
+            <div style="background: ${ownerRequestShellBg}; padding: 18px 32px 32px; border-radius: 0 0 30px 30px; border: 1px solid ${ownerRequestShellBorder}; border-top: none;">
+              <div style="background: ${cardBg}; border: 1px solid ${borderColor}; border-radius: 26px; padding: 28px; box-shadow: 0 24px 70px rgba(16, 35, 29, 0.16);">
               <p style="font-size: 16px; margin-top: 0;">Hello${data.ownerName ? ` ${escapeHtml(data.ownerName)}` : ""},</p>
               <p style="font-size: 16px; margin-bottom: 22px; color: ${mutedTextColor};">${safePlayerLabel} requested to book <strong style="color: ${textColor};">${safeCourtName}</strong>. Their payment method is authorized, and they will only be charged if you accept before the request expires.</p>
 
@@ -259,7 +261,7 @@ export const buildOwnerBookingNotificationEmail = (data: BookingEmailData) => {
 
               <p style="font-size: 14px; color: ${mutedTextColor}; margin-top: 24px; margin-bottom: 0;">Open the request to view the booking conversation, the player&apos;s profile, and the accept or decline controls.</p>
               </div>
-              <p style="margin: 22px 0 0; color: ${ownerRequestDarkMuted}; font-size: 12px; text-align: center;">CourtShare sends this request because you host ${safeCourtName}.</p>
+              <p style="margin: 22px 0 0; color: ${ownerRequestShellMuted}; font-size: 12px; text-align: center;">CourtShare sends this request because you host ${safeCourtName}.</p>
             </div>
           </body>
         </html>
