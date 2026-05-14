@@ -108,8 +108,14 @@ export async function POST(req: NextRequest) {
           if (courtData && ownerData?.email) {
             await sendOwnerBookingNotification({
               bookingId: result.bookingId,
+              conversationId: result.conversationId,
               courtName: courtData.name || "Court",
               courtAddress: courtData.address || courtData.location,
+              courtLocation: courtData.location,
+              courtImageUrl:
+                Array.isArray(courtData.imageUrls) && courtData.imageUrls[0]
+                  ? courtData.imageUrls[0]
+                  : courtData.imageUrl,
               playerName: playerData?.displayName || playerData?.name,
               playerEmail: playerData?.email || session.customer_email || userId,
               ownerName: ownerData.displayName || ownerData.name,
@@ -117,6 +123,18 @@ export async function POST(req: NextRequest) {
               date: bookingData.date,
               time: bookingData.time,
               duration,
+              durationMinutes:
+                typeof bookingData.durationMinutes === "number"
+                  ? bookingData.durationMinutes
+                  : undefined,
+              courtNumber:
+                typeof bookingData.courtNumber === "number"
+                  ? bookingData.courtNumber
+                  : undefined,
+              guestCount:
+                typeof bookingData.guestCount === "number"
+                  ? bookingData.guestCount
+                  : undefined,
               price,
               initialMessage: bookingData.initialMessage || "",
             });

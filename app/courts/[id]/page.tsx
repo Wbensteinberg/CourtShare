@@ -50,6 +50,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { calculateBookingPriceBreakdown, formatCents } from "@/lib/pricing";
 import { WaiverAcknowledgmentDialog } from "@/components/WaiverAcknowledgmentDialog";
@@ -65,6 +75,7 @@ import {
   PLAYER_BOOKING_WAIVER_BODY,
   PLAYER_BOOKING_WAIVER_VERSION,
 } from "@/lib/waivers";
+import { isActionablePendingBooking } from "@/lib/bookingDates";
 import { format } from "date-fns";
 import ReactDatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -72,6 +83,7 @@ import {
   createMockBooking,
   getMockAuthUser,
   getMockBookingsForCourtAndDate,
+  getMockBookingsForUser,
   getMockCourtById,
   getMockCourts,
   getMockProfile,
@@ -297,6 +309,8 @@ function CourtDetailPage() {
   const [selectedCourtNumber, setSelectedCourtNumber] = useState<number>(1);
   const [playerWaiverOpen, setPlayerWaiverOpen] = useState(false);
   const [playerWaiverChecked, setPlayerWaiverChecked] = useState(false);
+  const [duplicateRequestDialogOpen, setDuplicateRequestDialogOpen] =
+    useState(false);
 
   // Time slots and durations
   const timeSlots = [
@@ -658,6 +672,36 @@ function CourtDetailPage() {
     if (playerWaiverOpen) setPlayerWaiverChecked(false);
   }, [playerWaiverOpen]);
 
+  const hasActionablePendingRequestForCourt = async (uid: string) => {
+    if (!id) return false;
+
+    if (isMockMode) {
+      return getMockBookingsForUser(uid).some(
+        (booking) =>
+          booking.courtId === id &&
+          isActionablePendingBooking(booking as Parameters<typeof isActionablePendingBooking>[0])
+      );
+    }
+
+    try {
+      const pendingRequestQuery = query(
+        collection(db, "bookings"),
+        where("userId", "==", uid),
+        where("courtId", "==", id),
+        where("status", "==", "pending")
+      );
+      const snap = await getDocs(pendingRequestQuery);
+      return snap.docs.some((bookingDoc) =>
+        isActionablePendingBooking(
+          bookingDoc.data() as Parameters<typeof isActionablePendingBooking>[0]
+        )
+      );
+    } catch (error) {
+      console.warn("[BOOKING] Unable to check duplicate pending requests:", error);
+      return false;
+    }
+  };
+
   /** Validates booking, then shows waiver before payment. */
   const handleCheckout = async () => {
     if (authLoading) {
@@ -702,6 +746,11 @@ function CourtDetailPage() {
     }
     if (court?.maxGuests && normalizedGuestCount > court.maxGuests) {
       alert(`This court allows up to ${court.maxGuests} guests.`);
+      return;
+    }
+
+    if (await hasActionablePendingRequestForCourt(activeUser.uid)) {
+      setDuplicateRequestDialogOpen(true);
       return;
     }
 
@@ -1635,6 +1684,32 @@ function CourtDetailPage() {
       </div>
 
       {/* ── Dialogs ── */}
+      <AlertDialog
+        open={duplicateRequestDialogOpen}
+        onOpenChange={setDuplicateRequestDialogOpen}
+      >
+        <AlertDialogContent className="rounded-3xl border-slate-200 sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-left text-xl font-bold text-slate-950">
+              You already have a request here
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-left text-sm leading-6 text-slate-600">
+              You already have a booking request for this court. Are you sure
+              you want to make another one?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-3 sm:gap-2">
+            <AlertDialogCancel>Not now</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-[var(--site-accent)] text-white hover:bg-[var(--site-accent-hover)]"
+              onClick={() => setPlayerWaiverOpen(true)}
+            >
+              Continue request
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <WaiverAcknowledgmentDialog
         open={playerWaiverOpen}
         onOpenChange={setPlayerWaiverOpen}

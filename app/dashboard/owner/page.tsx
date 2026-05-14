@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Building2,
   ChevronDown,
@@ -87,6 +88,16 @@ import {
   sortBookingsAscending,
   sortBookingsDescending,
 } from "@/lib/bookingDates";
+import { calculateBookingPriceBreakdown } from "@/lib/pricing";
+
+const DECLINE_REASON_MAX_LENGTH = 280;
+
+const formatMoneyFromCents = (cents: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: cents % 100 === 0 ? 0 : 2,
+  }).format(cents / 100);
 
 interface Court {
   id: string;
@@ -115,12 +126,16 @@ interface Booking {
   duration: number;
   status: string;
   cancelReason?: string;
+  declineReason?: string;
   courtNumber?: number;
   createdAt?: Date | string | number | { toDate?: () => Date; seconds?: number; nanoseconds?: number };
   expiresAt?: Date | string | number | { toDate?: () => Date; seconds?: number; nanoseconds?: number };
   conversationId?: string;
   totalAmountCents?: number;
   ownerAmountCents?: number;
+  courtShareFeeCents?: number;
+  processingFeeCents?: number;
+  expectedAmountCents?: number;
   durationMinutes?: number;
 }
 
@@ -196,6 +211,10 @@ export default function OwnerDashboard() {
   const [acceptBookingConfirm, setAcceptBookingConfirm] = useState<{
     booking: Booking;
     court: Court;
+  } | null>(null);
+  const [declineBookingConfirm, setDeclineBookingConfirm] = useState<{
+    booking: Booking;
+    reason: string;
   } | null>(null);
   const [stripeAccountStatus, setStripeAccountStatus] = useState<{
     hasAccount: boolean;
@@ -782,12 +801,37 @@ export default function OwnerDashboard() {
     }
   };
 
-  const handleRejectBooking = async (bookingId: string) => {
-    if (
-      !window.confirm(
-        "Are you sure you want to reject this booking? The card authorization will be released."
-      )
-    ) {
+  const openDeclineDialog = (booking: Booking) => {
+    setDeclineBookingConfirm({ booking, reason: "" });
+  };
+
+  const getBookingFinancials = (booking: Booking, court?: Court | null) => {
+    const calculated =
+      court && typeof court.price === "number"
+        ? calculateBookingPriceBreakdown(
+            court.price,
+            booking.durationMinutes ?? Math.round((booking.duration || 1) * 60)
+          )
+        : null;
+    const totalAmountCents =
+      booking.totalAmountCents ?? booking.expectedAmountCents ?? calculated?.totalAmountCents;
+    if (typeof totalAmountCents !== "number") return null;
+
+    return {
+      totalAmountCents,
+      courtShareFeeCents:
+        booking.courtShareFeeCents ?? calculated?.courtShareFeeCents ?? 0,
+      processingFeeCents:
+        booking.processingFeeCents ?? calculated?.processingFeeCents ?? 0,
+      ownerAmountCents:
+        booking.ownerAmountCents ?? calculated?.ownerAmountCents ?? totalAmountCents,
+    };
+  };
+
+  const handleRejectBooking = async (bookingId: string, reason: string) => {
+    const cleanReason = reason.trim();
+    if (!cleanReason) {
+      alert("Please write a reason before declining this booking.");
       return;
     }
     if (!user) {
@@ -800,6 +844,7 @@ export default function OwnerDashboard() {
         await updateMockBooking(bookingId, {
           status: "rejected",
           cancelReason: "host_rejection",
+          declineReason: cleanReason,
         });
       } else {
         const idToken = await user.getIdToken();
@@ -809,7 +854,7 @@ export default function OwnerDashboard() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${idToken}`,
           },
-          body: JSON.stringify({ bookingId }),
+          body: JSON.stringify({ bookingId, declineReason: cleanReason }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -819,10 +864,16 @@ export default function OwnerDashboard() {
       setBookings((prev) =>
         prev.map((b) =>
           b.id === bookingId
-            ? { ...b, status: "rejected", cancelReason: "host_rejection" }
+            ? {
+                ...b,
+                status: "rejected",
+                cancelReason: "host_rejection",
+                declineReason: cleanReason,
+              }
             : b
         )
       );
+      setDeclineBookingConfirm(null);
     } catch (err: any) {
       alert(err.message || "Failed to reject booking");
     } finally {
@@ -1276,7 +1327,7 @@ export default function OwnerDashboard() {
                     <>
                       <Button
                         size="sm"
-                        className="rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                        className="cursor-pointer rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:cursor-not-allowed"
                         onClick={() =>
                           court && setAcceptBookingConfirm({ booking, court })
                         }
@@ -1288,8 +1339,8 @@ export default function OwnerDashboard() {
                       <Button
                         size="sm"
                         variant="outline"
-                        className="rounded-lg border-black text-black hover:bg-slate-100 hover:text-black"
-                        onClick={() => handleRejectBooking(booking.id)}
+                        className="cursor-pointer rounded-lg border-black text-black hover:bg-slate-100 hover:text-black disabled:cursor-not-allowed"
+                        onClick={() => openDeclineDialog(booking)}
                         disabled={updatingBookingId === booking.id}
                       >
                         <X className="mr-2 h-4 w-4" />
@@ -1362,12 +1413,17 @@ export default function OwnerDashboard() {
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex w-full items-center justify-between rounded-[32px] px-6 py-5 text-left text-base font-bold transition ${
+                  className={`relative flex w-full items-center justify-between rounded-[32px] px-6 py-5 text-left text-base font-bold transition ${
                     activeTab === tab.id
                       ? "bg-white text-slate-950 shadow-sm ring-1 ring-slate-100"
                       : "text-slate-600 hover:bg-white/70"
                   }`}
                 >
+                  {tab.id === "upcoming" && pendingBookings.length > 0 && (
+                    <span className="absolute right-4 top-4 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-black leading-none text-white shadow-sm ring-2 ring-white">
+                      {pendingBookings.length}
+                    </span>
+                  )}
                   <span className="flex items-center gap-5">
                     <span className="flex h-12 w-12 items-center justify-center rounded-full bg-pink-50 text-pink-700">
                       <Icon className="h-5 w-5" />
@@ -1591,7 +1647,8 @@ export default function OwnerDashboard() {
                                               await handleAcceptBooking(bookingId);
                                             }
                                           } else if (status === "rejected") {
-                                            await handleRejectBooking(bookingId);
+                                            const booking = bookings.find((b) => b.id === bookingId);
+                                            if (booking) openDeclineDialog(booking);
                                           }
                                         }}
                                       />
@@ -1633,7 +1690,8 @@ export default function OwnerDashboard() {
                                         await handleAcceptBooking(bookingId);
                                       }
                                     } else if (status === "rejected") {
-                                      await handleRejectBooking(bookingId);
+                                      const booking = bookings.find((b) => b.id === bookingId);
+                                      if (booking) openDeclineDialog(booking);
                                     }
                                   }}
                                 />
@@ -1979,18 +2037,49 @@ export default function OwnerDashboard() {
                     {getBookingPlayerName(acceptBookingConfirm.booking)}
                   </span>
                 </div>
-                <div className="flex justify-between pt-2 border-t">
-                  <span className="text-gray-500">You will receive</span>
-                  <span className="font-bold text-emerald-600">
-                    ${((acceptBookingConfirm.court.price || 0) * acceptBookingConfirm.booking.duration).toFixed(2)}
-                  </span>
-                </div>
               </div>
+              {(() => {
+                const financials = getBookingFinancials(
+                  acceptBookingConfirm.booking,
+                  acceptBookingConfirm.court
+                );
+                if (!financials) return null;
+
+                return (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
+                    <div className="flex justify-between gap-4">
+                      <span className="text-slate-500">Player pays</span>
+                      <span className="font-bold text-slate-950">
+                        {formatMoneyFromCents(financials.totalAmountCents)}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex justify-between gap-4">
+                      <span className="text-slate-500">CourtShare fee</span>
+                      <span className="font-medium text-slate-700">
+                        -{formatMoneyFromCents(financials.courtShareFeeCents)}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex justify-between gap-4">
+                      <span className="text-slate-500">Card processing</span>
+                      <span className="font-medium text-slate-700">
+                        -{formatMoneyFromCents(financials.processingFeeCents)}
+                      </span>
+                    </div>
+                    <div className="mt-3 flex justify-between gap-4 border-t border-slate-200 pt-3">
+                      <span className="font-bold text-slate-950">You get paid</span>
+                      <span className="font-black text-emerald-700">
+                        {formatMoneyFromCents(financials.ownerAmountCents)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
           <DialogFooter className="flex gap-2 sm:gap-0">
             <Button
               variant="outline"
+              className="cursor-pointer disabled:cursor-not-allowed"
               onClick={() => setAcceptBookingConfirm(null)}
               disabled={updatingBookingId !== null}
             >
@@ -2001,7 +2090,7 @@ export default function OwnerDashboard() {
                 acceptBookingConfirm && handleAcceptBooking(acceptBookingConfirm.booking.id)
               }
               disabled={updatingBookingId !== null}
-              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700"
+              className="cursor-pointer bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:cursor-not-allowed"
             >
               {updatingBookingId === acceptBookingConfirm?.booking.id ? (
                 "Accepting..."
@@ -2011,6 +2100,72 @@ export default function OwnerDashboard() {
                   Accept
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!declineBookingConfirm}
+        onOpenChange={(open) => {
+          if (!open) setDeclineBookingConfirm(null);
+        }}
+      >
+        <DialogContent className="rounded-[32px] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black tracking-tight">
+              Decline booking request
+            </DialogTitle>
+            <DialogDescription className="text-base leading-7">
+              Please tell the player why you are declining. The reason will be
+              sent in the booking conversation and email notification.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={declineBookingConfirm?.reason || ""}
+            onChange={(event) =>
+              setDeclineBookingConfirm((current) =>
+                current ? { ...current, reason: event.target.value } : current
+              )
+            }
+            placeholder="Example: I'm sorry, the court is unavailable because we have scheduled maintenance at that time."
+            className="min-h-28 resize-none rounded-2xl border-slate-200"
+            maxLength={DECLINE_REASON_MAX_LENGTH}
+          />
+          <div className="flex justify-end text-xs font-medium text-slate-400">
+            {declineBookingConfirm?.reason.length || 0}/{DECLINE_REASON_MAX_LENGTH}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="cursor-pointer rounded-2xl disabled:cursor-not-allowed"
+              onClick={() => setDeclineBookingConfirm(null)}
+              disabled={updatingBookingId !== null}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant={declineBookingConfirm?.reason.trim() ? "destructive" : "outline"}
+              className={`rounded-2xl transition-colors ${
+                declineBookingConfirm?.reason.trim()
+                  ? "cursor-pointer bg-red-600 text-white hover:bg-red-700"
+                  : "cursor-not-allowed border-slate-300 text-slate-400"
+              }`}
+              onClick={() =>
+                declineBookingConfirm &&
+                handleRejectBooking(
+                  declineBookingConfirm.booking.id,
+                  declineBookingConfirm.reason
+                )
+              }
+              disabled={
+                updatingBookingId !== null || !declineBookingConfirm?.reason.trim()
+              }
+            >
+              {updatingBookingId === declineBookingConfirm?.booking.id
+                ? "Declining..."
+                : "Decline booking"}
             </Button>
           </DialogFooter>
         </DialogContent>

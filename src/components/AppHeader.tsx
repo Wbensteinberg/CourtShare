@@ -267,18 +267,18 @@ export default function AppHeader() {
                     ? `Messages, ${unreadMessageCount} unread`
                     : "Messages"
                 }
-                title={
-                  unreadMessageCount > 0
-                    ? `${unreadMessageCount} unread message${
-                        unreadMessageCount === 1 ? "" : "s"
-                      }`
-                    : "Messages"
-                }
               >
                 <MessageSquare className="h-5 w-5" />
                 <span className="hidden sm:inline">Messages</span>
                 {unreadMessageCount > 0 && (
-                  <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-black leading-none text-white ring-2 ring-white">
+                  <span
+                    className={cn(
+                      "absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-white shadow-sm ring-2",
+                      isLandingPage
+                        ? "bg-[var(--site-accent)] ring-white/80"
+                        : "bg-slate-900 ring-white"
+                    )}
+                  >
                     {unreadMessageLabel}
                   </span>
                 )}
@@ -350,7 +350,7 @@ export default function AppHeader() {
                     {link.label}
                   </span>
                   {link.showUnreadCount && unreadMessageCount > 0 && (
-                    <span className="ml-3 rounded-full bg-red-600 px-2 py-0.5 text-xs font-black text-white">
+                    <span className="ml-3 rounded-full bg-slate-900 px-2 py-0.5 text-xs font-bold text-white">
                       {unreadMessageLabel}
                     </span>
                   )}

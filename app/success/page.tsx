@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/AuthContext";
 import AppHeader from "@/components/AppHeader";
 import LoadingScreen from "@/components/LoadingScreen";
-import { AlertCircle, CheckCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 function SuccessContent() {
@@ -70,6 +70,23 @@ function SuccessContent() {
 
   const isError = status === "error";
 
+  if (!isError) {
+    return (
+      <LoadingScreen
+        message={
+          status === "ready"
+            ? "Booking Request Created"
+            : "Submitting Booking Request"
+        }
+        detail={
+          status === "ready"
+            ? "Taking you to your upcoming bookings."
+            : "Authorizing your card and sending the request to the host."
+        }
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/20">
       <AppHeader />
@@ -83,23 +100,14 @@ function SuccessContent() {
         </div>
         <div className="w-full max-w-lg bg-white/95 backdrop-blur-xl rounded-3xl shadow-elegant p-10 mx-auto text-center relative z-10 border border-white/30">
           <div className="w-20 h-20 mx-auto mb-6 rounded-3xl glass-dark flex items-center justify-center shadow-glow">
-            {isError ? (
-              <AlertCircle className="h-12 w-12 text-white" />
-            ) : (
-              <CheckCircle className="h-12 w-12 text-white" />
-            )}
+            <AlertCircle className="h-12 w-12 text-white" />
           </div>
           <h1 className="text-4xl md:text-5xl font-black mb-4 bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent tracking-tight">
-            {isError ? "Booking Needs Attention" : "Request Submitted"}
+            Booking Needs Attention
           </h1>
           <p className="text-gray-600 mb-8 text-lg font-medium leading-relaxed">
             {message}
           </p>
-          {status === "loading" && (
-            <p className="text-sm text-gray-500 font-semibold animate-pulse">
-              This usually takes a few seconds.
-            </p>
-          )}
           <Button
             onClick={() => router.push("/upcoming")}
             className="mt-6 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold py-3 px-6 rounded-xl shadow-lg hover:shadow-glow-hover transition-all"

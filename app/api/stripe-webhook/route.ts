@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { adminDb } from "@/lib/firebase-admin";
-import { isActionablePendingBooking } from "@/lib/bookingDates";
 import { createBookingRequestConversation } from "@/lib/conversations";
 import { sendOwnerBookingNotification } from "@/lib/email";
 import { calculateBookingPriceBreakdown } from "@/lib/pricing";
+import { isBookingBlockingSlot } from "@/lib/bookingConflicts";
 import { releaseBookingPayment } from "@/lib/stripeBookingPayments";
 import { isMockApiMode } from "@/lib/mockApiMode";
 import { mockStripeWebhookPOST } from "@/lib/mockApiServer";
-
-type BookingStatusParts = Parameters<typeof isActionablePendingBooking>[0];
 
 // Initialize Stripe with your secret key (set in .env.local)
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
@@ -197,32 +195,6 @@ export async function POST(req: NextRequest) {
 
         // SECURITY: Final check for double bookings before creating booking (race condition protection)
         // This is the last line of defense in case two payments completed simultaneously
-        const convertTo24Hour = (time12: string): string => {
-          if (/^\d{2}:\d{2}$/.test(time12)) return time12;
-          const [timePart, period] = time12.split(" ");
-          const [hours, minutes] = timePart.split(":").map(Number);
-          let hours24 = hours;
-          if (period === "PM" && hours !== 12) hours24 = hours + 12;
-          else if (period === "AM" && hours === 12) hours24 = 0;
-          return `${hours24.toString().padStart(2, "0")}:${(minutes || 0).toString().padStart(2, "0")}`;
-        };
-
-        const timeRangesOverlap = (
-          start1: string,
-          duration1Hours: number,
-          start2: string,
-          duration2Hours: number
-        ): boolean => {
-          const s1 = convertTo24Hour(start1);
-          const s2 = convertTo24Hour(start2);
-          const [h1] = s1.split(":").map(Number);
-          const [h2] = s2.split(":").map(Number);
-          const e1 = h1 + duration1Hours;
-          const e2 = h2 + duration2Hours;
-          return h1 < e2 && e1 > h2;
-        };
-
-        const durationHours = Math.ceil(durationMinutes / 60);
         const existingBookingsSnapshot = await adminDb
           .collection("bookings")
           .where("courtId", "==", metadata.courtId)
@@ -230,7 +202,12 @@ export async function POST(req: NextRequest) {
           .get();
 
         for (const bookingDoc of existingBookingsSnapshot.docs) {
-          const existingBooking = bookingDoc.data() as BookingStatusParts & {
+          const existingBooking = bookingDoc.data() as {
+            date: string;
+            time: string;
+            status: string;
+            createdAt?: unknown;
+            expiresAt?: unknown;
             courtNumber?: number;
             duration?: number;
             durationMinutes?: number;
@@ -240,19 +217,18 @@ export async function POST(req: NextRequest) {
           if (existingBooking.sessionId === session.id) {
             continue;
           }
-          // Skip bookings with different courtNumber
-          const bookingCourtNum = existingBooking.courtNumber || 1;
           const newCourtNum = Number(metadata.courtNumber) || 1;
-          if (bookingCourtNum !== newCourtNum) continue;
-          // Confirmed and still-actionable pending bookings block the slot.
-          if (existingBooking.status === "confirmed" || isActionablePendingBooking(existingBooking)) {
-            const existingDurationMinutes =
-              existingBooking.durationMinutes || (existingBooking.duration || 1) * 60;
-            const existingDuration = Math.ceil(existingDurationMinutes / 60);
-            if (timeRangesOverlap(metadata.time, durationHours, existingBooking.time, existingDuration)) {
+          if (
+            isBookingBlockingSlot(existingBooking, {
+              date: metadata.date || "",
+              time: metadata.time || "",
+              durationMinutes,
+              courtNumber: newCourtNum,
+            })
+          ) {
               console.error("[WEBHOOK] Double booking detected! Payment completed but time slot already booked:", {
                 existingBooking: bookingDoc.id,
-                newBooking: { time: metadata.time, duration: durationHours },
+                newBooking: { time: metadata.time, durationMinutes },
               });
               // Release the authorization or refund if this payment was already captured.
               try {
@@ -274,7 +250,6 @@ export async function POST(req: NextRequest) {
                 { error: "Time slot was already booked. The card authorization has been released." },
                 { status: 409 }
               );
-            }
           }
         }
 
@@ -388,8 +363,14 @@ export async function POST(req: NextRequest) {
               // Send email to owner
               await sendOwnerBookingNotification({
                 bookingId: bookingRef.id,
+                conversationId,
                 courtName: courtData.name || "Court",
                 courtAddress: courtData.address || courtData.location,
+                courtLocation: courtData.location,
+                courtImageUrl:
+                  Array.isArray(courtData.imageUrls) && courtData.imageUrls[0]
+                    ? courtData.imageUrls[0]
+                    : courtData.imageUrl,
                 playerName: playerData.displayName || playerData.name,
                 playerEmail: playerData.email || metadata.userId,
                 ownerName: ownerData.displayName || ownerData.name,
@@ -397,6 +378,9 @@ export async function POST(req: NextRequest) {
                 date: metadata.date,
                 time: metadata.time,
                 duration: durationHours,
+                durationMinutes,
+                courtNumber: Number(metadata.courtNumber) || 1,
+                guestCount: Number(metadata.guestCount) || undefined,
                 price: price,
                 initialMessage:
                   typeof metadata.initialMessage === "string"

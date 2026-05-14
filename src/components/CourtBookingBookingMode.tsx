@@ -15,6 +15,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ChevronDown, Clock, KeyRound, ListChecks, MapPin, Star } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import LoadingScreen from "@/components/LoadingScreen";
@@ -30,6 +40,7 @@ import {
   isBookingReviewable,
 } from "@/lib/bookingDates";
 import { formatBookingCancelReason } from "@/lib/bookingCancelReasons";
+import { calculateBookingPriceBreakdown } from "@/lib/pricing";
 import {
   createMockReview,
   getMockBookingById,
@@ -42,6 +53,8 @@ import {
   getMockReviewsForUser,
   updateMockBooking,
 } from "@/lib/mockData";
+
+const DECLINE_REASON_MAX_LENGTH = 280;
 
 type Court = {
   id: string;
@@ -76,8 +89,13 @@ type Booking = {
   durationMinutes?: number;
   status: string;
   cancelReason?: string;
+  declineReason?: string;
   totalAmountCents?: number;
   expectedAmountCents?: number;
+  ownerAmountCents?: number;
+  courtShareFeeCents?: number;
+  processingFeeCents?: number;
+  applicationFeeCents?: number;
   createdAt?: any;
   expiresAt?: any;
   conversationId?: string;
@@ -179,7 +197,9 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
   const [reviewsDialogKind, setReviewsDialogKind] = useState<ReviewsDialogKind | null>(null);
   const [playerProfileDialogOpen, setPlayerProfileDialogOpen] = useState(false);
   const [hostProfileDialogOpen, setHostProfileDialogOpen] = useState(false);
+  const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
   const [declineDialogOpen, setDeclineDialogOpen] = useState(false);
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
   const [currentTime, setCurrentTime] = useState(() => new Date());
 
@@ -612,6 +632,7 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to accept");
         setBooking((prev) => prev ? { ...prev, status: "confirmed" } : null);
       }
+      setAcceptDialogOpen(false);
     } catch (e: any) {
       alert(e.message || "Failed to accept booking");
     } finally {
@@ -619,23 +640,37 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
     }
   };
 
-  const handleDecline = async () => {
+  const handleDecline = async (reason: string) => {
     if (!booking || isActioning) return;
+    const cleanReason = reason.trim();
+    if (!cleanReason) {
+      alert("Please write a reason before declining this booking.");
+      return;
+    }
     setIsActioning("declining");
     try {
       if (isMockMode) {
-        await updateMockBooking(booking.id, { status: "rejected" });
-        setBooking((prev) => prev ? { ...prev, status: "rejected" } : null);
+        await updateMockBooking(booking.id, {
+          status: "rejected",
+          declineReason: cleanReason,
+        });
+        setBooking((prev) =>
+          prev ? { ...prev, status: "rejected", declineReason: cleanReason } : null
+        );
       } else {
         const idToken = await user!.getIdToken();
         const res = await fetch("/api/reject-booking", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${idToken}` },
-          body: JSON.stringify({ bookingId: booking.id }),
+          body: JSON.stringify({ bookingId: booking.id, declineReason: cleanReason }),
         });
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to decline");
-        setBooking((prev) => prev ? { ...prev, status: "rejected" } : null);
+        setBooking((prev) =>
+          prev ? { ...prev, status: "rejected", declineReason: cleanReason } : null
+        );
       }
+      setDeclineDialogOpen(false);
+      setDeclineReason("");
     } catch (e: any) {
       alert(e.message || "Failed to decline booking");
     } finally {
@@ -645,7 +680,6 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
 
   const handleCancel = async () => {
     if (!booking || isActioning) return;
-    if (!window.confirm("Are you sure you want to cancel this booking?")) return;
     setIsActioning("cancelling");
     try {
       if (isMockMode) {
@@ -661,6 +695,7 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Failed to cancel");
         setBooking((prev) => prev ? { ...prev, status: "cancelled" } : null);
       }
+      setCancelDialogOpen(false);
     } catch (e: any) {
       alert(e.message || "Failed to cancel booking");
     } finally {
@@ -779,6 +814,28 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
   const bookingCost = formatCents(
     booking.totalAmountCents ?? booking.expectedAmountCents ?? fallbackBookingCostCents
   );
+  const bookingFinancials = (() => {
+    const calculated =
+      typeof court.price === "number"
+        ? calculateBookingPriceBreakdown(
+            court.price,
+            booking.durationMinutes ?? Math.round((booking.duration || 1) * 60)
+          )
+        : null;
+    const totalAmountCents =
+      booking.totalAmountCents ?? booking.expectedAmountCents ?? calculated?.totalAmountCents;
+    if (typeof totalAmountCents !== "number") return null;
+
+    return {
+      totalAmountCents,
+      courtShareFeeCents:
+        booking.courtShareFeeCents ?? calculated?.courtShareFeeCents ?? 0,
+      processingFeeCents:
+        booking.processingFeeCents ?? calculated?.processingFeeCents ?? 0,
+      ownerAmountCents:
+        booking.ownerAmountCents ?? calculated?.ownerAmountCents ?? totalAmountCents,
+    };
+  })();
   const hostName = hostProfile?.displayName?.trim() || "Court host";
   const hostAvatarUrl = hostProfile?.profileImageUrl || undefined;
   const hostRatingSummary =
@@ -816,7 +873,7 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
             <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="space-y-3">
-                  <div>{statusBadge(displayStatus)}</div>
+                  {booking.status !== "pending" && <div>{statusBadge(displayStatus)}</div>}
                   <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm text-slate-600">
                     <span className="font-semibold text-slate-900">
                       {formatBookingDateLong(booking.date)}
@@ -829,16 +886,30 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
                   </div>
                   {booking.status === "pending" && (
                     <p className="text-xs text-slate-500">
-                      Payment capture is tied to host acceptance.
+                      The player&apos;s payment will only be completed if the host accepts this request.
                     </p>
                   )}
                 </div>
 
                 {booking.status === "pending" && pendingTimeRemaining && (
-                  <div className="rounded-2xl border border-yellow-200 bg-yellow-50 px-4 py-3">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-yellow-800">
-                      <Clock className="h-4 w-4 shrink-0" />
-                      {pendingTimeRemaining}
+                  <div className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white px-4 py-3 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                        <Clock className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <div className="mb-1 flex flex-wrap items-center gap-2">
+                          <Badge className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-800 hover:bg-amber-100">
+                            Pending Approval
+                          </Badge>
+                          <p className="text-xs font-bold uppercase tracking-[0.16em] text-amber-700">
+                            Time left
+                          </p>
+                        </div>
+                        <p className="font-mono text-lg font-black tabular-nums text-amber-950">
+                          {pendingTimeRemaining}
+                        </p>
+                      </div>
                     </div>
                     <p className="mt-1 text-xs text-yellow-700">
                       {viewerRole === "host"
@@ -854,17 +925,20 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
                 <div className="mt-4 flex gap-3">
                   <button
                     type="button"
-                    onClick={handleAccept}
+                    onClick={() => setAcceptDialogOpen(true)}
                     disabled={!!isActioning}
-                    className="flex-1 rounded-2xl bg-[var(--site-accent)] px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[var(--site-accent-hover)] disabled:opacity-60"
+                    className="flex-1 cursor-pointer rounded-2xl bg-[var(--site-accent)] px-4 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[var(--site-accent-hover)] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isActioning === "accepting" ? "Accepting…" : "Accept"}
                   </button>
                   <button
                     type="button"
-                    onClick={handleDecline}
+                    onClick={() => {
+                      setDeclineReason("");
+                      setDeclineDialogOpen(true);
+                    }}
                     disabled={!!isActioning}
-                    className="flex-1 rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+                    className="flex-1 cursor-pointer rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isActioning === "declining" ? "Declining…" : "Decline"}
                   </button>
@@ -876,9 +950,9 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
                 <div className="mt-4">
                   <button
                     type="button"
-                    onClick={handleCancel}
+                    onClick={() => setCancelDialogOpen(true)}
                     disabled={!!isActioning}
-                    className="w-full rounded-2xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+                    className="w-full cursor-pointer rounded-2xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {isActioning === "cancelling" ? "Cancelling…" : "Cancel Booking"}
                   </button>
@@ -891,9 +965,9 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
                   {playerCanCancel ? (
                     <button
                       type="button"
-                      onClick={handleCancel}
+                      onClick={() => setCancelDialogOpen(true)}
                       disabled={!!isActioning}
-                      className="w-full rounded-2xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-60"
+                      className="w-full cursor-pointer rounded-2xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {isActioning === "cancelling" ? "Cancelling…" : "Cancel Booking"}
                     </button>
@@ -1133,6 +1207,141 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
         open={hostProfileDialogOpen}
         onOpenChange={setHostProfileDialogOpen}
       />
+
+      <Dialog open={acceptDialogOpen} onOpenChange={setAcceptDialogOpen}>
+        <DialogContent className="rounded-3xl border-slate-200 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-left text-xl font-bold text-slate-950">
+              Accept booking request?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm leading-6 text-slate-600">
+              Confirming will complete the player&apos;s payment and lock in
+              this reservation.
+            </p>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
+              <div className="flex justify-between gap-4">
+                <span className="text-slate-500">Player pays</span>
+                <span className="font-bold text-slate-950">
+                  {formatCents(bookingFinancials?.totalAmountCents ?? 0)}
+                </span>
+              </div>
+              <div className="mt-2 flex justify-between gap-4">
+                <span className="text-slate-500">CourtShare fee</span>
+                <span className="font-medium text-slate-700">
+                  -{formatCents(bookingFinancials?.courtShareFeeCents ?? 0)}
+                </span>
+              </div>
+              <div className="mt-2 flex justify-between gap-4">
+                <span className="text-slate-500">Card processing</span>
+                <span className="font-medium text-slate-700">
+                  -{formatCents(bookingFinancials?.processingFeeCents ?? 0)}
+                </span>
+              </div>
+              <div className="mt-3 flex justify-between gap-4 border-t border-slate-200 pt-3">
+                <span className="font-bold text-slate-950">You get paid</span>
+                <span className="font-black text-emerald-700">
+                  {formatCents(bookingFinancials?.ownerAmountCents ?? 0)}
+                </span>
+              </div>
+            </div>
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                className="cursor-pointer rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={() => setAcceptDialogOpen(false)}
+                disabled={!!isActioning}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="cursor-pointer rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={handleAccept}
+                disabled={!!isActioning}
+              >
+                {isActioning === "accepting" ? "Accepting..." : "Accept booking"}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={declineDialogOpen} onOpenChange={setDeclineDialogOpen}>
+        <DialogContent className="rounded-3xl border-slate-200 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-left text-xl font-bold text-slate-950">
+              Decline booking request
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm leading-6 text-slate-600">
+              Please tell the player why this request is being declined. This
+              reason will appear in the booking conversation and their email.
+            </p>
+            <Textarea
+              value={declineReason}
+              onChange={(event) => setDeclineReason(event.target.value)}
+              placeholder="Example: I'm sorry, the court is unavailable because we have scheduled maintenance at that time."
+              className="min-h-28 resize-none rounded-2xl border-slate-200"
+              maxLength={DECLINE_REASON_MAX_LENGTH}
+            />
+            <div className="flex justify-end text-xs font-medium text-slate-400">
+              {declineReason.length}/{DECLINE_REASON_MAX_LENGTH}
+            </div>
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                onClick={() => setDeclineDialogOpen(false)}
+                disabled={!!isActioning}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={`rounded-xl px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed ${
+                  declineReason.trim()
+                    ? "bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
+                    : "border border-slate-300 bg-white text-slate-400"
+                }`}
+                onClick={() => handleDecline(declineReason)}
+                disabled={!!isActioning || !declineReason.trim()}
+              >
+                {isActioning === "declining" ? "Declining..." : "Decline booking"}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
+        <AlertDialogContent className="rounded-3xl border-slate-200 sm:max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-left text-xl font-bold text-slate-950">
+              Cancel booking?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-left text-sm leading-6 text-slate-600">
+              Are you sure you want to cancel this booking? This will update the
+              booking status and handle any payment authorization or refund
+              server-side.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-3 sm:gap-2">
+            <AlertDialogCancel disabled={!!isActioning}>
+              Keep booking
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-700"
+              onClick={handleCancel}
+              disabled={!!isActioning}
+            >
+              {isActioning === "cancelling" ? "Cancelling..." : "Yes, cancel booking"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ReviewsListDialog
         open={!!reviewsDialogKind}

@@ -4,6 +4,7 @@ import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { isBookingReviewable } from "@/lib/bookingDates";
 import { isMockApiMode } from "@/lib/mockApiMode";
 import { mockReviewsGET, mockReviewsPOST } from "@/lib/mockApiServer";
+import { shouldShowPublicReview } from "@/lib/reviewVisibility";
 
 const getAuthUserId = async (req: NextRequest) => {
   const authHeader = req.headers.get("authorization");
@@ -98,13 +99,19 @@ export async function GET(req: NextRequest) {
 
       const pairedReviewChecks = await Promise.all(
         reviews.map(async (review) => {
+          if (review.targetType === "player") {
+            return true;
+          }
+
           const otherRole = review.reviewerRole === "player" ? "owner" : "player";
           const pairedReviewId = `${review.bookingId}_${otherRole}`;
           const pairedReviewDoc = await db.collection("reviews").doc(pairedReviewId).get();
           return pairedReviewDoc.exists;
         })
       );
-      const visibleReviews = reviews.filter((_, index) => pairedReviewChecks[index]);
+      const visibleReviews = reviews.filter((review, index) =>
+        shouldShowPublicReview(review, pairedReviewChecks[index])
+      );
 
       const reviewerIds = [
         ...new Set(

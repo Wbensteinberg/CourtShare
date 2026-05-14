@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { adminDb, adminAuth } from "@/lib/firebase-admin";
-import { isActionablePendingBooking } from "@/lib/bookingDates";
 import { calculateBookingPriceBreakdown } from "@/lib/pricing";
+import { isBookingBlockingSlot } from "@/lib/bookingConflicts";
 import {
   getStripeAccountIdForMode,
   getStripeMode,
@@ -10,8 +10,6 @@ import {
 import { checkRateLimit } from "../rate-limit";
 import { isMockApiMode } from "@/lib/mockApiMode";
 import { mockCreateCheckoutSessionPOST } from "@/lib/mockApiServer";
-
-type BookingStatusParts = Parameters<typeof isActionablePendingBooking>[0];
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
@@ -307,58 +305,31 @@ export async function POST(req: NextRequest) {
       .where("date", "==", date)
       .get();
 
-    const timeRangesOverlap = (
-      start1: string,
-      duration1Hours: number,
-      start2: string,
-      duration2Hours: number
-    ): boolean => {
-      const convertTo24 = (t: string): string => {
-        if (/^\d{2}:\d{2}$/.test(t)) return t;
-        const [timePart, period] = t.split(" ");
-        const [h, m] = timePart.split(":").map(Number);
-        let h24 = h;
-        if (period === "PM" && h !== 12) h24 = h + 12;
-        else if (period === "AM" && h === 12) h24 = 0;
-        return `${h24.toString().padStart(2, "0")}:${(m || 0).toString().padStart(2, "0")}`;
-      };
-
-      const s1 = convertTo24(start1);
-      const s2 = convertTo24(start2);
-      const [h1] = s1.split(":").map(Number);
-      const [h2] = s2.split(":").map(Number);
-      const e1 = h1 + duration1Hours;
-      const e2 = h2 + duration2Hours;
-
-      // Check if ranges overlap
-      return (h1 < e2 && e1 > h2);
-    };
-
     // Check each existing booking for conflicts
     for (const bookingDoc of bookingsSnapshot.docs) {
-      const booking = bookingDoc.data() as BookingStatusParts & {
+      const booking = bookingDoc.data() as {
+        date: string;
+        time: string;
+        status: string;
+        createdAt?: unknown;
+        expiresAt?: unknown;
         courtNumber?: number;
         duration?: number;
         durationMinutes?: number;
       };
-      
-      // For multi-court listings, only check bookings for the same court number
-      const bookingCourtNum = booking.courtNumber || 1;
-      if (bookingCourtNum !== courtNumberNum) continue;
-      
-      // Only confirmed and still-actionable pending bookings block the slot.
-      if (booking.status === "confirmed" || isActionablePendingBooking(booking)) {
-        const existingTime = booking.time;
-        const existingDurationMinutes =
-          booking.durationMinutes || (booking.duration || 1) * 60;
-        const existingDuration = Math.ceil(existingDurationMinutes / 60);
-        
-        if (timeRangesOverlap(time, durationHours, existingTime, existingDuration)) {
-          return NextResponse.json(
-            { error: "This time slot is already booked" },
-            { status: 409 } // 409 Conflict
-          );
-        }
+
+      if (
+        isBookingBlockingSlot(booking, {
+          date,
+          time,
+          durationMinutes: durationMinutesNum,
+          courtNumber: courtNumberNum,
+        })
+      ) {
+        return NextResponse.json(
+          { error: "This time slot is already booked" },
+          { status: 409 } // 409 Conflict
+        );
       }
     }
 

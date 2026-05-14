@@ -55,6 +55,7 @@ export type MockBooking = {
   duration: number;
   status: string;
   cancelReason?: string;
+  declineReason?: string;
   courtNumber?: number;
   guestCount?: number;
   initialMessage?: string;

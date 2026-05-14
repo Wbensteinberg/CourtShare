@@ -4,6 +4,7 @@ import {
   isBookingReviewable,
   isPendingBookingExpired,
 } from "@/lib/bookingDates";
+import { isBookingBlockingSlot } from "@/lib/bookingConflicts";
 import { calculateBookingPriceBreakdown } from "@/lib/pricing";
 import { tryGetMockApiUserId } from "@/lib/mockApiAuth";
 import {
@@ -147,21 +148,6 @@ const convertTo24Hour = (time12: string): string => {
   if (period === "PM" && hours !== 12) hours24 = hours + 12;
   else if (period === "AM" && hours === 12) hours24 = 0;
   return `${hours24.toString().padStart(2, "0")}:${(minutes || 0).toString().padStart(2, "0")}`;
-};
-
-const timeRangesOverlap = (
-  start1: string,
-  duration1Hours: number,
-  start2: string,
-  duration2Hours: number
-): boolean => {
-  const s1 = convertTo24Hour(start1);
-  const s2 = convertTo24Hour(start2);
-  const [h1] = s1.split(":").map(Number);
-  const [h2] = s2.split(":").map(Number);
-  const e1 = h1 + duration1Hours;
-  const e2 = h2 + duration2Hours;
-  return h1 < e2 && e1 > h2;
 };
 
 export async function mockPublicProfileGET(userId: string): Promise<NextResponse> {
@@ -478,18 +464,18 @@ export async function mockCreateCheckoutSessionPOST(req: NextRequest): Promise<N
 
   for (const booking of data.bookings) {
     if (booking.courtId !== courtId || booking.date !== date) continue;
-    const bookingCourtNum = booking.courtNumber || 1;
-    if (bookingCourtNum !== courtNumberNum) continue;
-    if (booking.status === "confirmed" || isActionablePendingBooking(booking)) {
-      const existingDurationMinutes =
-        booking.durationMinutes || (booking.duration || 1) * 60;
-      const existingDuration = Math.ceil(existingDurationMinutes / 60);
-      if (timeRangesOverlap(time, durationHours, booking.time, existingDuration)) {
-        return mockJson(
-          { error: "This time slot is already booked" },
-          { status: 409 }
-        );
-      }
+    if (
+      isBookingBlockingSlot(booking, {
+        date,
+        time,
+        durationMinutes: durationMinutesNum,
+        courtNumber: courtNumberNum,
+      })
+    ) {
+      return mockJson(
+        { error: "This time slot is already booked" },
+        { status: 409 }
+      );
     }
   }
 
@@ -634,7 +620,7 @@ export async function mockAcceptBookingPOST(req: NextRequest): Promise<NextRespo
   }
 
   const { data } = getState();
-  let body: { bookingId?: string };
+  let body: { bookingId?: string; declineReason?: string };
   try {
     body = await req.json();
   } catch {
@@ -643,6 +629,11 @@ export async function mockAcceptBookingPOST(req: NextRequest): Promise<NextRespo
   const bookingId = body.bookingId;
   if (!bookingId) {
     return mockJson({ error: "Booking ID is required" }, { status: 400 });
+  }
+  const cleanDeclineReason =
+    typeof body.declineReason === "string" ? body.declineReason.trim().slice(0, 1000) : "";
+  if (!cleanDeclineReason) {
+    return mockJson({ error: "A decline reason is required" }, { status: 400 });
   }
 
   const booking = getBooking(data, bookingId);
@@ -688,7 +679,7 @@ export async function mockRejectBookingPOST(req: NextRequest): Promise<NextRespo
   }
 
   const { data } = getState();
-  let body: { bookingId?: string };
+  let body: { bookingId?: string; declineReason?: string };
   try {
     body = await req.json();
   } catch {
@@ -697,6 +688,11 @@ export async function mockRejectBookingPOST(req: NextRequest): Promise<NextRespo
   const bookingId = body.bookingId;
   if (!bookingId) {
     return mockJson({ error: "Booking ID is required" }, { status: 400 });
+  }
+  const cleanDeclineReason =
+    typeof body.declineReason === "string" ? body.declineReason.trim().slice(0, 1000) : "";
+  if (!cleanDeclineReason) {
+    return mockJson({ error: "A decline reason is required" }, { status: 400 });
   }
 
   const booking = getBooking(data, bookingId);
@@ -717,6 +713,7 @@ export async function mockRejectBookingPOST(req: NextRequest): Promise<NextRespo
   }
 
   booking.status = "rejected";
+  booking.declineReason = cleanDeclineReason;
   booking.paymentStatus = "canceled";
   booking.rejectedAt = new Date().toISOString();
 

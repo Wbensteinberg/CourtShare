@@ -43,6 +43,15 @@ import {
 import { cn } from "@/lib/utils";
 import { CalendarDays, Check, MessageCircle, Send, Star, X } from "lucide-react";
 
+const DECLINE_REASON_MAX_LENGTH = 280;
+
+const formatMoneyFromCents = (cents: number) =>
+  new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: cents % 100 === 0 ? 0 : 2,
+  }).format(cents / 100);
+
 type Conversation = MockConversation & {
   createdAt?: any;
   lastMessageAt?: any;
@@ -66,6 +75,11 @@ type Booking = {
   duration: number;
   status: string;
   declineReason?: string;
+  totalAmountCents?: number;
+  expectedAmountCents?: number;
+  ownerAmountCents?: number;
+  courtShareFeeCents?: number;
+  processingFeeCents?: number;
 };
 
 type ParticipantProfile = {
@@ -200,6 +214,7 @@ function MessagesPageContent() {
   const [participantReviews, setParticipantReviews] = useState<Record<string, ParticipantReview[]>>({});
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [draft, setDraft] = useState("");
+  const [acceptDialogOpen, setAcceptDialogOpen] = useState(false);
   const [declineDialogOpen, setDeclineDialogOpen] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
   const [loading, setLoading] = useState(true);
@@ -573,6 +588,26 @@ function MessagesPageContent() {
     !!user && !!selectedConversation && selectedConversation.ownerId === user.uid;
   const canActOnSelectedBooking =
     isSelectedOwner && selectedBooking?.status === "pending";
+  const selectedBookingFinancials = useMemo(() => {
+    if (!selectedBooking) return null;
+    const totalAmountCents =
+      selectedBooking.totalAmountCents ?? selectedBooking.expectedAmountCents;
+    if (typeof totalAmountCents !== "number") return null;
+
+    return {
+      totalAmountCents,
+      courtShareFeeCents: selectedBooking.courtShareFeeCents ?? 0,
+      processingFeeCents: selectedBooking.processingFeeCents ?? 0,
+      ownerAmountCents:
+        selectedBooking.ownerAmountCents ??
+        Math.max(
+          0,
+          totalAmountCents -
+            (selectedBooking.courtShareFeeCents ?? 0) -
+            (selectedBooking.processingFeeCents ?? 0)
+        ),
+    };
+  }, [selectedBooking]);
   const selectedOtherParticipantId = selectedConversation
     ? getOtherParticipantId(selectedConversation)
     : "";
@@ -640,15 +675,6 @@ function MessagesPageContent() {
     options: { declineReason?: string } = {}
   ) => {
     if (!user || !selectedConversation?.bookingId || !selectedBooking) return;
-
-    if (
-      decision === "accepted" &&
-      !window.confirm(
-        "Accept this booking request? The player's payment will be completed and the reservation will be confirmed."
-      )
-    ) {
-      return;
-    }
 
     const cleanDeclineReason = options.declineReason?.trim() || "";
     if (decision === "declined" && !cleanDeclineReason) {
@@ -747,6 +773,8 @@ function MessagesPageContent() {
       if (decision === "declined") {
         setDeclineDialogOpen(false);
         setDeclineReason("");
+      } else {
+        setAcceptDialogOpen(false);
       }
     } catch (err: any) {
       alert(err.message || "Failed to update booking");
@@ -999,8 +1027,8 @@ function MessagesPageContent() {
                         {canActOnSelectedBooking && (
                           <>
                             <Button
-                              className="rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
-                              onClick={() => handleBookingDecision("accepted")}
+                              className="cursor-pointer rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:cursor-not-allowed"
+                              onClick={() => setAcceptDialogOpen(true)}
                               disabled={updatingBooking}
                             >
                               <Check className="mr-2 h-4 w-4" />
@@ -1008,7 +1036,7 @@ function MessagesPageContent() {
                             </Button>
                             <Button
                               variant="outline"
-                              className="rounded-xl border-slate-300 bg-white text-slate-900 hover:bg-slate-100"
+                              className="cursor-pointer rounded-xl border-slate-300 bg-white text-slate-900 hover:bg-slate-100 disabled:cursor-not-allowed"
                               onClick={() => {
                                 setDeclineReason("");
                                 setDeclineDialogOpen(true);
@@ -1022,7 +1050,7 @@ function MessagesPageContent() {
                         )}
                         <Button
                           variant="outline"
-                          className="rounded-xl bg-white"
+                          className="cursor-pointer rounded-xl bg-white disabled:cursor-not-allowed"
                           onClick={() =>
                             selectedConversation.bookingId &&
                             router.push(`/booking/${selectedConversation.bookingId}`)
@@ -1221,6 +1249,66 @@ function MessagesPageContent() {
             </DialogContent>
           </Dialog>
         )}
+        <Dialog open={acceptDialogOpen} onOpenChange={setAcceptDialogOpen}>
+          <DialogContent className="rounded-3xl border-slate-200 sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-left text-xl font-bold text-slate-950">
+                Accept booking request?
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm leading-6 text-slate-600">
+                Confirming will complete the player&apos;s payment and lock in
+                this reservation.
+              </p>
+              {selectedBookingFinancials && (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-slate-500">Player pays</span>
+                    <span className="font-bold text-slate-950">
+                      {formatMoneyFromCents(selectedBookingFinancials.totalAmountCents)}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex justify-between gap-4">
+                    <span className="text-slate-500">CourtShare fee</span>
+                    <span className="font-medium text-slate-700">
+                      -{formatMoneyFromCents(selectedBookingFinancials.courtShareFeeCents)}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex justify-between gap-4">
+                    <span className="text-slate-500">Card processing</span>
+                    <span className="font-medium text-slate-700">
+                      -{formatMoneyFromCents(selectedBookingFinancials.processingFeeCents)}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex justify-between gap-4 border-t border-slate-200 pt-3">
+                    <span className="font-bold text-slate-950">You get paid</span>
+                    <span className="font-black text-emerald-700">
+                      {formatMoneyFromCents(selectedBookingFinancials.ownerAmountCents)}
+                    </span>
+                  </div>
+                </div>
+              )}
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <Button
+                  variant="outline"
+                  className="cursor-pointer rounded-xl disabled:cursor-not-allowed"
+                  onClick={() => setAcceptDialogOpen(false)}
+                  disabled={updatingBooking}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  className="cursor-pointer rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:cursor-not-allowed"
+                  onClick={() => handleBookingDecision("accepted")}
+                  disabled={updatingBooking}
+                >
+                  {updatingBooking ? "Accepting..." : "Accept booking"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
         <Dialog open={declineDialogOpen} onOpenChange={setDeclineDialogOpen}>
           <DialogContent className="rounded-3xl border-slate-200 sm:max-w-lg">
             <DialogHeader>
@@ -1236,22 +1324,30 @@ function MessagesPageContent() {
               <Textarea
                 value={declineReason}
                 onChange={(event) => setDeclineReason(event.target.value)}
-                placeholder="Example: Sorry, the court will not be available at that time."
+                placeholder="Example: I'm sorry, the court is unavailable because we have scheduled maintenance at that time."
                 className="min-h-28 resize-none rounded-2xl border-slate-200"
-                maxLength={1000}
+                maxLength={DECLINE_REASON_MAX_LENGTH}
               />
+              <div className="flex justify-end text-xs font-medium text-slate-400">
+                {declineReason.length}/{DECLINE_REASON_MAX_LENGTH}
+              </div>
               <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                 <Button
                   variant="outline"
-                  className="rounded-xl"
+                  className="cursor-pointer rounded-xl disabled:cursor-not-allowed"
                   onClick={() => setDeclineDialogOpen(false)}
                   disabled={updatingBooking}
                 >
                   Cancel
                 </Button>
                 <Button
-                  variant="destructive"
-                  className="rounded-xl"
+                  variant={declineReason.trim() ? "destructive" : "outline"}
+                  className={cn(
+                    "rounded-xl transition-colors",
+                    declineReason.trim() &&
+                      "cursor-pointer bg-red-600 text-white hover:bg-red-700",
+                    !declineReason.trim() && "cursor-not-allowed"
+                  )}
                   onClick={() =>
                     handleBookingDecision("declined", { declineReason })
                   }

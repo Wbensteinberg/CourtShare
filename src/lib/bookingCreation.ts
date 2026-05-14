@@ -1,10 +1,8 @@
 import type Stripe from "stripe";
 import type { Firestore } from "firebase-admin/firestore";
-import { isActionablePendingBooking } from "@/lib/bookingDates";
 import { createBookingRequestConversation } from "@/lib/conversations";
 import { calculateBookingPriceBreakdown } from "@/lib/pricing";
-
-type BookingStatusParts = Parameters<typeof isActionablePendingBooking>[0];
+import { isBookingBlockingSlot } from "@/lib/bookingConflicts";
 
 type CreateBookingResult =
   | { status: "created"; bookingId: string; conversationId: string }
@@ -18,33 +16,6 @@ const getDisplayName = (profile: FirebaseFirestore.DocumentData | undefined) => 
   if (email) return email.split("@")[0];
 
   return undefined;
-};
-
-const convertTo24Hour = (time12: string): string => {
-  if (/^\d{2}:\d{2}$/.test(time12)) return time12;
-  const [timePart, period] = time12.split(" ");
-  const [hours, minutes] = timePart.split(":").map(Number);
-  let hours24 = hours;
-  if (period === "PM" && hours !== 12) hours24 = hours + 12;
-  else if (period === "AM" && hours === 12) hours24 = 0;
-  return `${hours24.toString().padStart(2, "0")}:${(minutes || 0)
-    .toString()
-    .padStart(2, "0")}`;
-};
-
-const timeRangesOverlap = (
-  start1: string,
-  duration1Hours: number,
-  start2: string,
-  duration2Hours: number
-): boolean => {
-  const s1 = convertTo24Hour(start1);
-  const s2 = convertTo24Hour(start2);
-  const [h1] = s1.split(":").map(Number);
-  const [h2] = s2.split(":").map(Number);
-  const e1 = h1 + duration1Hours;
-  const e2 = h2 + duration2Hours;
-  return h1 < e2 && e1 > h2;
 };
 
 export async function createBookingFromPaidCheckoutSession(
@@ -98,7 +69,6 @@ export async function createBookingFromPaidCheckoutSession(
   const durationMinutes = metadata.durationMinutes
     ? Number(metadata.durationMinutes)
     : (Number(metadata.duration) || 60) * 60;
-  const durationHours = Math.ceil(durationMinutes / 60);
   const priceBreakdown = calculateBookingPriceBreakdown(
     Number(courtData.price),
     durationMinutes
@@ -116,29 +86,23 @@ export async function createBookingFromPaidCheckoutSession(
     .get();
 
   for (const bookingDoc of existingBookingsSnapshot.docs) {
-    const existingBooking = bookingDoc.data() as BookingStatusParts & {
+    const existingBooking = bookingDoc.data() as {
+      date: string;
+      time: string;
+      status: string;
+      createdAt?: unknown;
+      expiresAt?: unknown;
       courtNumber?: number;
       duration?: number;
       durationMinutes?: number;
     };
-    if ((existingBooking.courtNumber || 1) !== newCourtNumber) continue;
     if (
-      existingBooking.status !== "confirmed" &&
-      !isActionablePendingBooking(existingBooking)
-    ) {
-      continue;
-    }
-
-    const existingDuration = Math.ceil(
-      (existingBooking.durationMinutes || (existingBooking.duration || 1) * 60) / 60
-    );
-    if (
-      timeRangesOverlap(
-        metadata.time,
-        durationHours,
-        existingBooking.time,
-        existingDuration
-      )
+      isBookingBlockingSlot(existingBooking, {
+        date: metadata.date || "",
+        time: metadata.time || "",
+        durationMinutes,
+        courtNumber: newCourtNumber,
+      })
     ) {
       throw new Error("Time slot was already booked");
     }
