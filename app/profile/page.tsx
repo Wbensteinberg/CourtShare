@@ -647,7 +647,7 @@ export default function ProfilePage() {
                       setIsEditing(false);
                       setSuccess(false);
                     }}
-                    className={`flex w-full items-center gap-5 rounded-[32px] px-6 py-5 text-left text-base font-bold transition ${
+                    className={`flex w-full cursor-pointer items-center gap-5 rounded-[32px] px-6 py-5 text-left text-base font-bold transition ${
                       activeTab === tab.id && !isEditing
                         ? "bg-white text-slate-950 shadow-sm ring-1 ring-slate-100"
                         : "text-slate-600 hover:bg-white/70"

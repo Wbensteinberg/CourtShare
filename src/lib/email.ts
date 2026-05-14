@@ -575,6 +575,7 @@ export interface RejectionEmailData {
   duration: number;
   price: number;
   paymentStatus?: PaymentReleaseStatus;
+  declineReason?: string;
 }
 
 /**
@@ -612,6 +613,11 @@ export async function sendPlayerRejectionNotification(
               <div style="background: ${pageBg}; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
                 <p style="margin: 0 0 8px;"><strong>Date:</strong> ${formattedDate}</p>
                 <p style="margin: 0 0 8px;"><strong>Time:</strong> ${data.time} (${data.duration}h)</p>
+                ${
+                  data.declineReason
+                    ? `<p style="margin: 0 0 8px;"><strong>Host's reason:</strong> ${escapeHtml(data.declineReason)}</p>`
+                    : ""
+                }
                 <p style="margin: 0;"><strong>Payment:</strong> ${paymentReleaseCopy(data.paymentStatus, data.price)}</p>
               </div>
               <p style="font-size: 16px;">You can browse other courts and book a different time.</p>

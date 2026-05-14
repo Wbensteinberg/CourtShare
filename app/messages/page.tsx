@@ -65,6 +65,7 @@ type Booking = {
   time: string;
   duration: number;
   status: string;
+  declineReason?: string;
 };
 
 type ParticipantProfile = {
@@ -199,6 +200,8 @@ function MessagesPageContent() {
   const [participantReviews, setParticipantReviews] = useState<Record<string, ParticipantReview[]>>({});
   const [profileDialogOpen, setProfileDialogOpen] = useState(false);
   const [draft, setDraft] = useState("");
+  const [declineDialogOpen, setDeclineDialogOpen] = useState(false);
+  const [declineReason, setDeclineReason] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [updatingBooking, setUpdatingBooking] = useState(false);
@@ -632,15 +635,24 @@ function MessagesPageContent() {
     );
   };
 
-  const handleBookingDecision = async (decision: "accepted" | "declined") => {
+  const handleBookingDecision = async (
+    decision: "accepted" | "declined",
+    options: { declineReason?: string } = {}
+  ) => {
     if (!user || !selectedConversation?.bookingId || !selectedBooking) return;
 
     if (
-      decision === "declined" &&
+      decision === "accepted" &&
       !window.confirm(
-        "Are you sure you want to decline this booking? The card authorization will be released."
+        "Accept this booking request? The player's payment will be completed and the reservation will be confirmed."
       )
     ) {
+      return;
+    }
+
+    const cleanDeclineReason = options.declineReason?.trim() || "";
+    if (decision === "declined" && !cleanDeclineReason) {
+      alert("Please write a reason before declining this booking.");
       return;
     }
 
@@ -652,11 +664,14 @@ function MessagesPageContent() {
       let lastMessageText =
         decision === "accepted"
           ? "Booking request accepted."
-          : "Booking request declined.";
+          : `Booking request declined. Reason from the host: ${cleanDeclineReason}`;
       let statusMessage: Message | null = null;
 
       if (isMockMode) {
-        await updateMockBooking(selectedBooking.id, { status: nextStatus });
+        await updateMockBooking(selectedBooking.id, {
+          status: nextStatus,
+          ...(decision === "declined" ? { declineReason: cleanDeclineReason } : {}),
+        });
         await createMockMessage(selectedConversation.id, user.uid, lastMessageText);
         statusMessage = {
           id: `local-${decision}-${Date.now()}`,
@@ -676,7 +691,12 @@ function MessagesPageContent() {
               "Content-Type": "application/json",
               Authorization: `Bearer ${idToken}`,
             },
-            body: JSON.stringify({ bookingId: selectedBooking.id }),
+            body: JSON.stringify({
+              bookingId: selectedBooking.id,
+              ...(decision === "declined"
+                ? { declineReason: cleanDeclineReason }
+                : {}),
+            }),
           }
         );
         const data = await res.json().catch(() => ({}));
@@ -714,8 +734,20 @@ function MessagesPageContent() {
         setMessages((current) => [...current, statusMessage as Message]);
       }
       setSelectedBooking((current) =>
-        current ? { ...current, status: nextStatus } : current
+        current
+          ? {
+              ...current,
+              status: nextStatus,
+              ...(decision === "declined"
+                ? { declineReason: cleanDeclineReason }
+                : {}),
+            }
+          : current
       );
+      if (decision === "declined") {
+        setDeclineDialogOpen(false);
+        setDeclineReason("");
+      }
     } catch (err: any) {
       alert(err.message || "Failed to update booking");
     } finally {
@@ -900,92 +932,107 @@ function MessagesPageContent() {
           <div className="flex min-h-[620px] flex-col">
             {selectedConversation ? (
               <>
-                <div className="flex flex-col gap-4 border-b border-slate-200 p-5 xl:flex-row xl:items-center xl:justify-between">
-                  <button
-                    type="button"
-                    className="flex items-center gap-3 rounded-2xl text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                    onClick={() => openParticipantProfile(selectedConversation)}
-                  >
-                    <Avatar className="h-12 w-12">
-                      <AvatarImage
-                        src={selectedOtherParticipantProfile?.profileImageUrl || undefined}
-                        alt={selectedOtherParticipantName}
-                      />
-                      <AvatarFallback className="bg-emerald-100 font-semibold text-emerald-800">
-                        {selectedOtherParticipantName
-                          .trim()
-                          .charAt(0)
-                          .toUpperCase() || "U"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <h2 className="text-lg font-semibold text-slate-950">
-                        {selectedOtherParticipantName}
-                      </h2>
-                      <p className="text-sm text-slate-500">
-                        {selectedOtherParticipantRole}
-                      </p>
-                    </div>
-	                  </button>
-	                  <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-	                    <Badge
-	                      className={cn(
-                        "w-fit hover:bg-amber-100",
-                        selectedBooking?.status === "confirmed"
-                          ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
-                          : selectedBooking?.status === "rejected" ||
-                              selectedBooking?.status === "cancelled" ||
-                              selectedBooking?.status === "expired"
-                            ? "bg-slate-100 text-slate-700 hover:bg-slate-100"
-                            : "bg-amber-100 text-amber-800 hover:bg-amber-100"
-                      )}
+                <div className="border-b border-slate-200 bg-white p-5">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                    <button
+                      type="button"
+                      className="flex min-w-0 items-center gap-3 rounded-2xl text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                      onClick={() => openParticipantProfile(selectedConversation)}
                     >
-                      {selectedBooking?.status === "confirmed"
-                        ? "Confirmed"
-                        : selectedBooking?.status === "rejected"
-                          ? "Declined"
-                          : selectedBooking?.status === "cancelled"
-                            ? "Cancelled"
-                            : selectedBooking?.status === "expired"
-                              ? "Expired"
-	                              : "Booking request"}
-	                    </Badge>
-	                    <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
-	                      <CalendarDays className="h-4 w-4 text-emerald-600" />
-	                      {getBookingSummary(selectedConversation)}
-	                    </div>
-	                    {canActOnSelectedBooking && (
-                      <>
-                        <Button
-                          className="rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
-                          onClick={() => handleBookingDecision("accepted")}
-                          disabled={updatingBooking}
-                        >
-                          <Check className="mr-2 h-4 w-4" />
-                          Accept
-                        </Button>
+                      <Avatar className="h-12 w-12 shrink-0">
+                        <AvatarImage
+                          src={selectedOtherParticipantProfile?.profileImageUrl || undefined}
+                          alt={selectedOtherParticipantName}
+                        />
+                        <AvatarFallback className="bg-emerald-100 font-semibold text-emerald-800">
+                          {selectedOtherParticipantName
+                            .trim()
+                            .charAt(0)
+                            .toUpperCase() || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <h2 className="truncate text-lg font-semibold text-slate-950">
+                          {selectedOtherParticipantName}
+                        </h2>
+                        <p className="text-sm text-slate-500">
+                          {selectedOtherParticipantRole}
+                        </p>
+                      </div>
+                    </button>
+
+                    <div className="flex w-full flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 xl:w-auto xl:min-w-[520px]">
+                      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                          <Badge
+                            className={cn(
+                              "w-fit rounded-full px-3 py-1 text-xs font-bold",
+                              selectedBooking?.status === "confirmed"
+                                ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-100"
+                                : selectedBooking?.status === "rejected" ||
+                                    selectedBooking?.status === "cancelled" ||
+                                    selectedBooking?.status === "expired"
+                                  ? "bg-slate-100 text-slate-700 hover:bg-slate-100"
+                                  : "border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-50"
+                            )}
+                          >
+                            {selectedBooking?.status === "confirmed"
+                              ? "Confirmed"
+                              : selectedBooking?.status === "rejected"
+                                ? "Declined"
+                                : selectedBooking?.status === "cancelled"
+                                  ? "Cancelled"
+                                  : selectedBooking?.status === "expired"
+                                    ? "Expired"
+                                    : "Booking request"}
+                          </Badge>
+                          <div className="inline-flex min-w-0 items-center gap-2 text-sm font-medium text-slate-700">
+                            <CalendarDays className="h-4 w-4 shrink-0 text-emerald-600" />
+                            <span className="truncate">
+                              {getBookingSummary(selectedConversation)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                        {canActOnSelectedBooking && (
+                          <>
+                            <Button
+                              className="rounded-xl bg-emerald-600 text-white hover:bg-emerald-700"
+                              onClick={() => handleBookingDecision("accepted")}
+                              disabled={updatingBooking}
+                            >
+                              <Check className="mr-2 h-4 w-4" />
+                              Accept
+                            </Button>
+                            <Button
+                              variant="outline"
+                              className="rounded-xl border-slate-300 bg-white text-slate-900 hover:bg-slate-100"
+                              onClick={() => {
+                                setDeclineReason("");
+                                setDeclineDialogOpen(true);
+                              }}
+                              disabled={updatingBooking}
+                            >
+                              <X className="mr-2 h-4 w-4" />
+                              Decline
+                            </Button>
+                          </>
+                        )}
                         <Button
                           variant="outline"
-                          className="rounded-xl border-black text-black hover:bg-slate-100 hover:text-black"
-                          onClick={() => handleBookingDecision("declined")}
-                          disabled={updatingBooking}
+                          className="rounded-xl bg-white"
+                          onClick={() =>
+                            selectedConversation.bookingId &&
+                            router.push(`/booking/${selectedConversation.bookingId}`)
+                          }
+                          disabled={!selectedConversation.bookingId}
                         >
-                          <X className="mr-2 h-4 w-4" />
-                          Decline
+                          View booking
                         </Button>
-                      </>
-                    )}
-                    <Button
-                      variant="outline"
-                      className="rounded-xl"
-                      onClick={() =>
-                        selectedConversation.bookingId &&
-                        router.push(`/booking/${selectedConversation.bookingId}`)
-                      }
-                      disabled={!selectedConversation.bookingId}
-                    >
-                      View booking
-                    </Button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -1174,6 +1221,48 @@ function MessagesPageContent() {
             </DialogContent>
           </Dialog>
         )}
+        <Dialog open={declineDialogOpen} onOpenChange={setDeclineDialogOpen}>
+          <DialogContent className="rounded-3xl border-slate-200 sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="text-left text-xl font-bold text-slate-950">
+                Decline booking request
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm leading-6 text-slate-600">
+                Please tell the player why this request is being declined. This
+                reason will appear in this message thread and in their email.
+              </p>
+              <Textarea
+                value={declineReason}
+                onChange={(event) => setDeclineReason(event.target.value)}
+                placeholder="Example: Sorry, the court will not be available at that time."
+                className="min-h-28 resize-none rounded-2xl border-slate-200"
+                maxLength={1000}
+              />
+              <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <Button
+                  variant="outline"
+                  className="rounded-xl"
+                  onClick={() => setDeclineDialogOpen(false)}
+                  disabled={updatingBooking}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="rounded-xl"
+                  onClick={() =>
+                    handleBookingDecision("declined", { declineReason })
+                  }
+                  disabled={updatingBooking || !declineReason.trim()}
+                >
+                  {updatingBooking ? "Declining..." : "Decline booking"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

@@ -43,10 +43,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { bookingId } = await req.json();
+    const { bookingId, declineReason } = await req.json();
     if (!bookingId) {
       return NextResponse.json(
         { error: "Booking ID is required" },
+        { status: 400 }
+      );
+    }
+
+    const cleanDeclineReason =
+      typeof declineReason === "string" ? declineReason.trim().slice(0, 1000) : "";
+    if (!cleanDeclineReason) {
+      return NextResponse.json(
+        { error: "A decline reason is required" },
         { status: 400 }
       );
     }
@@ -95,6 +104,7 @@ export async function POST(req: NextRequest) {
     await adminDb.collection("bookings").doc(bookingId).update({
       status: "rejected",
       cancelReason: "host_rejection",
+      declineReason: cleanDeclineReason,
       rejectedAt: new Date(),
       paymentStatus: releasedPayment.paymentStatus,
       ...(releasedPayment.refundId ? { refundId: releasedPayment.refundId } : {}),
@@ -134,6 +144,7 @@ export async function POST(req: NextRequest) {
             : Math.round((bookingData.duration || 1) * 60),
         courtNumber: bookingData.courtNumber || 1,
         status: "declined",
+        declineReason: cleanDeclineReason,
         paymentStatus: releasedPayment.paymentStatus,
       });
     } catch (conversationErr: any) {
@@ -155,6 +166,7 @@ export async function POST(req: NextRequest) {
           duration: bookingData.duration || 1,
           price,
           paymentStatus: releasedPayment.paymentStatus,
+          declineReason: cleanDeclineReason,
         });
       }
     } catch (emailErr: any) {

@@ -8,6 +8,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   where,
 } from "firebase/firestore";
@@ -24,7 +25,12 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getMockCourts, getMockProfile, signOutMockUser } from "@/lib/mockData";
+import {
+  getMockConversationsForUser,
+  getMockCourts,
+  getMockProfile,
+  signOutMockUser,
+} from "@/lib/mockData";
 
 export default function AppHeader() {
   const { user } = useAuth();
@@ -34,6 +40,7 @@ export default function AppHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [hasOwnerListing, setHasOwnerListing] = useState(false);
   const [profileImageUrl, setProfileImageUrl] = useState("");
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [loggingOut, setLoggingOut] = useState(false);
   const isLandingPage = pathname === "/";
   const isAuthPage =
@@ -87,6 +94,45 @@ export default function AppHeader() {
   }, [user, pathname]);
 
   useEffect(() => {
+    if (!user?.uid) {
+      setUnreadMessageCount(0);
+      return;
+    }
+
+    if (isMockMode) {
+      setUnreadMessageCount(
+        getMockConversationsForUser(user.uid).filter((conversation) =>
+          conversation.unreadBy?.includes(user.uid)
+        ).length
+      );
+      return;
+    }
+
+    const conversationsQuery = query(
+      collection(db, "conversations"),
+      where("participantIds", "array-contains", user.uid)
+    );
+
+    const unsubscribe = onSnapshot(
+      conversationsQuery,
+      (snapshot) => {
+        setUnreadMessageCount(
+          snapshot.docs.filter((conversationDoc) => {
+            const unreadBy = conversationDoc.data().unreadBy;
+            return Array.isArray(unreadBy) && unreadBy.includes(user.uid);
+          }).length
+        );
+      },
+      (error) => {
+        console.error("Error loading unread message count:", error);
+        setUnreadMessageCount(0);
+      }
+    );
+
+    return unsubscribe;
+  }, [pathname, user]);
+
+  useEffect(() => {
     if (!menuOpen) return;
 
     const handlePointerDown = (event: PointerEvent) => {
@@ -129,14 +175,22 @@ export default function AppHeader() {
 
   const profileInitial =
     user?.displayName?.trim().charAt(0) || user?.email?.trim().charAt(0) || "P";
+  const unreadMessageLabel =
+    unreadMessageCount > 99 ? "99+" : unreadMessageCount.toString();
 
   const accountLinks: Array<{
     label: string;
     path: string;
     Icon: ComponentType<{ className?: string }>;
+    showUnreadCount?: boolean;
   }> = [
     { label: "Upcoming Bookings", path: "/upcoming", Icon: CalendarDays },
-    { label: "Messages", path: "/messages", Icon: MessageSquare },
+    {
+      label: "Messages",
+      path: "/messages",
+      Icon: MessageSquare,
+      showUnreadCount: true,
+    },
     ...(hasOwnerListing
       ? [{ label: "Host Dashboard", path: "/host", Icon: LayoutDashboard }]
       : []),
@@ -198,30 +252,63 @@ export default function AppHeader() {
           )}
 
           {user && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "h-11 w-11 cursor-pointer overflow-hidden rounded-full border p-0 transition-transform hover:scale-105 hover:bg-transparent",
-                isLandingPage
-                  ? "border-white/25 bg-white/10"
-                  : "border-slate-200 bg-white"
-              )}
-              onClick={() => closeAndGo("/profile")}
-              aria-label="Profile"
-              title="Profile"
-            >
-              <Avatar className="h-full w-full">
-                <AvatarImage
-                  src={profileImageUrl}
-                  alt="Profile"
-                  className="object-cover"
-                />
-                <AvatarFallback className="bg-emerald-100 text-sm font-semibold text-emerald-800">
-                  {profileInitial.toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                className={cn(
+                  "relative h-11 cursor-pointer gap-2 rounded-full border px-3 text-sm font-bold transition-colors sm:px-4",
+                  isLandingPage
+                    ? "border-white/25 bg-white/10 text-white hover:bg-white/18 hover:text-white"
+                    : "border-slate-200 bg-white text-slate-800 hover:bg-slate-100"
+                )}
+                onClick={() => closeAndGo("/messages")}
+                aria-label={
+                  unreadMessageCount > 0
+                    ? `Messages, ${unreadMessageCount} unread`
+                    : "Messages"
+                }
+                title={
+                  unreadMessageCount > 0
+                    ? `${unreadMessageCount} unread message${
+                        unreadMessageCount === 1 ? "" : "s"
+                      }`
+                    : "Messages"
+                }
+              >
+                <MessageSquare className="h-5 w-5" />
+                <span className="hidden sm:inline">Messages</span>
+                {unreadMessageCount > 0 && (
+                  <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-black leading-none text-white ring-2 ring-white">
+                    {unreadMessageLabel}
+                  </span>
+                )}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "h-11 w-11 cursor-pointer overflow-hidden rounded-full border p-0 transition-transform hover:scale-105 hover:bg-transparent",
+                  isLandingPage
+                    ? "border-white/25 bg-white/10"
+                    : "border-slate-200 bg-white"
+                )}
+                onClick={() => closeAndGo("/profile")}
+                aria-label="Profile"
+                title="Profile"
+              >
+                <Avatar className="h-full w-full">
+                  <AvatarImage
+                    src={profileImageUrl}
+                    alt="Profile"
+                    className="object-cover"
+                  />
+                  <AvatarFallback className="bg-emerald-100 text-sm font-semibold text-emerald-800">
+                    {profileInitial.toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              </Button>
+            </>
           )}
 
           <Button
@@ -256,10 +343,17 @@ export default function AppHeader() {
                   key={link.path}
                   type="button"
                   onClick={() => closeAndGo(link.path)}
-                  className="flex cursor-pointer items-center gap-4 rounded-2xl px-4 py-3 text-left text-sm font-semibold transition-colors hover:bg-slate-100 hover:text-slate-950"
+                  className="flex cursor-pointer items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-semibold transition-colors hover:bg-slate-100 hover:text-slate-950"
                 >
-                  <Icon className="h-5 w-5 text-slate-800" />
-                  {link.label}
+                  <span className="flex items-center gap-4">
+                    <Icon className="h-5 w-5 text-slate-800" />
+                    {link.label}
+                  </span>
+                  {link.showUnreadCount && unreadMessageCount > 0 && (
+                    <span className="ml-3 rounded-full bg-red-600 px-2 py-0.5 text-xs font-black text-white">
+                      {unreadMessageLabel}
+                    </span>
+                  )}
                 </button>
               ))}
               {!hasOwnerListing && (

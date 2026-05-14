@@ -8,6 +8,7 @@ import { doc, getDoc } from "firebase/firestore";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -178,6 +179,9 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
   const [reviewsDialogKind, setReviewsDialogKind] = useState<ReviewsDialogKind | null>(null);
   const [playerProfileDialogOpen, setPlayerProfileDialogOpen] = useState(false);
   const [hostProfileDialogOpen, setHostProfileDialogOpen] = useState(false);
+  const [declineDialogOpen, setDeclineDialogOpen] = useState(false);
+  const [declineReason, setDeclineReason] = useState("");
+  const [currentTime, setCurrentTime] = useState(() => new Date());
 
   const viewerRole = useMemo(() => {
     if (!user || !booking || !court?.ownerId) return null;
@@ -408,6 +412,14 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
     };
   }, [authLoading, bookingId, user]);
 
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
   const statusBadge = (status: string) => {
     switch (status) {
       case "pending":
@@ -441,7 +453,7 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
     }
   };
 
-  const now = useMemo(() => new Date(), [bookingId, loading]);
+  const now = currentTime;
   const bookingStart = useMemo(() => {
     if (!booking) return null;
     try {

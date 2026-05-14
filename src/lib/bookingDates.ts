@@ -88,15 +88,18 @@ export const formatPendingBookingTimeRemaining = (
   const remainingMs = expiresAt.getTime() - now.getTime();
   if (remainingMs <= 0) return "Expired";
 
-  const totalMinutes = Math.ceil(remainingMs / 60000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
+  const totalSeconds = Math.ceil(remainingMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
 
   if (hours >= 1) {
-    return `${hours}h ${minutes.toString().padStart(2, "0")}m left`;
+    return `${hours}h ${minutes.toString().padStart(2, "0")}m ${seconds
+      .toString()
+      .padStart(2, "0")}s left`;
   }
 
-  return `${minutes}m left`;
+  return `${minutes}m ${seconds.toString().padStart(2, "0")}s left`;
 };
 
 export const isPendingBookingExpired = (

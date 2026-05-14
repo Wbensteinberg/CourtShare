@@ -46,6 +46,7 @@ import {
   isBookingReviewable,
   isPendingBookingExpired,
   sortBookingsAscending,
+  sortBookingsDescending,
 } from "@/lib/bookingDates";
 
 interface Booking {
@@ -443,7 +444,7 @@ export default function PlayerDashboard() {
     .filter((booking) =>
       ["cancelled", "expired", "rejected"].includes(booking.status)
     )
-    .sort(sortBookingsAscending);
+    .sort(sortBookingsDescending);
   const visibleBookings =
     activeTab === "upcoming" ? upcomingBookings : cancelledRequests;
   const tabs = [

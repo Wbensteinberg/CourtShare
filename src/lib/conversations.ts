@@ -38,6 +38,7 @@ type BookingStatusConversationInput = {
   courtNumber?: number;
   status: "accepted" | "declined" | "cancelled";
   cancelledBy?: "player" | "host";
+  declineReason?: string;
   paymentStatus?: BookingPaymentReleaseStatus;
 };
 
@@ -79,7 +80,13 @@ export const getBookingPaymentStatusText = (
 export const buildBookingStatusMessage = (
   input: Pick<
     BookingStatusConversationInput,
-    "courtName" | "date" | "time" | "status" | "cancelledBy" | "paymentStatus"
+    | "courtName"
+    | "date"
+    | "time"
+    | "status"
+    | "cancelledBy"
+    | "declineReason"
+    | "paymentStatus"
   >
 ) => {
   const courtLabel = input.courtName || "this court";
@@ -93,7 +100,9 @@ export const buildBookingStatusMessage = (
   const suffix = paymentText ? ` ${paymentText}` : "";
 
   if (input.status === "declined") {
-    return `Booking request declined for ${courtLabel} ${bookingTime}.${suffix}`;
+    const reason = input.declineReason?.trim();
+    const reasonText = reason ? ` Reason from the host: ${reason}` : "";
+    return `Booking request declined for ${courtLabel} ${bookingTime}.${reasonText}${suffix}`;
   }
 
   const actorText =
@@ -282,6 +291,7 @@ export async function postBookingStatusConversationMessage(
         courtId: input.courtId,
         status: input.status,
         ...(input.cancelledBy ? { cancelledBy: input.cancelledBy } : {}),
+        ...(input.declineReason ? { declineReason: input.declineReason } : {}),
         ...(input.paymentStatus ? { paymentStatus: input.paymentStatus } : {}),
       },
       { merge: false }
