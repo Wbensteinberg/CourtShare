@@ -51,6 +51,7 @@ import {
   OWNER_LISTING_WAIVER_BODY,
   OWNER_LISTING_WAIVER_VERSION,
 } from "@/lib/waivers";
+import { calculateBookingPriceBreakdown, formatCents } from "@/lib/pricing";
 import { addMockCourt, fileToDataUrl, updateMockProfile } from "@/lib/mockData";
 
 interface CourtFormData {
@@ -98,9 +99,8 @@ const RequiredStar = () => <span className="text-red-500">*</span>;
 
 const formatTakeHome = (price: string) => {
   const amount = Number(price);
-  return Number.isFinite(amount) && amount > 0
-    ? `$${Math.round(amount * 0.9).toLocaleString()}`
-    : "$0";
+  if (!Number.isFinite(amount) || amount <= 0) return "$0";
+  return `$${formatCents(calculateBookingPriceBreakdown(amount, 60).ownerAmountCents)}`;
 };
 
 const deriveLocationFromAddress = (address: string) => {
@@ -598,7 +598,7 @@ const CreateListing = () => {
 	                            <span className="group relative inline-flex">
 	                              <Info className="h-4 w-4 text-slate-400" />
 	                              <span className="pointer-events-none absolute left-1/2 top-6 z-30 hidden w-64 -translate-x-1/2 rounded-2xl border border-slate-200 bg-white p-3 text-xs font-medium leading-5 text-slate-600 shadow-xl group-hover:block">
-	                                CourtShare takes a 10% fee from this price. The remaining 90% is your estimated host take-home before any taxes or adjustments.
+	                                  Estimate includes CourtShare&apos;s host fee and card processing, matching the accept-booking payout breakdown.
 	                              </span>
 	                            </span>
 	                          </FormLabel>

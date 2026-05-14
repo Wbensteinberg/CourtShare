@@ -274,9 +274,7 @@ export default function AppHeader() {
                   <span
                     className={cn(
                       "absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none text-white shadow-sm ring-2",
-                      isLandingPage
-                        ? "bg-[var(--site-accent)] ring-white/80"
-                        : "bg-slate-900 ring-white"
+                      "bg-slate-900 ring-white"
                     )}
                   >
                     {unreadMessageLabel}
