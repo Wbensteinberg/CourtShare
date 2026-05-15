@@ -427,6 +427,12 @@ export default function PlayerDashboard() {
         return <Badge variant="destructive">Rejected</Badge>;
       case "cancelled":
         return <Badge variant="destructive">Cancelled</Badge>;
+      case "completed":
+        return (
+          <Badge className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md">
+            Completed
+          </Badge>
+        );
       case "expired":
         return <Badge variant="outline">Expired</Badge>;
       default:
@@ -460,23 +466,27 @@ export default function PlayerDashboard() {
       : activeTab === "cancelled"
         ? cancelledRequests
         : completedBookings;
+  const pendingReviewCount = completedBookings.filter(canReviewBooking).length;
   const tabs = [
     {
       id: "upcoming" as const,
       label: "Upcoming Bookings",
       count: upcomingBookings.length,
+      pendingCount: 0,
       Icon: Calendar,
     },
     {
       id: "completed" as const,
       label: "Completed",
       count: completedBookings.length,
+      pendingCount: pendingReviewCount,
       Icon: CheckCircle,
     },
     {
       id: "cancelled" as const,
       label: "Cancelled Requests",
       count: cancelledRequests.length,
+      pendingCount: 0,
       Icon: X,
     },
   ];
@@ -525,8 +535,13 @@ export default function PlayerDashboard() {
                   }`}
                 >
                   <span className="flex items-center gap-5">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-full bg-pink-50 text-pink-700">
+                    <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-pink-50 text-pink-700">
                       <Icon className="h-5 w-5" />
+                      {tab.pendingCount > 0 && (
+                        <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-black text-white">
+                          {tab.pendingCount}
+                        </span>
+                      )}
                     </span>
                     {tab.label}
                   </span>
@@ -610,7 +625,7 @@ export default function PlayerDashboard() {
                           <h3 className="truncate text-lg font-black text-slate-950">
                             {courtName}
                           </h3>
-                          {getStatusBadge(booking.status)}
+                          {getStatusBadge(activeTab === "completed" ? "completed" : booking.status)}
                           {getBookingPrice(booking) && (
                             <span className="text-sm font-extrabold text-[var(--site-accent)]">
                               {getBookingPrice(booking)}

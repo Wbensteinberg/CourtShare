@@ -53,7 +53,8 @@ Product-facing routes map roughly as: **Home / Search** → `/courts`; **Court D
 ### Upcoming Bookings (`/upcoming`)
 
 - Three tabs: **Upcoming Bookings** (confirmed + pending, sorted ascending), **Completed** (confirmed-past + completed status, sorted descending), **Cancelled Requests** (cancelled/rejected/expired, sorted descending).
-- Completed tab shows each booking's court image, name, status badge, price, "Hosted by …" line, date/time/duration, **Details** button, and a green **Review** button when `canReviewBooking` is true (reviewable window and not yet reviewed).
+- Completed tab shows each booking's court image, name, a green **Completed** badge (always, regardless of raw Firestore status), price, "Hosted by …" line, date/time/duration, **Details** button, and a green **Review** button when `canReviewBooking` is true (within 7-day review window and not yet reviewed).
+- The **Completed** tab button icon shows a small emerald badge with the count of bookings pending review (within 7-day window, not yet reviewed). Badge is hidden when count is 0.
 - Includes `confirmed` bookings whose parsed start datetime is in the past via `isPastOrInactiveBooking` (cron marking lag — never filter on `status === "completed"` alone).
 
 ### Host Dashboard (`/host`)
