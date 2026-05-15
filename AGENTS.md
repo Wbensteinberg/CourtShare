@@ -86,6 +86,7 @@ Product-facing routes map roughly as: **Home / Search** → `/courts`; **Court D
 - **Cancellation:** Players can cancel pending requests, and confirmed player cancellations are only allowed at least 24 hours before the parsed court start time. Hosts can cancel bookings for their own courts. Booking detail UI must show a confirmation dialog before cancelling and must call `/api/cancel-booking` so authorization release/refund behavior happens server-side. `POST /api/cancel-booking` sends confirmation/notification emails fire-and-forget with independent try/catch per recipient so one failure does not suppress another — player always gets their own cancellation confirmation email separately from the host notification.
 - Court info, gallery, rating (rating opens reviews modal).
 - **Player view:** Host profile + rating (modal). **Host view:** Player profile + rating (modal).
+- **Tenure display:** "X months on CourtShare" is clamped to a minimum of **1** everywhere it appears (booking detail profile stats, court listing host card, own profile page). Never show 0 — users with missing `createdAt` or who joined less than a calendar month ago always display 1.
 - Message history scoped to this booking (booking conversation).
 
 ### Court Details (`/courts/[id]`)
