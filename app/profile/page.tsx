@@ -154,10 +154,10 @@ const formatReviewDate = (value?: string | null) => {
 
 const getMonthCount = (createdAt: any) => {
   const start = getProfileDate(createdAt);
-  if (!start) return 0;
+  if (!start) return 1;
   const now = new Date();
   return Math.max(
-    0,
+    1,
     (now.getFullYear() - start.getFullYear()) * 12 +
       now.getMonth() -
       start.getMonth()

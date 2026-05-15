@@ -46,12 +46,12 @@ const formatProfileReviewDate = (value?: string | null) => {
 };
 
 const getMonthCountFromMemberSince = (iso: string | null | undefined) => {
-  if (!iso) return 0;
+  if (!iso) return 1;
   const start = new Date(iso);
-  if (Number.isNaN(start.getTime())) return 0;
+  if (Number.isNaN(start.getTime())) return 1;
   const now = new Date();
   return Math.max(
-    0,
+    1,
     (now.getFullYear() - start.getFullYear()) * 12 + now.getMonth() - start.getMonth()
   );
 };
