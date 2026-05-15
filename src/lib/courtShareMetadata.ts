@@ -18,10 +18,10 @@ export function getCourtMainImage(court: CourtSharePreviewCourt): string {
 
 export function formatCourtRating(court: CourtSharePreviewCourt): string {
   if (typeof court.rating !== "number" || court.reviewCount === 0) {
-    return "New listing on CourtShare";
+    return "New!";
   }
 
-  return `${court.rating.toFixed(1)} rating on CourtShare`;
+  return `★${court.rating.toFixed(1)}`;
 }
 
 export async function getCourtForShareMetadata(

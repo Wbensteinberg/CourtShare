@@ -34,8 +34,10 @@ export async function generateMetadata({
   }
 
   const rating = formatCourtRating(court);
+  const courtDetails = [court.location, rating].filter(Boolean).join(" · ");
   const title = `${court.name} | CourtShare`;
-  const description = [court.location, rating].filter(Boolean).join(" - ");
+  const previewTitle = [court.name, courtDetails].filter(Boolean).join(" · ");
+  const description = courtDetails || "Book now!";
   const imageUrl = getCourtMainImage(court);
 
   return {
@@ -45,7 +47,7 @@ export async function generateMetadata({
       canonical: `/courts/${id}`,
     },
     openGraph: {
-      title,
+      title: previewTitle,
       description,
       type: "website",
       url: `/courts/${id}`,
@@ -59,7 +61,7 @@ export async function generateMetadata({
     },
     twitter: {
       card: "summary_large_image",
-      title,
+      title: previewTitle,
       description,
       images: [imageUrl || getAbsoluteUrl(DEFAULT_OG_IMAGE)],
     },
