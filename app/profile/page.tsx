@@ -25,6 +25,7 @@ import {
   Calendar,
   Camera,
   CheckCircle,
+  ChevronDown,
   Clock,
   FileText,
   MapPin,
@@ -172,6 +173,7 @@ export default function ProfilePage() {
   const [success, setSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState<ProfileTab>("about");
   const [isEditing, setIsEditing] = useState(false);
+  const [tabMenuOpen, setTabMenuOpen] = useState(false);
 
   // Form state
   const [displayName, setDisplayName] = useState("");
@@ -641,7 +643,8 @@ export default function ProfilePage() {
           </div>
 
           <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[360px_minmax(0,1fr)]">
-            <aside className="space-y-6">
+            {/* Desktop sidebar — hidden on mobile */}
+            <aside className="hidden space-y-6 lg:block">
               <nav className="space-y-3">
                 {tabs.map((tab) => (
                   <button
@@ -661,14 +664,10 @@ export default function ProfilePage() {
                     <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-pink-50 text-lg font-black text-pink-700">
                       {tab.id === "about" ? (
                         <User className="h-5 w-5 text-slate-500" />
+                      ) : tab.id === "past" ? (
+                        <Calendar className="h-5 w-5 text-slate-500" />
                       ) : (
-                        <>
-                          {tab.id === "past" ? (
-                            <Calendar className="h-5 w-5 text-slate-500" />
-                          ) : (
-                            <Star className="h-5 w-5 text-slate-500" />
-                          )}
-                        </>
+                        <Star className="h-5 w-5 text-slate-500" />
                       )}
                     </span>
                     {tab.label}
@@ -698,6 +697,47 @@ export default function ProfilePage() {
             </aside>
 
             <section className="space-y-8">
+              {/* Mobile tab dropdown — hidden on desktop */}
+              {(() => {
+                const tabIconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+                  about: User, past: Calendar, reviews: Star,
+                };
+                const ActiveIcon = tabIconMap[activeTab];
+                const activeLabel = tabs.find((t) => t.id === activeTab)?.label ?? activeTab;
+                return (
+                  <div className="relative lg:hidden">
+                    <button
+                      type="button"
+                      onClick={() => setTabMenuOpen((p) => !p)}
+                      className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left shadow-sm"
+                    >
+                      <span className="flex items-center gap-3 font-bold text-slate-950">
+                        {ActiveIcon && <ActiveIcon className="h-5 w-5 text-pink-700" />}
+                        {activeLabel}
+                      </span>
+                      <ChevronDown className={`h-5 w-5 text-slate-400 transition-transform ${tabMenuOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {tabMenuOpen && (
+                      <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
+                        {tabs.map((tab) => {
+                          const Icon = tabIconMap[tab.id];
+                          return (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              onClick={() => { setActiveTab(tab.id); setIsEditing(false); setSuccess(false); setTabMenuOpen(false); }}
+                              className={`flex w-full items-center gap-3 px-5 py-3.5 text-left text-sm font-semibold transition-colors hover:bg-slate-50 ${activeTab === tab.id ? "bg-slate-50 text-slate-950" : "text-slate-700"}`}
+                            >
+                              {Icon && <Icon className="h-4 w-4 text-pink-600" />}
+                              {tab.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               {isEditing ? (
                 <form onSubmit={handleSubmit} className="space-y-6">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

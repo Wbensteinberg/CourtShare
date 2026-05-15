@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Calendar,
   CheckCircle,
+  ChevronDown,
   Clock,
   FileText,
   MapPin,
@@ -110,6 +111,7 @@ export default function PlayerDashboard() {
   const [reviewingBooking, setReviewingBooking] = useState<Booking | null>(null);
   const [submittingReview, setSubmittingReview] = useState(false);
   const [clockNow, setClockNow] = useState(() => new Date());
+  const [tabMenuOpen, setTabMenuOpen] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -521,7 +523,8 @@ export default function PlayerDashboard() {
         </div>
 
         <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[360px_minmax(0,1fr)]">
-          <aside className="space-y-6">
+          {/* Desktop sidebar — hidden on mobile */}
+          <aside className="hidden space-y-6 lg:block">
             <nav className="space-y-3">
               {tabs.map(({ Icon, ...tab }) => (
                 <button
@@ -551,10 +554,56 @@ export default function PlayerDashboard() {
                 </button>
               ))}
             </nav>
-
           </aside>
 
           <section className="space-y-6">
+            {/* Mobile tab dropdown — hidden on desktop */}
+            {(() => {
+              const activeTabData = tabs.find((t) => t.id === activeTab);
+              const ActiveIcon = activeTabData?.Icon;
+              return (
+                <div className="relative lg:hidden">
+                  <button
+                    type="button"
+                    onClick={() => setTabMenuOpen((p) => !p)}
+                    className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left shadow-sm"
+                  >
+                    <span className="flex items-center gap-3 font-bold text-slate-950">
+                      {ActiveIcon && <ActiveIcon className="h-5 w-5 text-pink-700" />}
+                      {activeTabData?.label}
+                      {(activeTabData?.count ?? 0) > 0 && (
+                        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-sm font-bold text-slate-600">
+                          {activeTabData?.count}
+                        </span>
+                      )}
+                    </span>
+                    <ChevronDown
+                      className={`h-5 w-5 text-slate-400 transition-transform ${tabMenuOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                  {tabMenuOpen && (
+                    <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
+                      {tabs.map(({ Icon, ...tab }) => (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => { setActiveTab(tab.id); setTabMenuOpen(false); }}
+                          className={`flex w-full items-center justify-between px-5 py-3.5 text-left text-sm font-semibold transition-colors hover:bg-slate-50 ${activeTab === tab.id ? "bg-slate-50 text-slate-950" : "text-slate-700"}`}
+                        >
+                          <span className="flex items-center gap-3">
+                            <Icon className="h-4 w-4 text-pink-600" />
+                            {tab.label}
+                          </span>
+                          <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-600">
+                            {tab.count}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <div>
               <h2 className="text-3xl font-black tracking-tight text-slate-950">
                 {activeTab === "upcoming"

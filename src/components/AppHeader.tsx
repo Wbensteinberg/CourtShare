@@ -403,7 +403,23 @@ export default function AppHeader() {
               </button>
             </>
           ) : (
-            <div className="flex flex-col gap-2">{guestLinks}</div>
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="rounded-full border border-slate-200 bg-white px-5 font-medium text-slate-900 transition-colors hover:bg-slate-50"
+                onClick={() => closeAndGo("/sign-in")}
+              >
+                Sign In
+              </Button>
+              <Button
+                size="sm"
+                className="rounded-full bg-emerald-600 px-5 text-white hover:bg-emerald-700"
+                onClick={() => closeAndGo("/sign-up")}
+              >
+                Sign Up
+              </Button>
+            </div>
           )}
         </nav>
       </div>

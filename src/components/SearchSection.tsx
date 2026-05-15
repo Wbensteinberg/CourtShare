@@ -212,7 +212,7 @@ const SearchSection = ({
               </SelectTrigger>
               <SelectContent
                 sideOffset={12}
-                className="z-[70] rounded-3xl border border-slate-100 bg-white p-2 shadow-[0_24px_60px_-15px_rgba(15,23,42,0.28)]"
+                className="z-[9999] rounded-3xl border border-slate-100 bg-white p-2 shadow-[0_24px_60px_-15px_rgba(15,23,42,0.28)]"
               >
                 <SearchSelectItem value="any">Any distance</SearchSelectItem>
                 <SearchSelectItem value="5">5 miles</SearchSelectItem>
@@ -249,7 +249,7 @@ const SearchSection = ({
                   setActiveDropdown((prev) => (prev === "date" ? null : prev))
                 }
                 popperPlacement="bottom-start"
-                popperClassName="z-[70]"
+                popperClassName="z-[9999]"
                 calendarClassName="courtshare-calendar search-calendar"
                 wrapperClassName="w-full"
                 showPopperArrow={false}
@@ -272,7 +272,7 @@ const SearchSection = ({
               </SelectTrigger>
               <SelectContent
                 sideOffset={12}
-                className="z-[70] rounded-3xl border border-slate-100 bg-white p-2 shadow-[0_24px_60px_-15px_rgba(15,23,42,0.28)]"
+                className="z-[9999] rounded-3xl border border-slate-100 bg-white p-2 shadow-[0_24px_60px_-15px_rgba(15,23,42,0.28)]"
               >
                 <SearchSelectItem value="morning">Morning (6AM - 12PM)</SearchSelectItem>
                 <SearchSelectItem value="afternoon">Afternoon (12PM - 6PM)</SearchSelectItem>

@@ -22,12 +22,12 @@ const HeroSection = () => {
 
       <div className="relative z-10 flex w-full flex-col items-center px-4 pb-24 pt-40 md:pt-48">
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center text-center animate-fade-in-up">
-          <div className="max-w-5xl space-y-6">
-            <h1 className="text-3xl font-black leading-[0.95] tracking-[-0.05em] text-white drop-shadow-2xl sm:text-6xl md:text-[5.5rem] lg:text-[5.9rem]">
+          <div className="max-w-5xl space-y-6 text-center">
+            <h1 className="text-center text-3xl font-black leading-[0.95] tracking-[-0.05em] text-white drop-shadow-2xl sm:text-6xl md:text-[5.5rem] lg:text-[5.9rem]">
               Play on your dream
               <span className="block text-emerald-50">tennis court.</span>
             </h1>
-            <p className="mx-auto max-w-2xl text-base font-medium leading-7 text-white/82 sm:text-lg">
+            <p className="mx-auto max-w-2xl text-center text-base font-medium leading-7 text-white/82 sm:text-lg">
               Find and reserve private tennis courts near you in just a few seconds!
             </p>
           </div>

@@ -247,6 +247,7 @@ export default function OwnerDashboard() {
     | "completed"
     | "cancelled"
   >("upcoming");
+  const [tabMenuOpen, setTabMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -1438,7 +1439,8 @@ export default function OwnerDashboard() {
           </div>
 
           <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-[360px_minmax(0,1fr)]">
-            <aside className="space-y-3">
+            {/* Desktop sidebar — hidden on mobile */}
+            <aside className="hidden space-y-3 lg:block">
               {hostTabs.map(({ Icon, ...tab }) => (
                 <button
                   key={tab.id}
@@ -1469,6 +1471,56 @@ export default function OwnerDashboard() {
             </aside>
 
             <section className="space-y-6">
+              {/* Mobile tab dropdown — hidden on desktop */}
+              {(() => {
+                const activeTabData = hostTabs.find((t) => t.id === activeTab);
+                const ActiveIcon = activeTabData?.Icon;
+                return (
+                  <div className="relative lg:hidden">
+                    <button
+                      type="button"
+                      onClick={() => setTabMenuOpen((p) => !p)}
+                      className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left shadow-sm"
+                    >
+                      <span className="flex items-center gap-3 font-bold text-slate-950">
+                        {ActiveIcon && <ActiveIcon className="h-5 w-5 text-pink-700" />}
+                        {activeTabData?.label}
+                        {activeTab === "upcoming" && pendingBookings.length > 0 && (
+                          <span className="rounded-full bg-red-500 px-2 py-0.5 text-xs font-black text-white">
+                            {pendingBookings.length}
+                          </span>
+                        )}
+                      </span>
+                      <ChevronDown className={`h-5 w-5 text-slate-400 transition-transform ${tabMenuOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {tabMenuOpen && (
+                      <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-lg">
+                        {hostTabs.map(({ Icon, ...tab }) => (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => { setActiveTab(tab.id); setTabMenuOpen(false); }}
+                            className={`flex w-full items-center justify-between px-5 py-3.5 text-left text-sm font-semibold transition-colors hover:bg-slate-50 ${activeTab === tab.id ? "bg-slate-50 text-slate-950" : "text-slate-700"}`}
+                          >
+                            <span className="flex items-center gap-3">
+                              <Icon className="h-4 w-4 text-pink-600" />
+                              {tab.label}
+                              {tab.id === "upcoming" && pendingBookings.length > 0 && (
+                                <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-black text-white">
+                                  {pendingBookings.length}
+                                </span>
+                              )}
+                            </span>
+                            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-bold text-slate-600">
+                              {tab.count}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               {activeTab === "upcoming" && (
                 <>
                   <div>
@@ -1568,7 +1620,7 @@ export default function OwnerDashboard() {
                           </div>
                         </CardHeader>
                         <CardContent className="space-y-3 border-t border-slate-100 p-4">
-                          <div className="grid grid-cols-3 gap-2">
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                             <Button
                               size="sm"
                               className="rounded-2xl bg-[var(--site-accent)] px-4 py-5 font-bold text-white hover:bg-[var(--site-accent-hover)]"
