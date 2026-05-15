@@ -83,16 +83,15 @@ function AuthForm({ mode }: { mode: AuthMode }) {
           displayName: googleDisplayName,
           isOwner: false,
         });
+        nextPath = redirect
+          ? `/onboarding?redirect=${encodeURIComponent(redirect)}`
+          : "/onboarding";
       } else if (!storedDisplayName) {
         if (googleDisplayName) {
           await setDoc(userRef, { displayName: googleDisplayName }, { merge: true });
         } else {
           nextPath = "/profile";
         }
-      }
-
-      if (!googleDisplayName && !storedDisplayName) {
-        nextPath = "/profile";
       }
 
       router.push(nextPath);

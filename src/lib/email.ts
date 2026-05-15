@@ -803,6 +803,52 @@ export async function sendConversationMessageEmail(
   });
 }
 
+export interface ReviewNotificationEmailData {
+  recipientEmail: string;
+  recipientName?: string;
+  reviewerName?: string;
+  courtName: string;
+  bookingId: string;
+  date: string;
+  /** True if the recipient already submitted their own review for this booking. */
+  recipientHasAlreadyReviewed?: boolean;
+}
+
+export async function sendReviewNotificationEmail(
+  data: ReviewNotificationEmailData
+): Promise<void> {
+  const formattedDate = formatBookingEmailDate(data.date);
+  const reviewer = data.reviewerName?.trim() || "Your guest";
+  const bookingUrl = `${appUrl}/booking/${encodeURIComponent(data.bookingId)}`;
+  const followUpLine = data.recipientHasAlreadyReviewed
+    ? ""
+    : `<p style="font-size: 15px; color: ${mutedTextColor}; margin: 0 0 20px;">Leave a review in return to unlock their feedback — reviews are only revealed once both parties have shared their thoughts.</p>`;
+
+  await sendEmail({
+    to: data.recipientEmail,
+    subject: `${escapeHtml(reviewer)} reviewed your CourtShare booking`,
+    logLabel: "review notification email",
+    html: `
+      <!DOCTYPE html>
+      <html>
+        <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: ${textColor}; max-width: 600px; margin: 0 auto; padding: 20px; background: ${pageBg};">
+          ${emailHeader("New review")}
+          <div style="background: ${cardBg}; padding: 30px; border-radius: 0 0 28px 28px; border: 1px solid ${borderColor}; border-top: none;">
+            <p style="font-size: 16px; margin-top: 0;">Hello${data.recipientName ? ` ${escapeHtml(data.recipientName)}` : ""},</p>
+            <p style="font-size: 16px; margin-bottom: 20px;"><strong>${escapeHtml(reviewer)}</strong> left a review for your recent booking at <strong>${escapeHtml(data.courtName)}</strong> on ${formattedDate}.</p>
+            ${followUpLine}
+            <div style="margin-top: 24px; text-align: center;">
+              <a href="${bookingUrl}" style="display: inline-block; background: ${brandGreen}; color: white; padding: 13px 28px; text-decoration: none; border-radius: 999px; font-weight: 700; font-size: 15px;">View Booking</a>
+            </div>
+            <p style="font-size: 13px; color: ${mutedTextColor}; margin-top: 28px; margin-bottom: 0;">This is an automated notification from CourtShare.</p>
+          </div>
+        </body>
+      </html>
+    `,
+  });
+}
+
 export interface ReviewReminderEmailData {
   recipientEmail: string;
   recipientName?: string;

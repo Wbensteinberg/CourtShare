@@ -193,6 +193,8 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
 
   /** null until we know whether the viewer already submitted a review for this booking */
   const [reviewedBooking, setReviewedBooking] = useState<boolean | null>(null);
+  /** null until loaded; whether the other participant submitted a review for this booking */
+  const [counterpartyReviewedForThisBooking, setCounterpartyReviewedForThisBooking] = useState<boolean | null>(null);
 
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [reviewsDialogKind, setReviewsDialogKind] = useState<ReviewsDialogKind | null>(null);
@@ -237,6 +239,7 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
       setLoading(true);
       setError("");
       setReviewedBooking(null);
+      setCounterpartyReviewedForThisBooking(null);
       setReviewDialogOpen(false);
 
       try {
@@ -324,6 +327,10 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
 
           setReviewedBooking(
             getMockReviewsForUser(user.uid).some((r: any) => r.bookingId === mockBooking.id)
+          );
+          const counterpartyUid = isPlayer ? hostId : playerId;
+          setCounterpartyReviewedForThisBooking(
+            getMockReviewsForUser(counterpartyUid).some((r: any) => r.bookingId === mockBooking.id)
           );
 
           return;
@@ -416,11 +423,14 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
         // Review-state for this booking (requires auth).
         const idToken = await user.getIdToken();
         const reviewedRes = await fetch(
-          `/api/reviews?bookingIds=${encodeURIComponent(resolvedBooking.id)}`,
+          `/api/reviews?bookingIds=${encodeURIComponent(resolvedBooking.id)}&withPairedStatus=true`,
           { headers: { Authorization: `Bearer ${idToken}` } }
         );
         const reviewedJson = await reviewedRes.json().catch(() => ({}));
         setReviewedBooking(Boolean((reviewedJson.reviews || []).length > 0));
+        setCounterpartyReviewedForThisBooking(
+          (reviewedJson.counterpartyReviewedBookingIds || []).includes(resolvedBooking.id)
+        );
       } catch (err: any) {
         if (cancelled) return;
         setError(err.message || "Failed to load booking.");
@@ -569,22 +579,25 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
     return { title: "All player reviews", reviews: playerReviews as ReviewsListDialogReview[] };
   }, [courtReviews, hostReviews, playerReviews, reviewsDialogKind]);
 
-  /** On completed bookings: the other party’s review for this specific reservation. */
+  /** On completed bookings: the other party’s review for this reservation, gated on mutual review. */
   const otherPartyReviewForThisBooking = useMemo(() => {
     if (
       !booking ||
       !["completed", "past_confirmed"].includes(displayStatus) ||
-      !viewerRole
+      !viewerRole ||
+      reviewedBooking !== true // only reveal once the viewer has also reviewed
     ) {
       return null;
     }
     if (viewerRole === "player") {
+      // Host’s review of the player (targetType="player") — always public but gated above.
       return (
         playerReviews.find(
           (r) => r.bookingId === booking.id && r.reviewerRole === "owner"
         ) || null
       );
     }
+    // Player’s review of the host/court (targetType="court_owner") — gated by API + above.
     return (
       courtReviews.find(
         (r) => r.bookingId === booking.id && r.reviewerRole === "player"
@@ -594,7 +607,7 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
       ) ||
       null
     );
-  }, [booking, courtReviews, displayStatus, hostReviews, playerReviews, viewerRole]);
+  }, [booking, courtReviews, displayStatus, hostReviews, playerReviews, reviewedBooking, viewerRole]);
 
   /** Mirrors signed-in profile “About Me” stats (confirmed trips, review count, tenure). */
   const playerAboutMeStats = useMemo(() => {
@@ -1065,6 +1078,82 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
                 </details>
               )}
             </div>
+
+            {/* Review section — only on completed / past confirmed bookings */}
+            {["completed", "past_confirmed"].includes(displayStatus) && viewerRole && (
+              <div className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                <h2 className="mb-4 text-sm font-bold uppercase tracking-[0.16em] text-slate-500">
+                  {viewerRole === "player" ? "Host's review of you" : "Player's review of you"}
+                </h2>
+
+                {/* Case: viewer reviewed + other party reviewed → show the review */}
+                {reviewedBooking === true && otherPartyReviewForThisBooking && (
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                    <div className="flex items-center gap-2">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <Star
+                          key={i}
+                          className={`h-4 w-4 ${
+                            i < (otherPartyReviewForThisBooking.rating ?? 0)
+                              ? "fill-yellow-400 text-yellow-400"
+                              : "fill-slate-200 text-slate-200"
+                          }`}
+                        />
+                      ))}
+                      <span className="ml-1 text-sm font-bold text-slate-900">
+                        {otherPartyReviewForThisBooking.rating}/5
+                      </span>
+                    </div>
+                    {otherPartyReviewForThisBooking.comment ? (
+                      <p className="mt-3 text-sm leading-6 text-slate-700">
+                        {otherPartyReviewForThisBooking.comment}
+                      </p>
+                    ) : (
+                      <p className="mt-3 text-sm italic text-slate-400">No written comment.</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Case: viewer reviewed + other party hasn't reviewed yet */}
+                {reviewedBooking === true && !otherPartyReviewForThisBooking && (
+                  <p className="text-sm leading-6 text-slate-500">
+                    Waiting for{" "}
+                    {viewerRole === "player"
+                      ? hostProfile?.displayName?.trim() || "the host"
+                      : playerProfile?.displayName?.trim() || "the player"}{" "}
+                    to leave a review.
+                  </p>
+                )}
+
+                {/* Case: other party reviewed + viewer hasn't reviewed → teaser */}
+                {reviewedBooking === false && counterpartyReviewedForThisBooking === true && (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                    <p className="text-sm font-semibold text-emerald-900">
+                      {viewerRole === "player"
+                        ? hostProfile?.displayName?.trim() || "The host"
+                        : playerProfile?.displayName?.trim() || "The player"}{" "}
+                      has already reviewed you.
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-emerald-800">
+                      Reviews are only revealed once both parties have shared their thoughts — leave
+                      a review to see what they said.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setReviewDialogOpen(true)}
+                      className="mt-3 cursor-pointer rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700"
+                    >
+                      Leave your review
+                    </button>
+                  </div>
+                )}
+
+                {/* Loading state */}
+                {(reviewedBooking === null || counterpartyReviewedForThisBooking === null) && (
+                  <p className="text-sm text-slate-400">Loading review status…</p>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-start">
               <div className="space-y-5">

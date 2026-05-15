@@ -5,6 +5,7 @@ import { isBookingReviewable } from "@/lib/bookingDates";
 import { isMockApiMode } from "@/lib/mockApiMode";
 import { mockReviewsGET, mockReviewsPOST } from "@/lib/mockApiServer";
 import { shouldShowPublicReview } from "@/lib/reviewVisibility";
+import { sendReviewNotificationEmail } from "@/lib/email";
 
 const getAuthUserId = async (req: NextRequest) => {
   const authHeader = req.headers.get("authorization");
@@ -155,6 +156,7 @@ export async function GET(req: NextRequest) {
         .map((id) => id.trim())
         .filter(Boolean)
     );
+    const withPairedStatus = req.nextUrl.searchParams.get("withPairedStatus") === "true";
 
     const reviewsSnap = await db
       .collection("reviews")
@@ -176,7 +178,48 @@ export async function GET(req: NextRequest) {
         rating: review.rating,
       }));
 
-    return NextResponse.json({ reviews });
+    if (!withPairedStatus || bookingIds.size === 0) {
+      return NextResponse.json({ reviews });
+    }
+
+    // For each requested bookingId, check whether the counterparty has reviewed.
+    const counterpartyReviewedBookingIds: string[] = [];
+    await Promise.all(
+      Array.from(bookingIds).map(async (bookingId) => {
+        try {
+          const bookingDoc = await db.collection("bookings").doc(bookingId).get();
+          if (!bookingDoc.exists) return;
+          const bookingData = bookingDoc.data()!;
+
+          const courtDoc = await db.collection("courts").doc(bookingData.courtId).get();
+          const courtData = courtDoc.exists ? courtDoc.data() : null;
+
+          const callerRole =
+            bookingData.userId === reviewerId
+              ? "player"
+              : courtData?.ownerId === reviewerId
+                ? "owner"
+                : null;
+
+          if (!callerRole) return;
+
+          const counterpartyRole = callerRole === "player" ? "owner" : "player";
+          const counterpartyReviewId = `${bookingId}_${counterpartyRole}`;
+          const counterpartyReviewDoc = await db
+            .collection("reviews")
+            .doc(counterpartyReviewId)
+            .get();
+
+          if (counterpartyReviewDoc.exists) {
+            counterpartyReviewedBookingIds.push(bookingId);
+          }
+        } catch {
+          // Non-fatal — just omit this bookingId from the counterparty list.
+        }
+      })
+    );
+
+    return NextResponse.json({ reviews, counterpartyReviewedBookingIds });
   } catch (err: any) {
     const message = err.message || "Failed to load reviews";
     return NextResponse.json(
@@ -261,6 +304,7 @@ export async function POST(req: NextRequest) {
 
     const reviewId = `${bookingId}_${reviewerRole}`;
     const reviewRef = db.collection("reviews").doc(reviewId);
+    const revieweeId = reviewerRole === "player" ? court.ownerId : booking.userId;
 
     await db.runTransaction(async (transaction) => {
       const existingReview = await transaction.get(reviewRef);
@@ -272,8 +316,6 @@ export async function POST(req: NextRequest) {
         ? transactionCourtDoc.data()
         : court;
 
-      const revieweeId =
-        reviewerRole === "player" ? court.ownerId : booking.userId;
       const targetType = reviewerRole === "player" ? "court_owner" : "player";
       const aggregateUserRef = db
         .collection("users")
@@ -341,6 +383,39 @@ export async function POST(req: NextRequest) {
         );
       }
     });
+
+    // Fire-and-forget review notification email to the reviewee.
+    (async () => {
+      try {
+        const counterpartyRole = reviewerRole === "player" ? "owner" : "player";
+        const recipientUid = revieweeId;
+
+        const [recipientDoc, reviewerDoc] = await Promise.all([
+          db.collection("users").doc(recipientUid).get(),
+          db.collection("users").doc(reviewerId).get(),
+        ]);
+        const recipientData = recipientDoc.exists ? recipientDoc.data() : null;
+        const reviewerData = reviewerDoc.exists ? reviewerDoc.data() : null;
+        const recipientEmail = recipientData?.email;
+        if (!recipientEmail) return;
+
+        // Check if recipient has already submitted their own review.
+        const recipientReviewId = `${bookingId}_${counterpartyRole}`;
+        const recipientReviewDoc = await db.collection("reviews").doc(recipientReviewId).get();
+
+        await sendReviewNotificationEmail({
+          recipientEmail,
+          recipientName: recipientData?.displayName || undefined,
+          reviewerName: reviewerData?.displayName || undefined,
+          courtName: court.name || "CourtShare court",
+          bookingId,
+          date: booking.date,
+          recipientHasAlreadyReviewed: recipientReviewDoc.exists,
+        });
+      } catch {
+        // Email failure must not affect the review response.
+      }
+    })();
 
     return NextResponse.json({ success: true });
   } catch (err: any) {

@@ -46,6 +46,7 @@ import {
   formatBookingDateWithDay,
   isPastOrInactiveBooking,
   sortBookingsAscending,
+  sortBookingsDescending,
 } from "@/lib/bookingDates";
 
 interface UserProfile {
@@ -577,8 +578,12 @@ export default function ProfilePage() {
     (court) => court.ownerId === user?.uid
   );
   const pastBookings = bookingList
-    .filter((booking) => booking.status === "completed")
-    .sort(sortBookingsAscending);
+    .filter(
+      (booking) =>
+        booking.status === "completed" ||
+        (booking.status === "confirmed" && isPastOrInactiveBooking(booking))
+    )
+    .sort(sortBookingsDescending);
   const confirmedTrips = bookingList.filter(
     (booking) => booking.status === "confirmed"
   ).length;

@@ -147,7 +147,7 @@ export default function AppHeader() {
 
   const navButtonClass = isLandingPage
     ? "rounded-full border border-white/20 bg-white/10 px-5 text-white backdrop-blur-md hover:bg-white/18 hover:text-white"
-    : "rounded-lg font-medium text-slate-700 transition-colors hover:bg-emerald-50 hover:text-emerald-700";
+    : "rounded-full border border-slate-200 bg-white px-5 font-medium text-slate-700 transition-colors hover:bg-slate-50 hover:text-slate-900";
 
   const closeAndGo = (path: string) => {
     router.push(path);
@@ -212,7 +212,7 @@ export default function AppHeader() {
         className={
           isLandingPage
             ? "rounded-full bg-white px-5 text-slate-900 shadow-none hover:bg-slate-100"
-            : "rounded-lg bg-emerald-600 px-5 text-white hover:bg-emerald-700"
+            : "rounded-full bg-emerald-600 px-5 text-white hover:bg-emerald-700"
         }
         onClick={() => closeAndGo("/sign-up")}
       >
