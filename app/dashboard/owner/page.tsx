@@ -1272,10 +1272,8 @@ export default function OwnerDashboard() {
         {reservations.map((booking) => {
           const court = courtsById[booking.courtId];
           const courtName = getBookingCourtName(booking);
-          const amount =
-            typeof booking.ownerAmountCents === "number"
-              ? booking.ownerAmountCents / 100
-              : (court?.price || 0) * booking.duration;
+          const financials = getBookingFinancials(booking, court);
+          const amount = financials ? financials.ownerAmountCents / 100 : null;
           const showPendingActions =
             options.pendingActions && booking.status === "pending";
           const showReviewButton =
@@ -1315,9 +1313,11 @@ export default function OwnerDashboard() {
                   {getStatusBadge(booking.status, {
                     pastReservationCopy: options.pastReservationCopy,
                   })}
-                  <span className="text-sm font-extrabold text-[var(--site-accent)]">
-                    ${amount.toFixed(2)}
-                  </span>
+                  {amount !== null && (
+                    <span className="text-sm font-extrabold text-[var(--site-accent)]">
+                      ${amount.toFixed(2)}
+                    </span>
+                  )}
                 </div>
                 <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-slate-600">
@@ -1334,7 +1334,19 @@ export default function OwnerDashboard() {
                       onClick={() => setPlayerPopupUserId(booking.userId)}
                       className="inline-flex items-center text-sm font-medium text-slate-600 underline-offset-2 hover:text-slate-950 hover:underline"
                     >
-                      <User className="mr-2 h-4 w-4 text-slate-400" />
+                      {getBookingPlayerImage(booking) ? (
+                        <Image
+                          src={getBookingPlayerImage(booking)}
+                          alt={getBookingPlayerName(booking)}
+                          width={20}
+                          height={20}
+                          className="mr-2 h-5 w-5 rounded-full object-cover"
+                        />
+                      ) : (
+                        <span className="mr-2 flex h-5 w-5 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-600">
+                          {getBookingPlayerInitial(booking)}
+                        </span>
+                      )}
                       {getBookingPlayerName(booking)}
                     </button>
                   </div>

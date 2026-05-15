@@ -230,8 +230,7 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
     const run = async () => {
       if (authLoading) return;
       if (!user) {
-        setError("Please sign in to view this booking.");
-        setLoading(false);
+        router.replace(`/sign-in?redirect=${encodeURIComponent(`/booking/${bookingId}`)}`);
         return;
       }
       if (!bookingId) return;
@@ -1146,6 +1145,21 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
                       Leave your review
                     </button>
                   </div>
+                )}
+
+                {/* Case: neither party has reviewed yet */}
+                {reviewedBooking === false && counterpartyReviewedForThisBooking === false && (
+                  booking && isBookingReviewable(booking, new Date()) ? (
+                    <button
+                      type="button"
+                      onClick={() => setReviewDialogOpen(true)}
+                      className="cursor-pointer rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-emerald-700"
+                    >
+                      Leave a review
+                    </button>
+                  ) : (
+                    <p className="text-sm text-slate-400">The review window for this booking has passed.</p>
+                  )
                 )}
 
                 {/* Loading state */}

@@ -42,7 +42,7 @@ function OnboardingForm() {
       if (isMockMode) {
         const profile = getMockProfile(user.uid);
         setDisplayName(profile?.displayName || user.displayName || "");
-        setProfileImageUrl(profile?.profileImageUrl || user.photoURL || "");
+        setProfileImageUrl(profile?.profileImageUrl || "");
         return;
       }
 
@@ -51,14 +51,12 @@ function OnboardingForm() {
         if (userSnap.exists()) {
           const data = userSnap.data();
           setDisplayName(String(data.displayName || user.displayName || "").trim());
-          setProfileImageUrl(data.profileImageUrl || user.photoURL || "");
+          setProfileImageUrl(data.profileImageUrl || "");
         } else {
           setDisplayName(user.displayName?.trim() || "");
-          setProfileImageUrl(user.photoURL || "");
         }
       } catch {
         setDisplayName(user.displayName?.trim() || "");
-        setProfileImageUrl(user.photoURL || "");
       }
     };
 
@@ -90,7 +88,7 @@ function OnboardingForm() {
         return;
       }
 
-      let photoUrl = profileImageUrl;
+      let photoUrl = "";
 
       if (selectedFile) {
         const storage = getStorageInstance();

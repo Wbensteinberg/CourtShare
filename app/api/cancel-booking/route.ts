@@ -174,47 +174,42 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Send cancellation emails (non-blocking)
-    try {
-      if (isPlayerCancellation && ownerData?.email) {
-        await sendOwnerCancellationNotification({
-          courtName: courtData?.name || "Court",
-          ownerEmail: ownerData.email,
-          ownerName: ownerData.displayName || ownerData.name,
-          playerName: playerData?.displayName || playerData?.name || playerData?.email,
-          date: bookingData.date,
-          time: bookingData.time,
-          duration: bookingData.duration || 1,
-          price,
-          paymentStatus: releasedPayment.paymentStatus,
-        });
-      }
-      if (isPlayerCancellation && playerData?.email) {
-        await sendPlayerCancellationConfirmation({
-          courtName: courtData?.name || "Court",
-          playerEmail: playerData.email,
-          playerName: playerData.displayName || playerData.name,
-          date: bookingData.date,
-          time: bookingData.time,
-          duration: bookingData.duration || 1,
-          price,
-          paymentStatus: releasedPayment.paymentStatus,
-        });
-      }
-      if (isHostCancellation && playerData?.email) {
-        await sendPlayerHostCancellationNotification({
-          courtName: courtData?.name || "Court",
-          playerEmail: playerData.email,
-          playerName: playerData.displayName || playerData.name,
-          date: bookingData.date,
-          time: bookingData.time,
-          duration: bookingData.duration || 1,
-          price,
-          paymentStatus: releasedPayment.paymentStatus,
-        });
-      }
-    } catch (emailErr: any) {
-      console.warn("[CANCEL-BOOKING] Failed to send cancellation emails:", emailErr.message);
+    // Send cancellation emails (fire-and-forget, each independent)
+    const emailBase = {
+      courtName: courtData?.name || "Court",
+      date: bookingData.date,
+      time: bookingData.time,
+      duration: bookingData.duration || 1,
+      price,
+      paymentStatus: releasedPayment.paymentStatus,
+    };
+    if (isPlayerCancellation && ownerData?.email) {
+      sendOwnerCancellationNotification({
+        ...emailBase,
+        ownerEmail: ownerData.email,
+        ownerName: ownerData.displayName || ownerData.name,
+        playerName: playerData?.displayName || playerData?.name || playerData?.email,
+      }).catch((e: any) =>
+        console.warn("[CANCEL-BOOKING] Owner notification email failed:", e.message)
+      );
+    }
+    if (isPlayerCancellation && playerData?.email) {
+      sendPlayerCancellationConfirmation({
+        ...emailBase,
+        playerEmail: playerData.email,
+        playerName: playerData.displayName || playerData.name,
+      }).catch((e: any) =>
+        console.warn("[CANCEL-BOOKING] Player cancellation confirmation email failed:", e.message)
+      );
+    }
+    if (isHostCancellation && playerData?.email) {
+      sendPlayerHostCancellationNotification({
+        ...emailBase,
+        playerEmail: playerData.email,
+        playerName: playerData.displayName || playerData.name,
+      }).catch((e: any) =>
+        console.warn("[CANCEL-BOOKING] Player host cancellation notification email failed:", e.message)
+      );
     }
 
     return NextResponse.json({ success: true, conversationMessage });
