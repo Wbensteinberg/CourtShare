@@ -18,6 +18,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Calendar,
+  CheckCircle,
   Clock,
   FileText,
   MapPin,
@@ -44,6 +45,7 @@ import {
   isActiveFutureBooking,
   isBookingCancellable,
   isBookingReviewable,
+  isPastOrInactiveBooking,
   isPendingBookingExpired,
   sortBookingsAscending,
   sortBookingsDescending,
@@ -99,7 +101,7 @@ export default function PlayerDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"upcoming" | "cancelled">(
+  const [activeTab, setActiveTab] = useState<"upcoming" | "cancelled" | "completed">(
     "upcoming"
   );
   const [reviewedBookingIds, setReviewedBookingIds] = useState<Set<string>>(
@@ -445,14 +447,31 @@ export default function PlayerDashboard() {
       ["cancelled", "expired", "rejected"].includes(booking.status)
     )
     .sort(sortBookingsDescending);
+  const completedBookings = bookings
+    .filter(
+      (booking) =>
+        booking.status === "completed" ||
+        (booking.status === "confirmed" && isPastOrInactiveBooking(booking, now))
+    )
+    .sort(sortBookingsDescending);
   const visibleBookings =
-    activeTab === "upcoming" ? upcomingBookings : cancelledRequests;
+    activeTab === "upcoming"
+      ? upcomingBookings
+      : activeTab === "cancelled"
+        ? cancelledRequests
+        : completedBookings;
   const tabs = [
     {
       id: "upcoming" as const,
       label: "Upcoming Bookings",
       count: upcomingBookings.length,
       Icon: Calendar,
+    },
+    {
+      id: "completed" as const,
+      label: "Completed",
+      count: completedBookings.length,
+      Icon: CheckCircle,
     },
     {
       id: "cancelled" as const,
@@ -518,14 +537,6 @@ export default function PlayerDashboard() {
               ))}
             </nav>
 
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full rounded-[24px] border-slate-200 bg-white px-6 py-6 text-base font-bold text-slate-950 shadow-sm hover:bg-slate-50"
-              onClick={() => router.push("/profile?tab=past")}
-            >
-              See Past Completed Bookings
-            </Button>
           </aside>
 
           <section className="space-y-6">
@@ -533,28 +544,40 @@ export default function PlayerDashboard() {
               <h2 className="text-3xl font-black tracking-tight text-slate-950">
                 {activeTab === "upcoming"
                   ? "Upcoming Bookings"
-                  : "Cancelled Requests"}
+                  : activeTab === "completed"
+                    ? "Completed Bookings"
+                    : "Cancelled Requests"}
               </h2>
               <p className="mt-2 text-slate-500">
                 {activeTab === "upcoming"
                   ? "Confirmed reservations and pending requests that still need attention."
-                  : "Expired, rejected, and cancelled booking requests."}
+                  : activeTab === "completed"
+                    ? "Your past court visits. Leave a review for bookings you haven't rated yet."
+                    : "Expired, rejected, and cancelled booking requests."}
               </p>
             </div>
 
             {visibleBookings.length === 0 ? (
               <Card className="rounded-[32px] border-slate-200 bg-white shadow-sm">
                 <CardContent className="p-10 text-center">
-                  <Calendar className="mx-auto h-10 w-10 text-slate-300" />
+                  {activeTab === "completed" ? (
+                    <CheckCircle className="mx-auto h-10 w-10 text-slate-300" />
+                  ) : (
+                    <Calendar className="mx-auto h-10 w-10 text-slate-300" />
+                  )}
                   <h3 className="mt-3 text-base font-semibold text-slate-900">
                     {activeTab === "upcoming"
                       ? "No upcoming bookings"
-                      : "No cancelled requests"}
+                      : activeTab === "completed"
+                        ? "No completed bookings yet"
+                        : "No cancelled requests"}
                   </h3>
                   <p className="mt-1 text-sm text-slate-500">
                     {activeTab === "upcoming"
                       ? "Start a search to find an available court."
-                      : "Cancelled, expired, or rejected requests will appear here."}
+                      : activeTab === "completed"
+                        ? "Your completed court visits will appear here."
+                        : "Cancelled, expired, or rejected requests will appear here."}
                   </p>
                 </CardContent>
               </Card>
@@ -594,6 +617,12 @@ export default function PlayerDashboard() {
                             </span>
                           )}
                         </div>
+                        <div className="mt-1 text-sm font-medium text-slate-500">
+                          <span className="inline-flex items-center">
+                            <User className="mr-1.5 h-3.5 w-3.5 text-slate-400" />
+                            Hosted by {getCourtOwnerName(booking)}
+                          </span>
+                        </div>
                         <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-slate-600">
                             <span className="inline-flex items-center">
@@ -605,15 +634,27 @@ export default function PlayerDashboard() {
                               {booking.time} for {booking.duration}h
                             </span>
                           </div>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="w-fit rounded-lg border-slate-300 px-4"
-                            onClick={() => router.push(`/booking/${booking.id}`)}
-                          >
-                            <FileText className="mr-2 h-4 w-4" />
-                            Details
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            {activeTab === "completed" && canReviewBooking(booking) && (
+                              <Button
+                                size="sm"
+                                className="w-fit rounded-lg bg-emerald-600 px-4 text-white hover:bg-emerald-700"
+                                onClick={() => setReviewingBooking(booking)}
+                              >
+                                <Star className="mr-2 h-4 w-4" />
+                                Review
+                              </Button>
+                            )}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-fit rounded-lg border-slate-300 px-4"
+                              onClick={() => router.push(`/booking/${booking.id}`)}
+                            >
+                              <FileText className="mr-2 h-4 w-4" />
+                              Details
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>

@@ -52,9 +52,9 @@ Product-facing routes map roughly as: **Home / Search** → `/courts`; **Court D
 
 ### Upcoming Bookings (`/upcoming`)
 
-- **Upcoming Bookings:** Confirmed and pending → Booking Details per row.
-- **Cancelled Requests:** Cancelled, rejected, expired → Booking Details; sort by booking date/time descending so the most recent request is first.
-- **Completed bookings** control → Profile **Past Bookings** subtab.
+- Three tabs: **Upcoming Bookings** (confirmed + pending, sorted ascending), **Completed** (confirmed-past + completed status, sorted descending), **Cancelled Requests** (cancelled/rejected/expired, sorted descending).
+- Completed tab shows each booking's court image, name, status badge, price, "Hosted by …" line, date/time/duration, **Details** button, and a green **Review** button when `canReviewBooking` is true (reviewable window and not yet reviewed).
+- Includes `confirmed` bookings whose parsed start datetime is in the past via `isPastOrInactiveBooking` (cron marking lag — never filter on `status === "completed"` alone).
 
 ### Host Dashboard (`/host`)
 
