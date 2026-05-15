@@ -253,6 +253,21 @@ export default function AppHeader() {
 
           {user && (
             <>
+              {hasOwnerListing && (
+                <Button
+                  variant="ghost"
+                  className={cn(
+                    "hidden h-11 cursor-pointer gap-2 rounded-full border px-4 text-sm font-bold transition-colors md:inline-flex",
+                    isLandingPage
+                      ? "border-white/25 bg-white/10 text-white hover:bg-white/18 hover:text-white"
+                      : "border-slate-200 bg-white text-slate-800 hover:bg-slate-100"
+                  )}
+                  onClick={() => closeAndGo("/host")}
+                >
+                  <LayoutDashboard className="h-4 w-4" />
+                  Host Dashboard
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 className={cn(

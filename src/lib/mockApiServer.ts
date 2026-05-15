@@ -6,6 +6,7 @@ import {
 } from "@/lib/bookingDates";
 import { isBookingBlockingSlot } from "@/lib/bookingConflicts";
 import { calculateBookingPriceBreakdown } from "@/lib/pricing";
+import { buildBookingStatusMessage } from "@/lib/bookingConversationCopy";
 import { tryGetMockApiUserId } from "@/lib/mockApiAuth";
 import {
   createMockApiSeedData,
@@ -716,10 +717,31 @@ export async function mockRejectBookingPOST(req: NextRequest): Promise<NextRespo
 
   booking.status = "rejected";
   booking.declineReason = cleanDeclineReason;
-  booking.paymentStatus = "canceled";
+  booking.paymentStatus = "authorization_released";
   booking.rejectedAt = new Date().toISOString();
 
-  return mockJson({ success: true });
+  const conversationId = booking.conversationId || `booking_${bookingId}`;
+  const paymentStatus = "authorization_released" as const;
+  const conversationBody = buildBookingStatusMessage({
+    courtName: court.name,
+    date: booking.date,
+    time: booking.time,
+    status: "declined",
+    declineReason: cleanDeclineReason,
+    paymentStatus,
+  });
+
+  return mockJson({
+    success: true,
+    conversationMessage: {
+      conversationId,
+      messageId: "booking_declined",
+      body: conversationBody,
+      status: "declined" as const,
+      declineReason: cleanDeclineReason,
+      paymentStatus,
+    },
+  });
 }
 
 export async function mockCancelBookingPOST(req: NextRequest): Promise<NextResponse> {

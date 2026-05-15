@@ -118,19 +118,31 @@ export interface BookingEmailData {
 }
 
 type PaymentReleaseStatus = "authorization_released" | "refunded" | "no_payment";
+type PaymentCopyAudience = "player" | "host";
 
 const paymentReleaseCopy = (
   status?: PaymentReleaseStatus,
-  amount?: number
+  amount?: number,
+  audience: PaymentCopyAudience = "player"
 ): string => {
   if (status === "refunded") {
+    const paymentMethod =
+      audience === "player"
+        ? "your original payment method"
+        : "the player's original payment method";
     return `A refund of $${(amount || 0).toFixed(
       2
-    )} has been issued to the original payment method. It may take a few business days to appear.`;
+    )} has been issued to ${paymentMethod}. It may take a few business days to appear.`;
   }
 
   if (status === "authorization_released") {
-    return `The card authorization for $${(amount || 0).toFixed(
+    if (audience === "player") {
+      return `Your card authorization for $${(amount || 0).toFixed(
+        2
+      )} has been released. You were not charged.`;
+    }
+
+    return `The player's card authorization for $${(amount || 0).toFixed(
       2
     )} has been released. The player was not charged.`;
   }
@@ -522,7 +534,7 @@ export async function sendOwnerCancellationNotification(
                 <p style="margin: 0 0 8px;"><strong>Player:</strong> ${data.playerName || "Guest"}</p>
                 <p style="margin: 0 0 8px;"><strong>Date:</strong> ${formattedDate}</p>
                 <p style="margin: 0 0 8px;"><strong>Time:</strong> ${data.time} (${data.duration}h)</p>
-                <p style="margin: 0;"><strong>Payment:</strong> ${paymentReleaseCopy(data.paymentStatus, data.price)}</p>
+                <p style="margin: 0;"><strong>Payment:</strong> ${paymentReleaseCopy(data.paymentStatus, data.price, "host")}</p>
               </div>
               <p style="font-size: 14px; color: ${mutedTextColor};">This is an automated notification from CourtShare.</p>
             </div>
@@ -583,7 +595,7 @@ export async function sendPlayerCancellationConfirmation(
               <div style="background: ${pageBg}; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
                 <p style="margin: 0 0 8px;"><strong>Date:</strong> ${formattedDate}</p>
                 <p style="margin: 0 0 8px;"><strong>Time:</strong> ${data.time} (${data.duration}h)</p>
-                <p style="margin: 0;"><strong>Payment:</strong> ${paymentReleaseCopy(data.paymentStatus, data.price)}</p>
+                <p style="margin: 0;"><strong>Payment:</strong> ${paymentReleaseCopy(data.paymentStatus, data.price, "player")}</p>
               </div>
               <p style="font-size: 14px; color: ${mutedTextColor};">This is an automated confirmation from CourtShare.</p>
             </div>
@@ -619,7 +631,7 @@ export async function sendPlayerHostCancellationNotification(
             <div style="background: ${pageBg}; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
               <p style="margin: 0 0 8px;"><strong>Date:</strong> ${formattedDate}</p>
               <p style="margin: 0 0 8px;"><strong>Time:</strong> ${escapeHtml(data.time)} (${data.duration}h)</p>
-              <p style="margin: 0;"><strong>Payment:</strong> ${paymentReleaseCopy(data.paymentStatus, data.price)}</p>
+              <p style="margin: 0;"><strong>Payment:</strong> ${paymentReleaseCopy(data.paymentStatus, data.price, "player")}</p>
             </div>
             <div style="margin-top: 20px; text-align: center;">
               <a href="${appUrl}/courts" style="display: inline-block; background: ${brandGreen}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Browse Courts</a>
@@ -683,11 +695,13 @@ export async function sendPlayerRejectionNotification(
                     ? `<p style="margin: 0 0 8px;"><strong>Host's reason:</strong> ${escapeHtml(data.declineReason)}</p>`
                     : ""
                 }
-                <p style="margin: 0;"><strong>Payment:</strong> ${paymentReleaseCopy(data.paymentStatus, data.price)}</p>
+              </div>
+              <div style="background: #ecfdf5; padding: 16px 18px; border-radius: 10px; margin: 18px 0; border: 1px solid #bbf7d0;">
+                <p style="margin: 0; color: ${textColor};"><strong>Payment:</strong> ${paymentReleaseCopy(data.paymentStatus, data.price, "player")}</p>
               </div>
               <p style="font-size: 16px;">You can browse other courts and book a different time.</p>
               <div style="margin-top: 20px; text-align: center;">
-                <a href="${appUrl}/search" style="display: inline-block; background: ${brandGreen}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Browse Courts</a>
+                <a href="${appUrl}/courts" style="display: inline-block; background: ${brandGreen}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Browse Courts</a>
               </div>
               <p style="font-size: 14px; color: ${mutedTextColor}; margin-top: 30px;">This is an automated notification from CourtShare.</p>
             </div>
@@ -734,7 +748,7 @@ export async function sendPlayerBookingExpiredNotification(
             <div style="background: ${pageBg}; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
               <p style="margin: 0 0 8px;"><strong>Date:</strong> ${formattedDate}</p>
               <p style="margin: 0 0 8px;"><strong>Time:</strong> ${escapeHtml(data.time)} (${data.duration}h)</p>
-              <p style="margin: 0;"><strong>Payment:</strong> ${paymentReleaseCopy(data.paymentStatus, data.price)}</p>
+              <p style="margin: 0;"><strong>Payment:</strong> ${paymentReleaseCopy(data.paymentStatus, data.price, "player")}</p>
             </div>
             <div style="margin-top: 20px; text-align: center;">
               <a href="${appUrl}/courts" style="display: inline-block; background: ${brandGreen}; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Browse Courts</a>

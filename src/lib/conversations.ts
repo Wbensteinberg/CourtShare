@@ -1,5 +1,12 @@
 import type { Firestore } from "firebase-admin/firestore";
 import { FieldValue } from "firebase-admin/firestore";
+import {
+  buildBookingStatusMessage,
+  formatBookingConversationDate,
+  getBookingConversationStatus,
+  getConversationIdForBooking,
+} from "@/lib/bookingConversationCopy";
+import type { BookingPaymentReleaseStatus } from "@/lib/bookingConversationCopy";
 
 type BookingConversationInput = {
   bookingId: string;
@@ -16,11 +23,6 @@ type BookingConversationInput = {
   guestCount?: number;
   initialMessage?: string;
 };
-
-type BookingPaymentReleaseStatus =
-  | "authorization_released"
-  | "refunded"
-  | "no_payment";
 
 type BookingStatusConversationInput = {
   bookingId: string;
@@ -41,83 +43,6 @@ type BookingStatusConversationInput = {
   declineReason?: string;
   paymentStatus?: BookingPaymentReleaseStatus;
 };
-
-export const getConversationIdForBooking = (
-  bookingId: string,
-  conversationId?: string
-) => {
-  const normalizedConversationId =
-    typeof conversationId === "string" ? conversationId.trim() : "";
-  return normalizedConversationId || `booking_${bookingId}`;
-};
-
-const formatBookingConversationDate = (date: string) =>
-  new Intl.DateTimeFormat("en", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(new Date(`${date}T12:00:00`));
-
-export const getBookingPaymentStatusText = (
-  status?: BookingPaymentReleaseStatus
-) => {
-  if (status === "refunded") {
-    return "A refund has been issued to the original payment method.";
-  }
-
-  if (status === "authorization_released") {
-    return "The card authorization has been released. The player was not charged.";
-  }
-
-  if (status === "no_payment") {
-    return "No payment was collected for this booking.";
-  }
-
-  return "";
-};
-
-export const buildBookingStatusMessage = (
-  input: Pick<
-    BookingStatusConversationInput,
-    | "courtName"
-    | "date"
-    | "time"
-    | "status"
-    | "cancelledBy"
-    | "declineReason"
-    | "paymentStatus"
-  >
-) => {
-  const courtLabel = input.courtName || "this court";
-  const bookingTime = `on ${formatBookingConversationDate(input.date)} at ${input.time}`;
-
-  if (input.status === "accepted") {
-    return `Booking confirmed for ${courtLabel} ${bookingTime}. Payment is complete.`;
-  }
-
-  const paymentText = getBookingPaymentStatusText(input.paymentStatus);
-  const suffix = paymentText ? ` ${paymentText}` : "";
-
-  if (input.status === "declined") {
-    const reason = input.declineReason?.trim();
-    const reasonText = reason ? ` Reason from the host: ${reason}` : "";
-    return `Booking request declined for ${courtLabel} ${bookingTime}.${reasonText}${suffix}`;
-  }
-
-  const actorText =
-    input.cancelledBy === "host"
-      ? "by the host"
-      : input.cancelledBy === "player"
-        ? "by the player"
-        : "";
-
-  return `Booking cancelled${actorText ? ` ${actorText}` : ""} for ${courtLabel} ${bookingTime}.${suffix}`;
-};
-
-export const getBookingConversationStatus = (
-  status: BookingStatusConversationInput["status"]
-) => (status === "accepted" ? "confirmed" : "closed");
 
 const buildBookingRequestMessage = ({
   courtName,
@@ -303,5 +228,12 @@ export async function postBookingStatusConversationMessage(
     });
   });
 
-  return { conversationId, messageId: messageRef.id, body };
+  return {
+    conversationId,
+    messageId: messageRef.id,
+    body,
+    status: input.status,
+    ...(input.declineReason ? { declineReason: input.declineReason } : {}),
+    ...(input.paymentStatus ? { paymentStatus: input.paymentStatus } : {}),
+  };
 }

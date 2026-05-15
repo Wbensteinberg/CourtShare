@@ -96,6 +96,9 @@ export type MockMessage = {
   type: "text" | "booking_request" | "booking_status" | "system";
   bookingId?: string;
   courtId?: string;
+  status?: "accepted" | "declined" | "cancelled";
+  declineReason?: string;
+  paymentStatus?: "authorization_released" | "refunded" | "no_payment";
 };
 
 export type MockReview = {
@@ -1416,7 +1419,13 @@ export const markMockConversationRead = (
 export const createMockMessage = async (
   conversationId: string,
   senderId: string,
-  body: string
+  body: string,
+  options: Partial<
+    Pick<
+      MockMessage,
+      "type" | "bookingId" | "courtId" | "status" | "declineReason" | "paymentStatus"
+    >
+  > = {}
 ) => {
   const now = new Date().toISOString();
   const message: MockMessage = {
@@ -1425,7 +1434,12 @@ export const createMockMessage = async (
     senderId,
     body,
     createdAt: now,
-    type: "text",
+    type: options.type || "text",
+    ...(options.bookingId ? { bookingId: options.bookingId } : {}),
+    ...(options.courtId ? { courtId: options.courtId } : {}),
+    ...(options.status ? { status: options.status } : {}),
+    ...(options.declineReason ? { declineReason: options.declineReason } : {}),
+    ...(options.paymentStatus ? { paymentStatus: options.paymentStatus } : {}),
   };
 
   updateMockDb((db) => {

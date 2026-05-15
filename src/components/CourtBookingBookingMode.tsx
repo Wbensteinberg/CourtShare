@@ -191,7 +191,8 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
   /** All reviews where this booking’s player is the reviewee (for host profile popup). */
   const [playerAllReceivedReviews, setPlayerAllReceivedReviews] = useState<ApiReview[]>([]);
 
-  const [reviewedBooking, setReviewedBooking] = useState(false);
+  /** null until we know whether the viewer already submitted a review for this booking */
+  const [reviewedBooking, setReviewedBooking] = useState<boolean | null>(null);
 
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [reviewsDialogKind, setReviewsDialogKind] = useState<ReviewsDialogKind | null>(null);
@@ -235,6 +236,8 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
 
       setLoading(true);
       setError("");
+      setReviewedBooking(null);
+      setReviewDialogOpen(false);
 
       try {
         if (isMockMode) {
@@ -495,9 +498,10 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
   useEffect(() => {
     if (!booking || !court || !viewerRole) return;
     if (!["completed", "past_confirmed"].includes(displayStatus)) return;
+    if (reviewedBooking !== false) return;
 
     const reviewable = isBookingReviewable(booking, new Date());
-    if (reviewable && !reviewedBooking) {
+    if (reviewable) {
       setReviewDialogOpen(true);
     }
   }, [booking, court, displayStatus, reviewedBooking, viewerRole]);
@@ -726,6 +730,7 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
       );
       setCourtReviews(getMockReviewsForCourt(court.id) as any);
       setReviewedBooking(true);
+      setReviewDialogOpen(false);
       return;
     }
 
@@ -758,6 +763,7 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
     setPlayerAllReceivedReviews(nextPlayerAll);
     setPlayerReviews(nextPlayerAll.filter((r: any) => r.targetType === "player"));
     setReviewedBooking(true);
+    setReviewDialogOpen(false);
   };
 
   if (loading || authLoading) {
@@ -1283,7 +1289,7 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
             <Textarea
               value={declineReason}
               onChange={(event) => setDeclineReason(event.target.value)}
-              placeholder="Example: I'm sorry, the court is unavailable because we have scheduled maintenance at that time."
+              placeholder="Example: I'm sorry—I have a scheduling conflict that day and can't accommodate this booking."
               className="min-h-28 resize-none rounded-2xl border-slate-200"
               maxLength={DECLINE_REASON_MAX_LENGTH}
             />

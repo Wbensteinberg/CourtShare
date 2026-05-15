@@ -61,7 +61,7 @@ export default function ReviewDialog({
                 <button
                   key={value}
                   type="button"
-                  className="rounded-full p-1 text-amber-400 transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                  className="rounded-full p-1 text-amber-400 ring-0 transition-transform hover:scale-110 focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
                   onClick={() => setRating(value)}
                   aria-label={`${value} star${value === 1 ? "" : "s"}`}
                 >

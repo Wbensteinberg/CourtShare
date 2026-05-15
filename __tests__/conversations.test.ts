@@ -2,7 +2,7 @@ import {
   buildBookingStatusMessage,
   getBookingConversationStatus,
   getBookingPaymentStatusText,
-} from "@/lib/conversations";
+} from "@/lib/bookingConversationCopy";
 
 describe("booking conversation status messages", () => {
   const baseInput = {
@@ -22,15 +22,16 @@ describe("booking conversation status messages", () => {
     );
   });
 
-  it("builds declined copy with authorization release language", () => {
+  it("builds declined copy without payment language in the main message", () => {
     expect(
       buildBookingStatusMessage({
         ...baseInput,
         status: "declined",
         paymentStatus: "authorization_released",
+        declineReason: "I am unable to host this booking request.",
       })
     ).toBe(
-      "Booking request declined for Hilltop Tennis on Monday, June 15, 2026 at 9:00 AM. The card authorization has been released. The player was not charged."
+      "Booking request declined for Hilltop Tennis on Monday, June 15, 2026 at 9:00 AM. Reason from the host: I am unable to host this booking request."
     );
   });
 
@@ -50,6 +51,9 @@ describe("booking conversation status messages", () => {
   it("maps payment and conversation statuses", () => {
     expect(getBookingPaymentStatusText("no_payment")).toBe(
       "No payment was collected for this booking."
+    );
+    expect(getBookingPaymentStatusText("authorization_released", "player")).toBe(
+      "Your card authorization has been released. You were not charged."
     );
     expect(getBookingConversationStatus("accepted")).toBe("confirmed");
     expect(getBookingConversationStatus("declined")).toBe("closed");

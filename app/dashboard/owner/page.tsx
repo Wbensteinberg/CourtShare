@@ -903,7 +903,10 @@ export default function OwnerDashboard() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (
+    status: string,
+    opts?: { pastReservationCopy?: boolean }
+  ) => {
     switch (status) {
       case "pending":
         return (
@@ -917,15 +920,33 @@ export default function OwnerDashboard() {
       case "confirmed":
         return (
           <Badge className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-md">
-            Confirmed
+            {opts?.pastReservationCopy ? "Past visit" : "Confirmed"}
+          </Badge>
+        );
+      case "completed":
+        return (
+          <Badge className="rounded-full border border-slate-200 bg-slate-100 px-3 py-1 font-bold text-slate-800 shadow-sm hover:bg-slate-100">
+            Completed
           </Badge>
         );
       case "rejected":
-        return <Badge variant="destructive">Rejected</Badge>;
+        return (
+          <Badge className="rounded-full border border-emerald-200/90 bg-emerald-50 px-3 py-1 font-bold text-emerald-900 shadow-sm hover:bg-emerald-50">
+            Declined
+          </Badge>
+        );
       case "cancelled":
-        return <Badge variant="destructive">Cancelled</Badge>;
+        return (
+          <Badge className="rounded-full border border-slate-300 bg-slate-100 px-3 py-1 font-bold text-slate-700 shadow-sm hover:bg-slate-100">
+            Cancelled
+          </Badge>
+        );
       case "expired":
-        return <Badge variant="outline">Expired</Badge>;
+        return (
+          <Badge className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 font-bold text-amber-700 shadow-sm hover:bg-amber-50">
+            Expired
+          </Badge>
+        );
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -1232,7 +1253,11 @@ export default function OwnerDashboard() {
   const renderReservationList = (
     reservations: Booking[],
     emptyMessage: string,
-    options: { pendingActions?: boolean; reviewActions?: boolean } = {}
+    options: {
+      pendingActions?: boolean;
+      reviewActions?: boolean;
+      pastReservationCopy?: boolean;
+    } = {}
   ) => {
     if (reservations.length === 0) {
       return (
@@ -1255,10 +1280,8 @@ export default function OwnerDashboard() {
             options.pendingActions && booking.status === "pending";
           const showReviewButton =
             options.reviewActions && canReviewBooking(booking);
-          const showReviewedBadge =
-            options.reviewActions && reviewedBookingIds.has(booking.id);
-          const hasReservationActions =
-            showPendingActions || showReviewButton || showReviewedBadge;
+          const hasReservationActions = showPendingActions || showReviewButton;
+          const showCourtNumberBadge = (court?.numberOfCourts ?? 1) > 1;
 
           return (
             <div
@@ -1284,10 +1307,14 @@ export default function OwnerDashboard() {
                   <h3 className="truncate text-lg font-black text-slate-950">
                     {courtName}
                   </h3>
-                  <Badge variant="outline" className="rounded-md">
-                    Court {booking.courtNumber || 1}
-                  </Badge>
-                  {getStatusBadge(booking.status)}
+                  {showCourtNumberBadge && (
+                    <Badge variant="outline" className="rounded-md">
+                      Court {booking.courtNumber || 1}
+                    </Badge>
+                  )}
+                  {getStatusBadge(booking.status, {
+                    pastReservationCopy: options.pastReservationCopy,
+                  })}
                   <span className="text-sm font-extrabold text-[var(--site-accent)]">
                     ${amount.toFixed(2)}
                   </span>
@@ -1352,20 +1379,12 @@ export default function OwnerDashboard() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="rounded-lg border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                      className="rounded-lg border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 focus-visible:ring-0 focus-visible:ring-offset-0"
                       onClick={() => setReviewingBooking(booking)}
                     >
                       <Star className="mr-2 h-4 w-4 fill-amber-400 text-amber-400" />
                       Review player
                     </Button>
-                  )}
-                  {showReviewedBadge && (
-                    <Badge
-                      variant="outline"
-                      className="rounded-lg border-slate-200 bg-slate-50 px-3 py-2 text-slate-600"
-                    >
-                      Reviewed
-                    </Badge>
                   )}
                   </div>
                 )}
@@ -1975,7 +1994,7 @@ export default function OwnerDashboard() {
                   {renderReservationList(
                     completedReservations,
                     "No completed reservations yet.",
-                    { reviewActions: true }
+                    { reviewActions: true, pastReservationCopy: true }
                   )}
                 </>
               )}
@@ -1987,7 +2006,7 @@ export default function OwnerDashboard() {
                       Cancelled Reservations
                     </h2>
                     <p className="mt-2 text-slate-500">
-                      Expired, rejected, and cancelled reservations.
+                      Expired, declined, and cancelled reservations.
                     </p>
                   </div>
                   {renderReservationList(
@@ -2127,7 +2146,7 @@ export default function OwnerDashboard() {
                 current ? { ...current, reason: event.target.value } : current
               )
             }
-            placeholder="Example: I'm sorry, the court is unavailable because we have scheduled maintenance at that time."
+            placeholder="Example: I'm sorry—I have a scheduling conflict that day and can't accommodate this booking."
             className="min-h-28 resize-none rounded-2xl border-slate-200"
             maxLength={DECLINE_REASON_MAX_LENGTH}
           />

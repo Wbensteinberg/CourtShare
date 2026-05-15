@@ -41,9 +41,13 @@ import {
   type MockMessage,
 } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
+import { buildBookingStatusMessage } from "@/lib/bookingConversationCopy";
 import { CalendarDays, Check, MessageCircle, Send, Star, X } from "lucide-react";
 
 const DECLINE_REASON_MAX_LENGTH = 280;
+
+const DECLINE_REASON_PLACEHOLDER =
+  "Example: I'm sorry—I have a scheduling conflict that day and can't accommodate this booking.";
 
 const formatMoneyFromCents = (cents: number) =>
   new Intl.NumberFormat("en-US", {
@@ -64,6 +68,9 @@ type Conversation = MockConversation & {
 
 type Message = MockMessage & {
   createdAt?: any;
+  status?: "accepted" | "declined" | "cancelled";
+  paymentStatus?: "authorization_released" | "refunded" | "no_payment";
+  declineReason?: string;
 };
 
 type Booking = {
@@ -141,6 +148,33 @@ const formatTextDates = (text?: string) =>
   (text || "").replace(/\b\d{4}-\d{2}-\d{2}\b/g, (date) =>
     formatFullDate(date)
   );
+
+const getPaymentStatusNote = (
+  message: Message,
+  audience: "player" | "host" | "neutral"
+) => {
+  if (message.type !== "booking_status" || message.status !== "declined") {
+    return "";
+  }
+
+  if (message.paymentStatus === "authorization_released") {
+    return audience === "player"
+      ? "Your card authorization has been released. You were not charged."
+      : "The card authorization has been released. No charge was made.";
+  }
+
+  if (message.paymentStatus === "refunded") {
+    return audience === "player"
+      ? "A refund has been issued to your original payment method."
+      : "A refund has been issued to the original payment method.";
+  }
+
+  if (message.paymentStatus === "no_payment") {
+    return "No payment was collected for this booking.";
+  }
+
+  return "";
+};
 
 const formatProfileReviewDate = (value?: string | null) => {
   if (!value) return "";
@@ -690,7 +724,13 @@ function MessagesPageContent() {
       let lastMessageText =
         decision === "accepted"
           ? "Booking request accepted."
-          : `Booking request declined. Reason from the host: ${cleanDeclineReason}`;
+          : buildBookingStatusMessage({
+              courtName: selectedConversation.courtName,
+              date: selectedBooking.date,
+              time: selectedBooking.time,
+              status: "declined",
+              declineReason: cleanDeclineReason,
+            });
       let statusMessage: Message | null = null;
 
       if (isMockMode) {
@@ -698,7 +738,18 @@ function MessagesPageContent() {
           status: nextStatus,
           ...(decision === "declined" ? { declineReason: cleanDeclineReason } : {}),
         });
-        await createMockMessage(selectedConversation.id, user.uid, lastMessageText);
+        await createMockMessage(selectedConversation.id, user.uid, lastMessageText, {
+          type: "booking_status",
+          bookingId: selectedBooking.id,
+          courtId: selectedBooking.courtId,
+          status: decision === "accepted" ? "accepted" : "declined",
+          ...(decision === "declined"
+            ? {
+                declineReason: cleanDeclineReason,
+                paymentStatus: "authorization_released",
+              }
+            : {}),
+        });
         statusMessage = {
           id: `local-${decision}-${Date.now()}`,
           conversationId: selectedConversation.id,
@@ -706,6 +757,15 @@ function MessagesPageContent() {
           body: lastMessageText,
           createdAt: new Date().toISOString(),
           type: "booking_status",
+          bookingId: selectedBooking.id,
+          courtId: selectedBooking.courtId,
+          status: decision === "accepted" ? "accepted" : "declined",
+          ...(decision === "declined"
+            ? {
+                declineReason: cleanDeclineReason,
+                paymentStatus: "authorization_released",
+              }
+            : {}),
         };
       } else {
         const idToken = await user.getIdToken();
@@ -747,6 +807,9 @@ function MessagesPageContent() {
             body: data.conversationMessage.body,
             createdAt: new Date().toISOString(),
             type: "booking_status",
+            status: data.conversationMessage.status,
+            declineReason: data.conversationMessage.declineReason,
+            paymentStatus: data.conversationMessage.paymentStatus,
           };
         }
       }
@@ -1067,6 +1130,14 @@ function MessagesPageContent() {
                 <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
                   {messages.map((message) => {
                     const mine = message.senderId === user?.uid;
+                    const paymentNote = getPaymentStatusNote(
+                      message,
+                      selectedConversation?.playerId === user?.uid
+                        ? "player"
+                        : selectedConversation?.ownerId === user?.uid
+                          ? "host"
+                          : "neutral"
+                    );
                     return (
                       <div
                         key={message.id}
@@ -1084,6 +1155,18 @@ function MessagesPageContent() {
                           )}
                         >
                           <p className="break-words leading-6">{formatTextDates(message.body)}</p>
+                          {paymentNote ? (
+                            <div
+                              className={cn(
+                                "mt-3 rounded-xl border px-3 py-2 text-xs font-medium leading-5",
+                                mine
+                                  ? "border-white/25 bg-white/10 text-emerald-50"
+                                  : "border-emerald-100 bg-emerald-50 text-emerald-800"
+                              )}
+                            >
+                              {paymentNote}
+                            </div>
+                          ) : null}
                           <p
                             className={cn(
                               "mt-2 text-xs",
@@ -1324,7 +1407,7 @@ function MessagesPageContent() {
               <Textarea
                 value={declineReason}
                 onChange={(event) => setDeclineReason(event.target.value)}
-                placeholder="Example: I'm sorry, the court is unavailable because we have scheduled maintenance at that time."
+                placeholder={DECLINE_REASON_PLACEHOLDER}
                 className="min-h-28 resize-none rounded-2xl border-slate-200"
                 maxLength={DECLINE_REASON_MAX_LENGTH}
               />
