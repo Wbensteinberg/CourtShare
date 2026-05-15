@@ -669,22 +669,29 @@ function CourtDetailPage() {
         if (isMockMode) {
           setBookingsForDate(getMockBookingsForCourtAndDate(id, bookingDate));
         } else {
-          const q = query(
-            collection(db, "bookings"),
-            where("courtId", "==", id),
-            where("date", "==", bookingDate)
+          const idToken = user ? await user.getIdToken() : null;
+          const headers: Record<string, string> = {};
+          if (idToken) headers["Authorization"] = `Bearer ${idToken}`;
+          const res = await fetch(
+            `/api/court-availability?courtId=${encodeURIComponent(id)}&date=${encodeURIComponent(bookingDate)}`,
+            { headers }
           );
-          const snap = await getDocs(q);
-          setBookingsForDate(snap.docs.map((doc) => doc.data()));
+          if (res.ok) {
+            const data = await res.json();
+            setBookingsForDate(data.slots || []);
+          } else {
+            setBookingsForDate([]);
+          }
         }
       } catch (e) {
+        console.error("[BOOKINGS] Failed to fetch bookings for date:", e);
         setBookingsForDate([]);
       } finally {
         setFetchingBookings(false);
       }
     };
     fetchBookings();
-  }, [id, selectedDate]);
+  }, [id, selectedDate, user]);
 
   useEffect(() => {
     if (playerWaiverOpen) setPlayerWaiverChecked(false);

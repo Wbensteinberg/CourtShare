@@ -94,6 +94,7 @@ Product-facing routes map roughly as: **Home / Search** → `/courts`; **Court D
 - Court info, gallery, rating (modal); host profile + rating (modal).
 - Request booking: if the player already has a pending request for this court, confirm they intentionally want to create another request; waiver then Stripe Checkout.
 - Slot selection must block confirmed bookings and still-actionable pending requests using `bookingConflicts.ts`, so players cannot select/pay for an already requested or booked overlapping slot. Guest count is capped by `courts/{courtId}.maxGuests`, defaulting to **10** when unset.
+- **Availability data comes from `GET /api/court-availability`**, not a direct Firestore query. The court page calls this endpoint (Bearer token) to get the minimal slot fields needed for conflict checking (`date`, `time`, `status`, `courtNumber`, `duration`, `durationMinutes`, `createdAt`, `expiresAt`). Do not revert this to a client-side Firestore query — the booking rules only allow reading a booking if you are its player, host, or court owner, so a cross-user availability query will silently fail and return empty results, making all slots appear available.
 - **TODO:** Map for court location.
 - **TODO:** Optional “send a message with request” style flow.
 
@@ -101,6 +102,7 @@ Product-facing routes map roughly as: **Home / Search** → `/courts`; **Court D
 
 - Single card, **Continue with Google** only; copy differs for sign-in vs sign-up.
 - Keep auth-card spacing tight and intentional; avoid large empty gaps between the intro copy and Google CTA.
+- **Deep-link redirect:** Protected pages (e.g. `/booking/[bookingId]`) redirect unauthenticated visitors to `/sign-in?redirect=<current-path>` rather than showing an error. `AuthPage` reads the `redirect` query param and sends the user there after successful sign-in; already-authenticated visitors are also sent to `redirect` (not hardcoded `/profile`). Onboarding forwards the `redirect` param so deep-link flows survive new-user onboarding.
 - **Onboarding:** New users (no existing `users/{uid}` doc) are redirected to `/onboarding` immediately after Google sign-in. The page pre-fills the display name from Google but does **not** pre-fill the profile photo from Google — `profileImageUrl` is only set if the user explicitly uploads a photo during onboarding. Existing returning users bypass it entirely.
 
 ### Onboarding (`/onboarding`)
@@ -190,6 +192,7 @@ Firestore `reviews/{bookingId}_{reviewerRole}` stores one review per booking par
 | **`/api/cancel-booking`** | `POST` | **Bearer** (booking **player** or court **host**) | Cancel; confirmed player cancellations require at least 24 hours before court time; host cancellations are allowed for courts they own; release uncaptured authorization or refund captured payment through the shared Stripe helper; write `cancelReason` as `player_cancellation` or `host_cancellation`; send cancellation emails where implemented; post a booking status conversation message. |
 | **`/api/expire-pending-bookings`** | `POST` | **Bearer** | Body **`bookingIds: string[]`**. For each **pending** booking whose court **`ownerId`** matches token `uid` and whose pending window is expired: mark **`expired`**, update payment fields, **release** authorization. Non-matching ids no-op per booking. |
 | **`/api/send-booking-confirmation`** | `POST` | **No auth in route** | Body **`bookingId`** — loads booking/court/users and sends **player confirmation** email; treat as internal/ops-style unless you add verification. |
+| **`/api/court-availability`** | `GET` | **Bearer** | Query params **`courtId`** + **`date`** (YYYY-MM-DD). Returns `{ slots: [...] }` — a minimal projection of bookings for that court/date containing only the fields needed for client-side conflict checking (no payment amounts, no Stripe IDs, no UIDs). Used by the court detail page to block already-taken time slots. |
 
 ### Stripe Connect (hosts)
 
@@ -204,7 +207,9 @@ Firestore `reviews/{bookingId}_{reviewerRole}` stores one review per booking par
 
 ### Not implemented as REST (Firestore + rules instead)
 
-Use **Firestore queries** (and rules) for: player bookings by `userId`, host reservations via `bookings` joined with `courts` where `ownerId == uid`, conversation reads (`conversations` + `messages` subcollections), **create/edit listings** and Storage uploads. User-authored conversation writes that need paired email should use `POST /api/conversations/send-message`. If you need a strict BFF with no client booking reads, add routes such as **`/api/bookings`**—they are not in the repo today.
+Use **Firestore queries** (and rules) for: player bookings by `userId` (query includes `where("userId", "==", uid)` so rules can be satisfied), host reservations via `bookings` joined with `courts` where `ownerId == uid`, conversation reads (`conversations` + `messages` subcollections), **create/edit listings** and Storage uploads. User-authored conversation writes that need paired email should use `POST /api/conversations/send-message`. If you need a strict BFF with no client booking reads, add routes such as **`/api/bookings`**—they are not in the repo today.
+
+**Booking Firestore rules invariant:** `bookings/{bookingId}` is readable only by the booking's player (`userId`), the booking's `ownerId`, or the court's owner. Do **not** open this up to all signed-in users — doing so exposes payment amounts, Stripe payment intent IDs, and participant UIDs. Any cross-user booking read (e.g. availability checking) must go through an API route that uses Admin SDK and returns only the necessary fields.
 
 ### Quick reference — all `app/api/**/route.ts` handlers
 
@@ -222,6 +227,7 @@ Use **Firestore queries** (and rules) for: player bookings by `userId`, host res
 12. `POST /api/send-booking-confirmation`
 13. `POST /api/conversations/send-message`
 14. `GET` + `POST /api/notifications/send-scheduled`
+15. `GET /api/court-availability`
 
 ## Security Protections And Considerations
 

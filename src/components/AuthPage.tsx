@@ -51,9 +51,9 @@ function AuthForm({ mode }: { mode: AuthMode }) {
 
   useEffect(() => {
     if (!authLoading && user) {
-      router.replace("/profile");
+      router.replace(redirect || "/profile");
     }
-  }, [authLoading, router, user]);
+  }, [authLoading, redirect, router, user]);
 
   const handleGoogleAuth = async () => {
     setError("");
