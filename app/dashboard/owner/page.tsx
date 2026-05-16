@@ -514,7 +514,7 @@ export default function OwnerDashboard() {
 
         // Add timeout to prevent hanging
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
         const res = await fetch("/api/stripe/check-account-status", {
           method: "POST",
@@ -1165,7 +1165,10 @@ export default function OwnerDashboard() {
           ? "Setup incomplete"
           : "Restricted";
   const payoutSetupIncomplete =
-    !checkingStripe && payoutStatusLabel !== "Active";
+    !checkingStripe &&
+    stripeAccountStatus !== null &&
+    stripeAccountStatus.status !== "check_failed" &&
+    payoutStatusLabel !== "Active";
   const payoutStatusTone =
     payoutStatusLabel === "Active"
       ? "border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -1651,7 +1654,7 @@ export default function OwnerDashboard() {
                               variant="outline"
                               size="sm"
                               className="rounded-2xl border-slate-300 bg-white px-4 py-5 font-bold text-slate-950 hover:bg-slate-50"
-                              onClick={() => router.push(`/courts/${court.id}`)}
+                              onClick={() => window.open(`/courts/${court.id}`, "_blank", "noopener,noreferrer")}
                             >
                               <ExternalLink className="mr-2 h-4 w-4" />
                               Preview Listing
