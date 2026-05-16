@@ -1309,11 +1309,6 @@ export default function OwnerDashboard() {
                   <h3 className="truncate text-lg font-black text-slate-950">
                     {courtName}
                   </h3>
-                  {showCourtNumberBadge && (
-                    <Badge variant="outline" className="rounded-md">
-                      Court {booking.courtNumber || 1}
-                    </Badge>
-                  )}
                   {getStatusBadge(booking.status, {
                     pastReservationCopy: options.pastReservationCopy,
                   })}
@@ -1323,6 +1318,13 @@ export default function OwnerDashboard() {
                     </span>
                   )}
                 </div>
+                {showCourtNumberBadge && (
+                  <div className="mt-1">
+                    <Badge variant="outline" className="rounded-md">
+                      Court {booking.courtNumber || 1}
+                    </Badge>
+                  </div>
+                )}
                 <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm font-medium text-slate-600">
                     <span className="inline-flex items-center">
