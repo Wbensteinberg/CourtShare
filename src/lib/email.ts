@@ -60,6 +60,14 @@ const escapeHtml = (value: unknown) =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 
+const buildAvatarHtml = (name: string, imageUrl?: string, size = 52): string => {
+  const initial = escapeHtml((name || "?").trim().charAt(0).toUpperCase());
+  if (imageUrl) {
+    return `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(name)}" width="${size}" height="${size}" style="display: block; width: ${size}px; height: ${size}px; border-radius: ${size / 2}px; object-fit: cover; border: 2px solid #c8e9dd;">`;
+  }
+  return `<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="display: inline-table;"><tr><td width="${size}" height="${size}" align="center" valign="middle" style="width: ${size}px; height: ${size}px; min-width: ${size}px; border-radius: ${size / 2}px; background: linear-gradient(135deg, #00b884 0%, #008665 100%); color: #ffffff; font-size: ${Math.round(size * 0.4)}px; font-weight: 900; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-align: center; line-height: ${size}px;">${initial}</td></tr></table>`;
+};
+
 const formatBookingEmailDate = (date: string) =>
   new Date(`${date}T12:00:00`).toLocaleDateString("en-US", {
     weekday: "long",
@@ -105,6 +113,7 @@ export interface BookingEmailData {
   courtImageUrl?: string;
   playerName?: string;
   playerEmail: string;
+  playerProfileImageUrl?: string;
   ownerName?: string;
   ownerEmail: string;
   date: string;
@@ -114,6 +123,7 @@ export interface BookingEmailData {
   courtNumber?: number;
   guestCount?: number;
   price: number;
+  ownerAmount?: number;
   initialMessage?: string;
 }
 
@@ -181,7 +191,6 @@ export const buildOwnerBookingNotificationEmail = (data: BookingEmailData) => {
   const playerLabel = data.playerName?.trim() || data.playerEmail;
   const durationLabel = formatDurationLabel(data);
   const responseUrl = bookingResponseUrl(data);
-  const locationLabel = data.courtAddress || data.courtLocation;
   const courtNumberLabel =
     typeof data.courtNumber === "number" && data.courtNumber > 0
       ? `Court ${data.courtNumber}`
@@ -192,92 +201,140 @@ export const buildOwnerBookingNotificationEmail = (data: BookingEmailData) => {
       : null;
   const safePlayerLabel = escapeHtml(playerLabel);
   const safeCourtName = escapeHtml(data.courtName);
+  const avatarHtml = buildAvatarHtml(playerLabel, data.playerProfileImageUrl, 52);
+  const ownerAmountStr = typeof data.ownerAmount === "number"
+    ? data.ownerAmount.toFixed(2)
+    : data.price.toFixed(2);
 
-  return `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Respond to ${safePlayerLabel}'s Request</title>
-          </head>
-          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: ${textColor}; max-width: 680px; margin: 0 auto; padding: 28px 16px; background: ${ownerRequestShellBg};">
-            ${ownerBookingRequestHeader(`Respond to ${safePlayerLabel}'s request`)}
+  const guestRow = guestCount
+    ? `<tr><td style="border-top: 1px solid #e2ede8; padding: 10px 20px;"><table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"><tr><td style="color: #64756f; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;" width="38%">Guests</td><td style="color: #10231d; font-size: 14px; font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">${guestCount}</td></tr></table></td></tr>`
+    : "";
 
-            <div style="background: ${ownerRequestShellBg}; padding: 18px 32px 32px; border-radius: 0 0 30px 30px; border: 1px solid ${ownerRequestShellBorder}; border-top: none;">
-              <div style="background: ${cardBg}; border: 1px solid ${borderColor}; border-radius: 26px; padding: 28px; box-shadow: 0 24px 70px rgba(16, 35, 29, 0.16);">
-              <p style="font-size: 16px; margin-top: 0;">Hello${data.ownerName ? ` ${escapeHtml(data.ownerName)}` : ""},</p>
-              <p style="font-size: 16px; margin-bottom: 22px; color: ${mutedTextColor};">${safePlayerLabel} requested to book <strong style="color: ${textColor};">${safeCourtName}</strong>. Their payment method is authorized, and they will only be charged if you accept before the request expires.</p>
+  const messageBlock = data.initialMessage?.trim()
+    ? `<tr><td style="padding: 0 24px 24px; background-color: #ffffff;"><table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f3fbf7; border-radius: 14px; overflow: hidden;"><tr><td style="padding: 16px 18px;"><p style="margin: 0 0 8px; color: #4a7060; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.14em; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">Message from ${safePlayerLabel}</p><p style="margin: 0; white-space: pre-wrap; color: #10231d; font-size: 14px; line-height: 1.6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">${escapeHtml(data.initialMessage)}</p></td></tr></table></td></tr>`
+    : "";
 
-              <div style="text-align: center; margin: 28px 0;">
-                <a href="${responseUrl}" style="display: inline-block; width: 100%; max-width: 360px; background: ${ownerRequestPrimaryGreen}; color: white; padding: 15px 22px; text-decoration: none; border-radius: 999px; font-weight: 900; font-size: 16px; box-shadow: 0 14px 30px rgba(0, 184, 132, 0.24);">Accept / Decline</a>
-              </div>
+  const courtImageBlock = data.courtImageUrl
+    ? `<tr><td style="padding: 0; line-height: 0;"><img src="${escapeHtml(data.courtImageUrl)}" alt="${safeCourtName}" width="100%" style="display: block; width: 100%; max-height: 210px; object-fit: cover;"></td></tr>`
+    : "";
 
-              <div style="border: 1px solid ${borderColor}; border-radius: 24px; overflow: hidden; margin: 24px 0; background: ${cardBg}; box-shadow: 0 18px 55px rgba(16, 35, 29, 0.08);">
-                ${
-                  data.courtImageUrl
-                    ? `<img src="${escapeHtml(data.courtImageUrl)}" alt="${safeCourtName}" style="display: block; width: 100%; max-height: 250px; object-fit: cover;">`
-                    : ""
-                }
-                <div style="padding: 24px;">
-                  <p style="margin: 0 0 6px; color: ${ownerRequestPrimaryGreen}; font-size: 12px; font-weight: 900; letter-spacing: 0.12em; text-transform: uppercase;">New booking request</p>
-                  <h2 style="margin: 0 0 4px; color: ${textColor}; font-size: 24px; line-height: 1.2; letter-spacing: -0.04em;">${safeCourtName}</h2>
-                  ${locationLabel ? `<p style="margin: 0; color: ${mutedTextColor}; font-size: 14px;">${escapeHtml(locationLabel)}</p>` : ""}
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>New booking request from ${safePlayerLabel}</title>
+</head>
+<body style="margin: 0; padding: 0; width: 100%; background-color: #eaf5ef; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #eaf5ef;">
+    <tr>
+      <td align="center" valign="top" style="padding: 28px 12px 40px;">
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 560px; background-color: #ffffff; border-radius: 28px; overflow: hidden; box-shadow: 0 8px 40px rgba(0, 90, 60, 0.10);">
 
-                  <table style="width: 100%; border-collapse: collapse; margin-top: 20px;">
-                    <tr>
-                      <td style="padding: 12px 0; color: ${mutedTextColor}; border-top: 1px solid ${borderColor}; width: 42%;">Check-in</td>
-                      <td style="padding: 12px 0; color: ${textColor}; border-top: 1px solid ${borderColor}; font-weight: 700;">${formattedDate}<br><span style="font-weight: 600;">${escapeHtml(data.time)}</span></td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 12px 0; color: ${mutedTextColor}; border-top: 1px solid ${borderColor};">Duration</td>
-                      <td style="padding: 12px 0; color: ${textColor}; border-top: 1px solid ${borderColor}; font-weight: 700;">${durationLabel}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 12px 0; color: ${mutedTextColor}; border-top: 1px solid ${borderColor};">Court</td>
-                      <td style="padding: 12px 0; color: ${textColor}; border-top: 1px solid ${borderColor}; font-weight: 700;">${courtNumberLabel}</td>
-                    </tr>
-                    ${
-                      guestCount
-                        ? `<tr>
-                      <td style="padding: 12px 0; color: ${mutedTextColor}; border-top: 1px solid ${borderColor};">Guests</td>
-                      <td style="padding: 12px 0; color: ${textColor}; border-top: 1px solid ${borderColor}; font-weight: 700;">${guestCount}</td>
-                    </tr>`
-                        : ""
-                    }
-                    <tr>
-                      <td style="padding: 12px 0; color: ${mutedTextColor}; border-top: 1px solid ${borderColor};">Authorized amount</td>
-                      <td style="padding: 12px 0; color: ${textColor}; border-top: 1px solid ${borderColor}; font-weight: 800;">$${data.price.toFixed(2)}</td>
-                    </tr>
-                  </table>
-                </div>
-              </div>
+          <!-- Logo -->
+          <tr>
+            <td style="padding: 26px 24px 0; background-color: #ffffff;">
+              <span style="color: #00b884; font-size: 26px; font-weight: 900; letter-spacing: -0.05em; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">CourtShare</span>
+            </td>
+          </tr>
 
-              <div style="background: ${brandGreenSoft}; border: 1px solid #c7efe3; border-radius: 22px; padding: 20px; margin: 22px 0;">
-                <p style="margin: 0 0 8px; color: ${textColor}; font-weight: 800;">${safePlayerLabel}</p>
-                <p style="margin: 0; color: ${mutedTextColor}; font-size: 14px;">${escapeHtml(data.playerEmail)}</p>
-                ${
-                  data.initialMessage?.trim()
-                    ? `<div style="background: ${cardBg}; border-radius: 16px; margin-top: 14px; padding: 14px; border: 1px solid rgba(0, 184, 132, 0.12);">
-                <p style="margin: 0 0 6px; color: ${mutedTextColor}; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;">Message from player</p>
-                <p style="white-space: pre-wrap; margin: 0; color: ${textColor};">${escapeHtml(data.initialMessage)}</p>
-              </div>`
-                    : ""
-                }
-              </div>
+          <!-- Hero -->
+          <tr>
+            <td style="padding: 14px 24px 0; background-color: #ffffff;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="background: linear-gradient(135deg, #0c3028 0%, #145c44 55%, #0d7a58 100%); border-radius: 20px; padding: 22px 22px 26px;">
+                    <p style="margin: 0 0 8px; color: #5ddcb2; font-size: 11px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">Booking request</p>
+                    <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 900; line-height: 1.25; letter-spacing: -0.02em; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">${safePlayerLabel} wants to book ${safeCourtName}</h1>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-              <div style="background: #f3faf7; border: 1px solid ${borderColor}; border-radius: 20px; padding: 18px; margin-top: 22px;">
-                <p style="margin: 0 0 8px; color: ${textColor}; font-weight: 800;">Payment status</p>
-                <p style="margin: 0; color: ${mutedTextColor}; font-size: 14px;">The player has not been charged yet. If you accept before the request expires, the booking is confirmed and payment is completed automatically.</p>
-              </div>
+          <!-- Body -->
+          <tr>
+            <td style="padding: 22px 24px 28px; background-color: #ffffff;">
 
-              <p style="font-size: 14px; color: ${mutedTextColor}; margin-top: 24px; margin-bottom: 0;">Open the request to view the booking conversation, the player&apos;s profile, and the accept or decline controls.</p>
-              </div>
-              <p style="margin: 22px 0 0; color: ${ownerRequestShellMuted}; font-size: 12px; text-align: center;">CourtShare sends this request because you host ${safeCourtName}.</p>
-            </div>
-          </body>
-        </html>
-      `;
+              <!-- Greeting -->
+              <p style="margin: 0 0 20px; color: #10231d; font-size: 15px; line-height: 1.6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">Hello${data.ownerName ? ` <strong style="color: #10231d;">${escapeHtml(data.ownerName)}</strong>` : ""},</p>
+
+              <!-- Player row -->
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 18px; background-color: #f3fbf7; border-radius: 16px; overflow: hidden;">
+                <tr>
+                  <td style="padding: 16px 18px;">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td valign="middle" style="padding-right: 14px;">${avatarHtml}</td>
+                        <td valign="middle">
+                          <p style="margin: 0; color: #10231d; font-size: 15px; font-weight: 800; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">${safePlayerLabel}</p>
+                          <p style="margin: 4px 0 0; color: #4a7060; font-size: 13px; line-height: 1.4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">Card authorized &mdash; charged only if you accept</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Booking details card -->
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 20px; border: 1px solid #dce7e2; border-radius: 16px; overflow: hidden;">
+                <tr>
+                  <td style="padding: 14px 20px 10px;">
+                    <p style="margin: 0; color: #64756f; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.14em; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">Booking details</p>
+                  </td>
+                </tr>
+                <tr><td style="border-top: 1px solid #e2ede8; padding: 10px 20px;"><table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"><tr><td style="color: #64756f; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;" width="38%">Date</td><td style="color: #10231d; font-size: 14px; font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">${formattedDate}</td></tr></table></td></tr>
+                <tr><td style="border-top: 1px solid #e2ede8; padding: 10px 20px;"><table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"><tr><td style="color: #64756f; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;" width="38%">Time</td><td style="color: #10231d; font-size: 14px; font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">${escapeHtml(data.time)}</td></tr></table></td></tr>
+                <tr><td style="border-top: 1px solid #e2ede8; padding: 10px 20px;"><table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"><tr><td style="color: #64756f; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;" width="38%">Duration</td><td style="color: #10231d; font-size: 14px; font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">${durationLabel}</td></tr></table></td></tr>
+                <tr><td style="border-top: 1px solid #e2ede8; padding: 10px 20px;"><table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"><tr><td style="color: #64756f; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;" width="38%">Court</td><td style="color: #10231d; font-size: 14px; font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">${courtNumberLabel}</td></tr></table></td></tr>
+                ${guestRow}
+                <!-- Earnings — highlighted -->
+                <tr>
+                  <td style="border-top: 2px solid #00b884; padding: 14px 20px; background-color: #f0fdf9; border-radius: 0 0 15px 15px;">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                      <tr>
+                        <td style="color: #0a6147; font-size: 14px; font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;" width="38%">Your earnings</td>
+                        <td style="color: #00a878; font-size: 22px; font-weight: 900; letter-spacing: -0.02em; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">$${ownerAmountStr}</td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA -->
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 16px;">
+                <tr>
+                  <td align="center">
+                    <a href="${responseUrl}" style="display: block; background-color: #00b884; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 900; padding: 16px 28px; border-radius: 999px; text-align: center; letter-spacing: -0.01em; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; box-shadow: 0 6px 20px rgba(0, 184, 132, 0.28);">Accept or Decline Request &rarr;</a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 0; color: #89a89e; font-size: 13px; text-align: center; line-height: 1.5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">You have 24 hours to respond before this request expires.</p>
+            </td>
+          </tr>
+
+          <!-- Court image -->
+          ${courtImageBlock}
+
+          <!-- Player message -->
+          ${messageBlock}
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 18px 24px; background-color: #f3fbf7; border-top: 1px solid #deeee8; border-radius: 0 0 28px 28px;">
+              <p style="margin: 0; color: #8aaa9e; font-size: 12px; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">CourtShare sends this because you host <strong>${safeCourtName}</strong>.</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 };
 
 /**
@@ -491,6 +548,7 @@ export interface CancellationEmailData {
   ownerEmail: string;
   ownerName?: string;
   playerName?: string;
+  playerProfileImageUrl?: string;
   date: string;
   time: string;
   duration: number;
@@ -516,31 +574,100 @@ export async function sendOwnerCancellationNotification(
     day: "numeric",
   });
 
+  const playerLabel = data.playerName?.trim() || "A player";
+  const safePlayerLabel = escapeHtml(playerLabel);
+  const safeCourtName = escapeHtml(data.courtName);
+  const avatarHtml = buildAvatarHtml(playerLabel, data.playerProfileImageUrl, 48);
+  const paymentLine = paymentReleaseCopy(data.paymentStatus, data.price, "host");
+
   try {
     await resend.emails.send({
       from: getFromEmail(),
       to: data.ownerEmail,
-      subject: `Booking cancelled: ${data.courtName} on ${formattedDate}`,
-      html: `
-        <!DOCTYPE html>
-        <html>
-          <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-          <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: ${textColor}; max-width: 600px; margin: 0 auto; padding: 20px; background: ${pageBg};">
-            ${emailHeader("Booking cancelled")}
-            <div style="background: ${cardBg}; padding: 30px; border-radius: 0 0 14px 14px; border: 1px solid ${borderColor}; border-top: none;">
-              <p style="font-size: 16px;">Hello${data.ownerName ? ` ${data.ownerName}` : ""},</p>
-              <p style="font-size: 16px;">A player has cancelled their booking for <strong>${data.courtName}</strong>.</p>
-              <div style="background: ${pageBg}; padding: 20px; border-radius: 10px; margin: 20px 0; border-left: 4px solid ${brandGreen};">
-                <p style="margin: 0 0 8px;"><strong>Player:</strong> ${data.playerName || "Guest"}</p>
-                <p style="margin: 0 0 8px;"><strong>Date:</strong> ${formattedDate}</p>
-                <p style="margin: 0 0 8px;"><strong>Time:</strong> ${data.time} (${data.duration}h)</p>
-                <p style="margin: 0;"><strong>Payment:</strong> ${paymentReleaseCopy(data.paymentStatus, data.price, "host")}</p>
-              </div>
-              <p style="font-size: 14px; color: ${mutedTextColor};">This is an automated notification from CourtShare.</p>
-            </div>
-          </body>
-        </html>
-      `,
+      subject: `${playerLabel} cancelled their booking — ${data.courtName} on ${formattedDate}`,
+      html: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <meta name="supported-color-schemes" content="light">
+  <title>Booking cancelled</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #eaf5ef; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #eaf5ef;">
+    <tr>
+      <td align="center" valign="top" style="padding: 28px 12px 40px;">
+        <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 560px; background-color: #ffffff; border-radius: 28px; overflow: hidden; box-shadow: 0 8px 40px rgba(0, 90, 60, 0.10);">
+
+          <!-- Logo -->
+          <tr>
+            <td style="padding: 26px 24px 0; background-color: #ffffff;">
+              <span style="color: #00b884; font-size: 26px; font-weight: 900; letter-spacing: -0.05em; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">CourtShare</span>
+            </td>
+          </tr>
+
+          <!-- Header banner -->
+          <tr>
+            <td style="padding: 14px 24px 0; background-color: #ffffff;">
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td style="background-color: #f5f7f6; border-radius: 18px; padding: 20px 22px;">
+                    <p style="margin: 0 0 6px; color: #8aaa9e; font-size: 11px; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">Booking update</p>
+                    <h1 style="margin: 0; color: #1a2e28; font-size: 22px; font-weight: 900; line-height: 1.2; letter-spacing: -0.02em; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">Booking cancelled</h1>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding: 22px 24px 28px; background-color: #ffffff;">
+
+              <p style="margin: 0 0 20px; color: #10231d; font-size: 15px; line-height: 1.6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">Hello${data.ownerName ? ` <strong style="color: #10231d;">${escapeHtml(data.ownerName)}</strong>` : ""},</p>
+
+              <!-- Player who cancelled -->
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 18px; background-color: #f9fafb; border: 1px solid #e8eaed; border-radius: 16px; overflow: hidden;">
+                <tr>
+                  <td style="padding: 16px 18px;">
+                    <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td valign="middle" style="padding-right: 14px;">${avatarHtml}</td>
+                        <td valign="middle">
+                          <p style="margin: 0; color: #10231d; font-size: 15px; font-weight: 800; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">${safePlayerLabel}</p>
+                          <p style="margin: 4px 0 0; color: #64756f; font-size: 13px; line-height: 1.4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">Cancelled their booking for <strong style="color: #10231d;">${safeCourtName}</strong></p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Booking details -->
+              <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom: 20px; border: 1px solid #dce7e2; border-radius: 16px; overflow: hidden;">
+                <tr><td style="border-top: 1px solid #e2ede8; padding: 10px 20px;"><table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"><tr><td style="color: #64756f; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;" width="36%">Date</td><td style="color: #10231d; font-size: 14px; font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">${formattedDate}</td></tr></table></td></tr>
+                <tr><td style="border-top: 1px solid #e2ede8; padding: 10px 20px;"><table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"><tr><td style="color: #64756f; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;" width="36%">Time</td><td style="color: #10231d; font-size: 14px; font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">${escapeHtml(data.time)} (${data.duration}h)</td></tr></table></td></tr>
+                <tr><td style="border-top: 1px solid #e2ede8; padding: 10px 20px; border-radius: 0 0 15px 15px;"><table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%"><tr><td style="color: #64756f; font-size: 14px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;" width="36%">Payment</td><td style="color: #10231d; font-size: 14px; font-weight: 700; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">${paymentLine}</td></tr></table></td></tr>
+              </table>
+
+              <p style="margin: 0; color: #64756f; font-size: 14px; line-height: 1.6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">Your slot is now open for new booking requests.</p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 18px 24px; background-color: #f3fbf7; border-top: 1px solid #deeee8; border-radius: 0 0 28px 28px;">
+              <p style="margin: 0; color: #8aaa9e; font-size: 12px; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">This is an automated notification from CourtShare.</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
     });
     console.log("[EMAIL] Host cancellation notification sent to:", data.ownerEmail);
   } catch (error: any) {

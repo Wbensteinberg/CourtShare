@@ -382,6 +382,8 @@ export async function POST(req: NextRequest) {
                 courtNumber: Number(metadata.courtNumber) || 1,
                 guestCount: Number(metadata.guestCount) || undefined,
                 price: price,
+                playerProfileImageUrl: playerData.profileImageUrl,
+                ownerAmount: priceBreakdown.ownerAmountCents / 100,
                 initialMessage:
                   typeof metadata.initialMessage === "string"
                     ? metadata.initialMessage

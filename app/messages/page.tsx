@@ -920,7 +920,7 @@ function MessagesPageContent() {
     }
   };
 
-  if (loading || authLoading) {
+  if (loading || authLoading || !user) {
     return (
       <div className="min-h-screen bg-slate-50">
         <AppHeader />

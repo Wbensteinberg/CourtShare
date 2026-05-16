@@ -904,7 +904,14 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
                   </div>
                   {booking.status === "pending" && (
                     <p className="text-xs text-slate-500">
-                      The player&apos;s payment will only be completed if the host accepts this request.
+                      {viewerRole === "player"
+                        ? "Your payment will only be completed if the host accepts this request."
+                        : "The player's payment will only be completed if you accept this request."}
+                    </p>
+                  )}
+                  {booking.status === "cancelled" && viewerRole === "player" && (
+                    <p className="text-xs text-slate-500">
+                      Your card authorization has been released — you have not been charged.
                     </p>
                   )}
                 </div>
@@ -1429,12 +1436,12 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
         <AlertDialogContent className="rounded-3xl border-slate-200 sm:max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-left text-xl font-bold text-slate-950">
-              Cancel booking?
+              Cancel this booking?
             </AlertDialogTitle>
             <AlertDialogDescription className="text-left text-sm leading-6 text-slate-600">
-              Are you sure you want to cancel this booking? This will update the
-              booking status and handle any payment authorization or refund
-              server-side.
+              {booking?.status === "pending"
+                ? "Your card has not been charged. Cancelling will release the authorization and you won't owe anything."
+                : "Are you sure you want to cancel? If you paid, a refund will be issued to your original payment method."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="gap-3 sm:gap-2">
@@ -1446,7 +1453,7 @@ export default function CourtBookingBookingMode({ bookingId }: { bookingId: stri
               onClick={handleCancel}
               disabled={!!isActioning}
             >
-              {isActioning === "cancelling" ? "Cancelling..." : "Yes, cancel booking"}
+              {isActioning === "cancelling" ? "Cancelling..." : "Yes, cancel"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

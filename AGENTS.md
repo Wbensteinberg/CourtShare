@@ -40,6 +40,7 @@ Product-facing routes map roughly as: **Home / Search** → `/courts`; **Court D
 
 ### Messages (`/messages`)
 
+- **Auth guard:** Unauthenticated users are redirected to `/` immediately. The page render also gates on `!user` (not just `authLoading`) so stale conversation data from a prior session is never shown after logout.
 - All conversations for the signed-in user.
 - Each thread: dated message history; link or control to view the other participant’s public profile; link to **Booking Details** for the booking when applicable.
 - Keep the inbox/chat layout centered and constrained on wide screens; use internal scroll regions for long inboxes/history instead of letting the message bar sprawl across the page.

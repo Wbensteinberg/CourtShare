@@ -189,6 +189,7 @@ export async function POST(req: NextRequest) {
         ownerEmail: ownerData.email,
         ownerName: ownerData.displayName || ownerData.name,
         playerName: playerData?.displayName || playerData?.name || playerData?.email,
+        playerProfileImageUrl: playerData?.profileImageUrl,
       }).catch((e: any) =>
         console.warn("[CANCEL-BOOKING] Owner notification email failed:", e.message)
       );

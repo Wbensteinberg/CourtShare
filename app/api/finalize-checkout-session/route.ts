@@ -136,6 +136,11 @@ export async function POST(req: NextRequest) {
                   ? bookingData.guestCount
                   : undefined,
               price,
+              playerProfileImageUrl: playerData?.profileImageUrl,
+              ownerAmount:
+                typeof bookingData.ownerAmountCents === "number"
+                  ? bookingData.ownerAmountCents / 100
+                  : undefined,
               initialMessage: bookingData.initialMessage || "",
             });
           }
