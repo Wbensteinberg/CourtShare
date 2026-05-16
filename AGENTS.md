@@ -14,8 +14,8 @@ Product-facing routes map roughly as: **Home / Search** → `/courts`; **Court D
 
 ### Header (`AppHeader.tsx`)
 
-- **Unauthenticated:** Sign In and Sign Up (both Google-only; no email/password).
-- **Authenticated:** Top-right Messages control → `/messages` with unread badge count from conversations where the user is in `unreadBy`; hosts and listing owners should also have a **Host Dashboard** shortcut beside Messages linking to `/host`. Profile/avatar menu expands with Upcoming Bookings, Messages, Host Dashboard, Profile, and log out.
+- **Unauthenticated:** Sign In and Sign Up (both Google-only; no email/password). On mobile, Sign In and Sign Up are shown **directly in the header** (not behind the hamburger menu). The hamburger button is hidden entirely for unauthenticated users; they always see the two auth buttons in the top-right corner. On desktop, the same buttons appear in the nav row as normal.
+- **Authenticated:** Top-right Messages control → `/messages` with unread badge count from conversations where the user is in `unreadBy`; hosts and listing owners should also have a **Host Dashboard** shortcut beside Messages linking to `/host`. Profile/avatar menu expands with Upcoming Bookings, Messages, Host Dashboard, Profile, and log out. The hamburger menu opens a dropdown for navigation when logged in (on mobile `md:flex` shows the menu button).
 - The unread Messages badge should use the same dark/black pill style on both normal and transparent home headers.
 - **Become a Host:** If the user is not a host (no listing), the menu entry for Host Dashboard should behave as **Become a Host**: navigate to Host Dashboard **Your Courts** and surface the flow that ends at the **Add Listing** action (e.g. dialog with a button to `/create-listing`). *(Align implementation with this spec.)*
 
@@ -57,6 +57,7 @@ Product-facing routes map roughly as: **Home / Search** → `/courts`; **Court D
 - Completed tab shows each booking's court image, name, a green **Completed** badge (always, regardless of raw Firestore status), price, "Hosted by …" line, date/time/duration, **Details** button, and a green **Review** button when `canReviewBooking` is true (within 7-day review window and not yet reviewed).
 - The **Completed** tab button icon shows a small emerald badge with the count of bookings pending review (within 7-day window, not yet reviewed). Badge is hidden when count is 0.
 - Includes `confirmed` bookings whose parsed start datetime is in the past via `isPastOrInactiveBooking` (cron marking lag — never filter on `status === "completed"` alone).
+- **Mobile tab layout:** On mobile the sidebar is hidden (`hidden lg:block`) and an expandable dropdown replaces it. The `<h2>` section heading and subtitle `<p>` are also hidden on mobile (`hidden lg:block`) because the dropdown already shows the active tab name — do not render both.
 
 ### Host Dashboard (`/host`)
 
@@ -67,6 +68,11 @@ Product-facing routes map roughly as: **Home / Search** → `/courts`; **Court D
 - **Reviews:** Host and per-court review lists → Booking Details.
 - **Completed Reservations** and **Cancelled Requests:** Same navigation pattern as player upcoming page where applicable. In **Cancelled Requests**, host-facing status badges label `rejected` bookings as **Declined**.
 - **Completed Reservations cards:** Use **Past visit** (not **Confirmed**) for `confirmed` rows in this tab so copy matches a finished reservation; show **Completed** for `completed` status. **Upcoming** reservation rows still use **Confirmed** for `confirmed`. Show a **Court N** pill only when `courts/{courtId}.numberOfCourts` is greater than **1** (single-court listings omit it). Do not show a separate **Reviewed** badge once the host has reviewed—only show **Review player** while a review can still be submitted. The payout amount shown is `ownerAmountCents` (host take-home after CourtShare and Stripe fees), derived via `getBookingFinancials(booking, court)` which falls back to `calculateBookingPriceBreakdown` for older bookings without the field. Each booking row shows a small player avatar (profile image thumbnail, or initial fallback) next to the player name.
+- **Booking card header layout:** The status badge (Pending / Confirmed / Expired / Declined / etc.) always sits on the same line as the court name. If a Court N pill is shown (multi-court venues), it goes on its own row **below** the name+status line — never inline between the name and status, where it would push the status badge off to a second line on narrow screens.
+- **Accept / Decline buttons:** Both are solid filled — Accept is emerald green (`bg-emerald-600 text-white`), Decline is red (`bg-red-600 text-white`). They must visually stand out from the outline **Details** button so the host action path is unambiguous at a glance on both desktop and mobile.
+- **Your Courts — Preview Listing:** The button that opens the court's public listing page is labeled **Preview Listing** (not "View Listing") and opens in a **new tab** (`window.open(..., "_blank")`).
+- **Mobile tab layout:** Same as Upcoming Bookings — sidebar hidden on mobile, expandable dropdown used instead, and the `<h2>` section heading + subtitle are hidden on mobile (`hidden lg:block`) for all six tabs to avoid redundancy with the dropdown label.
+- **Payout setup incomplete banner:** Only shown after the Stripe account check has resolved with a confirmed non-active status. Do **not** show on initial null state (before the check runs) or when `status === "check_failed"` (timeout or network error). The check timeout is **15 seconds**. A transient failure should never nag a host who already has a working connected account.
 
 ### Add New Listing (`/create-listing`)
 
