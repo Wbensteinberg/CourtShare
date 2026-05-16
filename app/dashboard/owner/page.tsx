@@ -1367,7 +1367,7 @@ export default function OwnerDashboard() {
                     <>
                       <Button
                         size="sm"
-                        className="cursor-pointer rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:cursor-not-allowed"
+                        className="cursor-pointer rounded-lg bg-emerald-600 px-5 font-bold text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed"
                         onClick={() =>
                           court && setAcceptBookingConfirm({ booking, court })
                         }
@@ -1378,8 +1378,7 @@ export default function OwnerDashboard() {
                       </Button>
                       <Button
                         size="sm"
-                        variant="outline"
-                        className="cursor-pointer rounded-lg border-black text-black hover:bg-slate-100 hover:text-black disabled:cursor-not-allowed"
+                        className="cursor-pointer rounded-lg bg-red-600 px-5 font-bold text-white shadow-sm hover:bg-red-700 disabled:cursor-not-allowed"
                         onClick={() => openDeclineDialog(booking)}
                         disabled={updatingBookingId === booking.id}
                       >
@@ -1523,7 +1522,7 @@ export default function OwnerDashboard() {
               })()}
               {activeTab === "upcoming" && (
                 <>
-                  <div>
+                  <div className="hidden lg:block">
                     <h2 className="text-3xl font-black tracking-tight text-slate-950">
                       Upcoming Reservations
                     </h2>
@@ -1542,7 +1541,7 @@ export default function OwnerDashboard() {
               {activeTab === "courts" && (
                 <>
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
+                    <div className="hidden lg:block">
                       <h2 className="text-3xl font-black tracking-tight text-slate-950">
                         Your Courts
                       </h2>
@@ -1655,7 +1654,7 @@ export default function OwnerDashboard() {
                               onClick={() => router.push(`/courts/${court.id}`)}
                             >
                               <ExternalLink className="mr-2 h-4 w-4" />
-                              View Listing
+                              Preview Listing
                             </Button>
                           </div>
 
@@ -1792,7 +1791,7 @@ export default function OwnerDashboard() {
 
               {activeTab === "earnings" && (
                 <>
-                  <div>
+                  <div className="hidden lg:block">
                     <h2 className="text-3xl font-black tracking-tight text-slate-950">
                       Earnings
                     </h2>
@@ -1971,7 +1970,7 @@ export default function OwnerDashboard() {
 
               {activeTab === "reviews" && (
                 <>
-                  <div>
+                  <div className="hidden lg:block">
                     <h2 className="text-3xl font-black tracking-tight text-slate-950">
                       Reviews
                     </h2>
@@ -2047,7 +2046,7 @@ export default function OwnerDashboard() {
 
               {activeTab === "completed" && (
                 <>
-                  <div>
+                  <div className="hidden lg:block">
                     <h2 className="text-3xl font-black tracking-tight text-slate-950">
                       Completed Reservations
                     </h2>
@@ -2065,7 +2064,7 @@ export default function OwnerDashboard() {
 
               {activeTab === "cancelled" && (
                 <>
-                  <div>
+                  <div className="hidden lg:block">
                     <h2 className="text-3xl font-black tracking-tight text-slate-950">
                       Cancelled Reservations
                     </h2>

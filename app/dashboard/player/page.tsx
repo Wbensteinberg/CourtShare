@@ -604,7 +604,7 @@ export default function PlayerDashboard() {
                 </div>
               );
             })()}
-            <div>
+            <div className="hidden lg:block">
               <h2 className="text-3xl font-black tracking-tight text-slate-950">
                 {activeTab === "upcoming"
                   ? "Upcoming Bookings"

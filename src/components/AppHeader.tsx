@@ -246,7 +246,7 @@ export default function AppHeader() {
 
         <div className="flex items-center gap-2">
           {!user && !isAuthPage && (
-            <nav className="hidden items-center gap-2 md:flex">
+            <nav className="flex items-center gap-2">
               {guestLinks}
             </nav>
           )}
@@ -329,7 +329,7 @@ export default function AppHeader() {
             size="icon"
             className={cn(
               "h-11 w-11 cursor-pointer rounded-full border transition-colors",
-              user ? "md:flex" : "md:hidden",
+              user ? "md:flex" : "hidden",
               isLandingPage
                 ? "border-white/25 bg-white/10 text-white hover:bg-white/18 hover:text-white"
                 : "border-slate-200 bg-white text-slate-800 hover:bg-slate-100"
