@@ -1,6 +1,10 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import CreateListingPage from "./page";
 
+jest.mock("@/components/AppHeader", () => function MockAppHeader() {
+  return <div data-testid="app-header" />;
+});
+
 // Mock Firebase auth
 jest.mock("firebase/auth", () => ({
   getAuth: jest.fn(() => ({})),
@@ -166,7 +170,7 @@ describe("CreateListingPage", () => {
           imageUrl: "https://example.com/image.jpg",
         })
       );
-      expect(mockPush).toHaveBeenCalledWith("/dashboard/owner");
+      expect(mockPush).toHaveBeenCalledWith("/host");
     });
   });
 

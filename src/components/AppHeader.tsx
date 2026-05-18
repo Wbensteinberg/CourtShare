@@ -45,9 +45,7 @@ export default function AppHeader() {
   const isLandingPage = pathname === "/";
   const isAuthPage =
     pathname === "/sign-in" ||
-    pathname === "/sign-up" ||
-    pathname === "/login" ||
-    pathname === "/signup";
+    pathname === "/sign-up";
 
   useEffect(() => {
     const fetchUserHeaderData = async () => {
