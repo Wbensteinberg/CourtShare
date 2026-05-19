@@ -55,7 +55,7 @@ import {
 } from "lucide-react";
 import AppHeader from "@/components/AppHeader";
 import LoadingScreen from "@/components/LoadingScreen";
-import InlineWeeklyCalendar from "@/components/InlineWeeklyCalendar";
+import HostCalendar from "@/components/HostCalendar";
 import ReviewDialog from "@/components/ReviewDialog";
 import {
   Dialog,
@@ -236,11 +236,11 @@ export default function OwnerDashboard() {
   const [playerPopupProfile, setPlayerPopupProfile] = useState<Record<string, any> | null>(null);
   const [playerPopupReviews, setPlayerPopupReviews] = useState<PublicReview[]>([]);
   const [playerPopupLoading, setPlayerPopupLoading] = useState(false);
-  const [expandedCourtId, setExpandedCourtId] = useState<string | null>(null);
   const [earningsRange, setEarningsRange] = useState<EarningsRange>("3m");
   const [showAddCourtDialog, setShowAddCourtDialog] = useState(false);
   const [activeTab, setActiveTab] = useState<
     | "upcoming"
+    | "calendar"
     | "courts"
     | "earnings"
     | "reviews"
@@ -248,6 +248,7 @@ export default function OwnerDashboard() {
     | "cancelled"
   >("upcoming");
   const [tabMenuOpen, setTabMenuOpen] = useState(false);
+  const [calendarFocusCourtId, setCalendarFocusCourtId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -259,6 +260,9 @@ export default function OwnerDashboard() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("tab") === "courts") {
       setActiveTab("courts");
+    }
+    if (params.get("tab") === "calendar") {
+      setActiveTab("calendar");
     }
     if (params.get("tab") === "reviews") {
       setActiveTab("reviews");
@@ -1095,12 +1099,6 @@ export default function OwnerDashboard() {
         : (court?.price || 0) * booking.duration)
     );
   }, 0);
-  const bookingUserNames = Object.fromEntries(
-    Object.entries(bookingUsers).map(([userId, profile]) => [
-      userId,
-      profile.displayName,
-    ])
-  );
   const earningsBookings = bookings
     .filter((booking) => ["confirmed", "completed"].includes(booking.status))
     .map((booking) => {
@@ -1216,6 +1214,12 @@ export default function OwnerDashboard() {
       id: "upcoming" as const,
       label: "Upcoming Reservations",
       count: upcomingReservations.length,
+      Icon: Calendar,
+    },
+    {
+      id: "calendar" as const,
+      label: "Calendar",
+      count: activeBookings.length,
       Icon: Calendar,
     },
     {
@@ -1539,6 +1543,33 @@ export default function OwnerDashboard() {
                 </>
               )}
 
+              {activeTab === "calendar" && (
+                <>
+                  <div className="hidden lg:block">
+                    <h2 className="text-3xl font-black tracking-tight text-slate-950">
+                      Calendar
+                    </h2>
+                    <p className="mt-2 text-slate-500">
+                      Review reservations by month and adjust blocked time slots.
+                    </p>
+                  </div>
+                  <HostCalendar
+                    courts={courts}
+                    bookings={activeBookings}
+                    bookingUsers={bookingUsers}
+                    focusedCourtId={calendarFocusCourtId}
+                    onBlockedTimesUpdate={handleBlockedTimesUpdate}
+                    onOpenBookingDetails={(bookingId) => router.push(`/booking/${bookingId}`)}
+                    onOpenConversation={openBookingConversation}
+                    onAcceptBooking={(booking, court) =>
+                      setAcceptBookingConfirm({ booking, court })
+                    }
+                    onDeclineBooking={openDeclineDialog}
+                    getBookingFinancials={getBookingFinancials}
+                  />
+                </>
+              )}
+
               {activeTab === "courts" && (
                 <>
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1567,9 +1598,6 @@ export default function OwnerDashboard() {
               ) : (
                 <div className="space-y-4">
                   {courts.map((court) => {
-                    const courtBookings = activeBookings.filter(
-                      (booking) => booking.courtId === court.id
-                    );
                     const courtPendingBookings = pendingBookings.filter(
                       (booking) => booking.courtId === court.id
                     );
@@ -1635,18 +1663,13 @@ export default function OwnerDashboard() {
                               variant="outline"
                               size="sm"
                               className="rounded-2xl border-slate-300 bg-white px-4 py-5 font-bold text-slate-950 hover:bg-slate-50"
-                              onClick={() =>
-                                setExpandedCourtId(
-                                  expandedCourtId === court.id ? null : court.id
-                                )
-                              }
+                              onClick={() => {
+                                setCalendarFocusCourtId(court.id);
+                                setActiveTab("calendar");
+                              }}
                             >
-                              {expandedCourtId === court.id ? (
-                                <ChevronUp className="mr-2 h-4 w-4" />
-                              ) : (
-                                <ChevronDown className="mr-2 h-4 w-4" />
-                              )}
-                              Weekly Availability
+                              <Calendar className="mr-2 h-4 w-4" />
+                              Manage Calendar
                             </Button>
                             <Button
                               variant="outline"
@@ -1658,129 +1681,6 @@ export default function OwnerDashboard() {
                               Preview Listing
                             </Button>
                           </div>
-
-                          {expandedCourtId === court.id && (
-                            <div className="border-t border-slate-200 pt-4">
-                              {(court.numberOfCourts || 1) > 1 ? (
-                                <div className="space-y-2">
-                                  {Array.from(
-                                    { length: court.numberOfCourts || 1 },
-                                    (_, i) => i + 1
-                                  ).map((courtNum) => {
-                                    const mergedAlwaysBlocked = [
-                                      ...(court.alwaysBlockedTimes || []),
-                                      ...((court.courtSpecificAlwaysBlockedTimes || {})[
-                                        String(courtNum)
-                                      ] || []),
-                                    ];
-                                    const mergedByDay: {
-                                      [dayOfWeek: number]: string[];
-                                    } = { ...(court.alwaysBlockedTimesByDay || {}) };
-                                    const courtSpecificByDay =
-                                      (court.courtSpecificAlwaysBlockedTimesByDay || {})[
-                                        String(courtNum)
-                                      ] || {};
-                                    Object.entries(courtSpecificByDay).forEach(
-                                      ([dayKey, times]) => {
-                                        const dayNum = Number(dayKey);
-                                        mergedByDay[dayNum] = [
-                                          ...new Set([
-                                            ...(mergedByDay[dayNum] || []),
-                                            ...times,
-                                          ]),
-                                        ].sort();
-                                      }
-                                    );
-                                    return (
-                                      <InlineWeeklyCalendar
-                                        key={courtNum}
-                                        courtId={court.id}
-                                        courtNumber={courtNum}
-                                        courtLabel={`Court ${courtNum}`}
-                                        blockedTimes={court.blockedTimes}
-                                        blockedDates={court.blockedDates}
-                                        alwaysBlockedTimes={mergedAlwaysBlocked}
-                                        alwaysBlockedTimesByDay={mergedByDay}
-                                        maxAdvanceBookingDays={
-                                          court.maxAdvanceBookingDays
-                                        }
-                                        bookings={courtBookings}
-                                        bookingUsers={bookingUserNames}
-                                        onBlockedTimesUpdate={(blockedTimes) =>
-                                          handleBlockedTimesUpdate(
-                                            court.id,
-                                            blockedTimes
-                                          )
-                                        }
-                                        onBookingUpdate={async (
-                                          bookingId,
-                                          status,
-                                          bookingFromModal
-                                        ) => {
-                                          if (status === "confirmed") {
-                                            if (bookingFromModal) {
-                                              setAcceptBookingConfirm({
-                                                booking: {
-                                                  ...bookingFromModal,
-                                                  courtId: court.id,
-                                                },
-                                                court,
-                                              });
-                                            } else {
-                                              await handleAcceptBooking(bookingId);
-                                            }
-                                          } else if (status === "rejected") {
-                                            const booking = bookings.find((b) => b.id === bookingId);
-                                            if (booking) openDeclineDialog(booking);
-                                          }
-                                        }}
-                                      />
-                                    );
-                                  })}
-                                </div>
-                              ) : (
-                                <InlineWeeklyCalendar
-                                  courtId={court.id}
-                                  blockedTimes={court.blockedTimes}
-                                  blockedDates={court.blockedDates}
-                                  alwaysBlockedTimes={court.alwaysBlockedTimes}
-                                  alwaysBlockedTimesByDay={
-                                    court.alwaysBlockedTimesByDay
-                                  }
-                                  maxAdvanceBookingDays={
-                                    court.maxAdvanceBookingDays
-                                  }
-                                  bookings={courtBookings}
-                                  bookingUsers={bookingUserNames}
-                                  onBlockedTimesUpdate={(blockedTimes) =>
-                                    handleBlockedTimesUpdate(court.id, blockedTimes)
-                                  }
-                                  onBookingUpdate={async (
-                                    bookingId,
-                                    status,
-                                    bookingFromModal
-                                  ) => {
-                                    if (status === "confirmed") {
-                                      if (bookingFromModal) {
-                                        setAcceptBookingConfirm({
-                                          booking: {
-                                            ...bookingFromModal,
-                                            courtId: court.id,
-                                          },
-                                          court,
-                                        });
-                                      } else {
-                                        await handleAcceptBooking(bookingId);
-                                      }
-                                    } else if (status === "rejected") {
-                                      const booking = bookings.find((b) => b.id === bookingId);
-                                      if (booking) openDeclineDialog(booking);
-                                    }
-                                  }}
-                                />
-                              )}
-                            </div>
-                          )}
                         </CardContent>
                       </Card>
                     );
