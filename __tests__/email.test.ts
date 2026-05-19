@@ -23,7 +23,7 @@ describe("owner booking request email", () => {
       initialMessage: "Excited to play.",
     });
 
-    expect(html).toContain("Respond to Karen's request");
+    expect(html).toContain("Accept or Decline Request");
     expect(html).toContain(
       "https://courtshare.co/messages?conversationId=booking_booking-123"
     );
@@ -32,15 +32,12 @@ describe("owner booking request email", () => {
     expect(html).toContain("1 hour 30 minutes");
     expect(html).toContain("Court 2");
     expect(html).toContain("$75.00");
-    expect(html).toContain("Their payment method is authorized");
-    expect(html).toContain("The player has not been charged yet");
-    expect(html).toContain(`background: ${theme.colors.brandGreen}; color: white; padding: 15px`);
-    expect(html).toContain(`color: ${theme.colors.brandGreen}; font-size: 34px`);
+    expect(html).toContain("Card authorized");
+    expect(html).toContain("charged only if you accept");
+    expect(html).toContain("background-color: #00b884");
+    expect(html).toContain("color: #00b884; font-size: 26px");
     expect(html).toContain(
-      "linear-gradient(135deg, #f4fbf8 0%, #dff2eb 48%, #bddfd3 100%)"
-    );
-    expect(html).toContain(
-      "linear-gradient(135deg, #103c31 0%, #17624d 54%, #0d8a68 100%)"
+      "linear-gradient(135deg, #0c3028 0%, #145c44 55%, #0d7a58 100%)"
     );
     expect(html).not.toContain("background: #07140f");
     expect(html).not.toContain(`background: ${theme.colors.siteAccent}; color: white; padding: 15px`);

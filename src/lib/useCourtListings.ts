@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { db, isMockMode } from "@/lib/firebase";
 import { getMockBookings, getMockCourts } from "@/lib/mockData";
 import { calculateDistance, type Coordinates } from "@/lib/geolocation";
@@ -24,6 +24,7 @@ export interface CourtListing {
   blockedTimes?: Record<string, string[]>;
   alwaysBlockedTimes?: string[];
   alwaysBlockedTimesByDay?: Record<number, string[]>;
+  bookableStatus?: "active" | "draft";
 }
 
 export interface CourtBooking {
@@ -49,10 +50,12 @@ export function useCourtListings(authLoading = false) {
       try {
         const courtsData: CourtListing[] = isMockMode
           ? (getMockCourts() as CourtListing[])
-          : ((await getDocs(collection(db, "courts"))).docs.map((doc) => ({
-              id: doc.id,
-              ...doc.data(),
-            })) as CourtListing[]);
+          : ((await getDocs(
+              query(collection(db, "courts"), where("bookableStatus", "==", "active"))
+            )).docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+              })) as CourtListing[]);
         setCourts(courtsData);
       } catch (err) {
         console.error("Error fetching courts:", err);

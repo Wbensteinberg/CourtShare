@@ -1,26 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb, adminAuth } from "@/lib/firebase-admin";
 import { isMockApiMode } from "@/lib/mockApiMode";
+import {
+  enforceRateLimit,
+  isNextResponse,
+  requireFirebaseUser,
+} from "@/lib/apiSecurity";
 
 export async function GET(req: NextRequest) {
   if (isMockApiMode()) {
     return NextResponse.json({ slots: [] });
   }
 
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  if (!adminAuth || !adminDb) {
+  if (!adminDb) {
     return NextResponse.json({ error: "Server configuration error" }, { status: 500 });
   }
 
-  try {
-    await adminAuth.verifyIdToken(authHeader.split("Bearer ")[1]);
-  } catch {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireFirebaseUser(req, adminAuth);
+  if (isNextResponse(auth)) return auth;
+
+  const rateLimitError = await enforceRateLimit(req, "court-availability", auth.uid);
+  if (rateLimitError) return rateLimitError;
 
   const { searchParams } = new URL(req.url);
   const courtId = searchParams.get("courtId");
@@ -28,6 +28,9 @@ export async function GET(req: NextRequest) {
 
   if (!courtId || !date) {
     return NextResponse.json({ error: "courtId and date are required" }, { status: 400 });
+  }
+  if (courtId.length > 200 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return NextResponse.json({ error: "Invalid courtId or date format" }, { status: 400 });
   }
 
   const snap = await adminDb

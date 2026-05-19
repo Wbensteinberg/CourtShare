@@ -2,268 +2,676 @@
 
 ## Project Purpose
 
-CourtShare is an Airbnb-style marketplace for tennis courts, starting with Los Angeles. Players search for nearby courts, pick a date and time, authorize a card through Stripe, and manage booking requests from the upcoming bookings page. Court hosts list private or semi-private courts, define availability, max guest counts, and blocked times, approve or reject booking requests, manage Stripe Connect onboarding, and track revenue from a host dashboard. The player's payment method is authorized at checkout, but payment is only completed when the host accepts. Authentication is Google-only; do not add or restore email/password signup, login, or password reset flows.
+- CourtShare is an Airbnb-style marketplace for renting private tennis courts by the hour, starting with Los Angeles.
+- Players search nearby courts, choose date/time, authorize a card through Stripe Checkout, and manage booking requests from `/upcoming`.
+- Hosts list private or semi-private courts, define availability, max guests, blocked times, Stripe Connect onboarding, approvals, rejections, cancellations, and revenue from `/host`.
+- Payment is authorized at checkout and captured only when the host accepts.
+- Authentication is via Google auth only. 
 
 ## Product Shape
 
-The landing/search experience lives at `/courts` and is the primary public entry point. Authenticated players use `/upcoming`, court hosts use `/host`, messages live at `/messages`, the signed-in profile editor lives at `/profile`, public member profiles live at `/profile/[userId]`, listing creation is at `/create-listing`, listing edits are at `/edit-listing/[courtId]`, court details and booking checkout start at `/courts/[id]`, and individual booking details live at `/booking/[bookingId]`. Upcoming booking rows should show the court name plus the host name as `Hosted by ...`; host dashboard booking rows should show the court name plus the player name. Both booking surfaces should include booking-scoped `Message` buttons that route to `/messages?conversationId=booking_{bookingId}` using the stored `conversationId` when available. The app supports a mock mode through `NEXT_PUBLIC_USE_MOCK_DATA` or missing Firebase config, which makes local development possible without Firebase or Stripe. For a **full mock HTTP API** as well (all `/api/*` routes served from an in-memory store, no Admin SDK or Stripe), run `npm run dev:mock`, which sets `MOCK_API=true` together with `NEXT_PUBLIC_USE_MOCK_DATA=true`. Use `Authorization: Bearer mock-id-token` on those routes (same value as mock client `getIdToken()`). Regular `npm run dev` with a complete `.env.local` still uses real Firebase and Stripe. **Never set `MOCK_API` in production.** The browser `localStorage` mock DB (`src/lib/mockData.ts`) and the server mock API store are independent unless you later route more mock-mode UI reads through `/api/*`.
+- Public/search entry: `/search` via the root home experience.
+- Player routes:
+  - `/upcoming`: upcoming, completed, cancelled/rejected/expired booking requests.
+  - `/booking/[bookingId]`: individual booking details, cancellation, messaging, reviews.
+  - `/profile`: signed-in user profile editor, past bookings, received player reviews.
+  - `/profile/[userId]`: public member profile.
+- Host routes:
+  - `/host`: host dashboard.
+  - `/create-listing`: listing creation.
+  - `/edit-listing/[courtId]`: listing edits.
+- Shared routes:
+  - `/messages`: booking-scoped conversations.
+  - `/courts/[id]`: court details and booking checkout.
+  - `/sign-in` and `/sign-up`: Google-only auth cards.
+  - `/onboarding`: required name/profile setup for brand-new Google users.
+- Booking row copy:
+  - Player upcoming rows show court name and `Hosted by ...`.
+  - Host dashboard booking rows show court name and player name.
+  - Booking-scoped message buttons route to `/messages?conversationId=booking_{bookingId}` and use stored `conversationId` when available.
+- Mock mode:
+  - Client mock mode uses `NEXT_PUBLIC_USE_MOCK_DATA=true` or missing Firebase config in non-production only.
+  - Full mock HTTP API uses `npm run dev:mock`, which sets `MOCK_API=true` and `NEXT_PUBLIC_USE_MOCK_DATA=true`.
+  - Mock API routes use `Authorization: Bearer mock-id-token`.
+  - Production must not use mock API or mock client data. `src/lib/firebase.ts`, `src/lib/mockApiMode.ts`, and `src/lib/courtShareMetadata.ts` explicitly disable mock behavior in production.
+  - Browser `localStorage` mock data in `src/lib/mockData.ts` and server mock API data are independent stores.
 
-## Frontend — Pages and Navigation
+## Frontend Pages And Navigation
 
-Product-facing routes map roughly as: **Home / Search** → `/courts`; **Court Details** → `/courts/[id]`; **Profile** → `/profile`; **Messages** → `/messages`; **Upcoming Bookings** → `/upcoming`; **Host Dashboard** → `/host`; **Add New Listing** → `/create-listing`; **Edit Listing** → `/edit-listing/[courtId]`; **Booking Details** → `/booking/[bookingId]`; **Sign In / Sign Up** → shared Google-only auth pages (see Auth UI rules below).
+### Header (`src/components/AppHeader.tsx`)
 
-### Header (`AppHeader.tsx`)
+- Unauthenticated:
+  - Show Sign In and Sign Up.
+  - Both buttons are Google-only entry points.
+  - On mobile, show Sign In and Sign Up directly in the header.
+  - Hide the hamburger menu for unauthenticated users.
+- Authenticated:
+  - Show Messages link to `/messages`.
+  - Show unread badge count from conversations where `uid` appears in `unreadBy`.
+  - Hosts/listing owners also get a Host Dashboard shortcut to `/host`.
+  - Profile/avatar menu includes Upcoming Bookings, Messages, Host Dashboard, Profile, and log out.
+  - Mobile hamburger dropdown is only for logged-in users.
+- Badge styling:
+  - Unread Messages badge should use the same dark pill style on transparent and normal headers.
+- Become a Host:
+  - If the user is not a host/no listing, Host Dashboard entry behaves as Become a Host.
+  - Route to Host Dashboard, Your Courts tab, then surface Add Listing flow.
 
-- **Unauthenticated:** Sign In and Sign Up (both Google-only; no email/password). On mobile, Sign In and Sign Up are shown **directly in the header** (not behind the hamburger menu). The hamburger button is hidden entirely for unauthenticated users; they always see the two auth buttons in the top-right corner. On desktop, the same buttons appear in the nav row as normal.
-- **Authenticated:** Top-right Messages control → `/messages` with unread badge count from conversations where the user is in `unreadBy`; hosts and listing owners should also have a **Host Dashboard** shortcut beside Messages linking to `/host`. Profile/avatar menu expands with Upcoming Bookings, Messages, Host Dashboard, Profile, and log out. The hamburger menu opens a dropdown for navigation when logged in (on mobile `md:flex` shows the menu button).
-- The unread Messages badge should use the same dark/black pill style on both normal and transparent home headers.
-- **Become a Host:** If the user is not a host (no listing), the menu entry for Host Dashboard should behave as **Become a Host**: navigate to Host Dashboard **Your Courts** and surface the flow that ends at the **Add Listing** action (e.g. dialog with a button to `/create-listing`). *(Align implementation with this spec.)*
+### Home And Search (`/courts`, `/search`)
 
-### Home (`/courts`)
-
-- Hero section; search section → refreshes / stays on search experience on the same page.
-- Featured courts gallery → Court Details.
-- If unauthenticated: “How it works” (or equivalent) with a path toward Sign Up / Google entry.
-
-### Search (`/courts`)
-
-- Search controls refresh the search experience on this page.
-- Results list on the left → Court Details on row/card click.
-- **TODO:** Map on the right showing courts; marker/court click should also navigate to Court Details.
+- `/courts` is the primary public entry and search landing experience.
+- Home includes:
+  - hero section.
+  - search section.
+  - featured courts gallery linking to Court Details.
+  - unauthenticated "How it works" or equivalent path toward Google signup.
+- `/search` includes:
+  - search controls.
+  - results list on the left.
+  - map on the right.
+  - result/card click navigates to `/courts/[id]`.
+- TODO:
+  - Ensure map marker/court click navigates to Court Details everywhere.
 
 ### Profile (`/profile`)
 
-- **About Me:** Editable player profile card (same card owners see on the other party). **TODO:** If the user is a host, also show a host-facing profile card (what players see).
-- **Past Bookings:** Past player bookings sorted most-recent-first → Booking Details. Includes both `completed` status bookings and `confirmed` bookings whose parsed start datetime is in the past (the cron job that marks bookings `completed` can lag, so never filter on `status === "completed"` alone).
-- **My Reviews:** Player reviews from hosts → Booking Details.
-- If not a host: **Become a Host** → Host Dashboard Your Courts → Add Listing popup / `/create-listing`.
+- About Me:
+  - Editable player profile card.
+  - This is the same card owners see for the other party.
+- Host profile TODO:
+  - If the signed-in user is a host, also show the host-facing profile card players see.
+- Past Bookings:
+  - sorted most-recent-first.
+  - include `completed` bookings.
+  - include `confirmed` bookings whose parsed start datetime is in the past.
+  - never filter only on `status === "completed"` because the completion cron can lag.
+- My Reviews:
+  - player reviews from hosts.
+  - link to Booking Details.
+- Non-host CTA:
+  - Become a Host routes toward Host Dashboard Your Courts and `/create-listing`.
 
 ### Messages (`/messages`)
 
-- **Auth guard:** Unauthenticated users are redirected to `/` immediately. The page render also gates on `!user` (not just `authLoading`) so stale conversation data from a prior session is never shown after logout.
-- All conversations for the signed-in user.
-- Each thread: dated message history; link or control to view the other participant’s public profile; link to **Booking Details** for the booking when applicable.
-- Keep the inbox/chat layout centered and constrained on wide screens; use internal scroll regions for long inboxes/history instead of letting the message bar sprawl across the page.
-- User-authored messages should go through `POST /api/conversations/send-message`, not direct client Firestore writes, so each message is saved, unread state is updated, and every other participant receives an email containing the message body.
-- Accepted, declined, and cancelled booking actions should post server-side automated `booking_status` messages into the booking conversation via `postBookingStatusConversationMessage`, using the stored `conversationId` or falling back to `booking_{bookingId}`.
-- Hosts accepting from a message thread should see a confirmation dialog with the booking price breakdown (player pays, CourtShare fee, card processing, host payout). Hosts declining must enter a reason in a dialog; that reason is sent to the player in the thread and rejection email.
-- Booking requests count as message activity: keep `unreadBy` current so the header Messages badge reflects unread player/host messages and pending booking-request conversations.
-- **Client/server split for booking conversation copy:** Client components (for example `app/messages/page.tsx`) must import pure helpers from `src/lib/bookingConversationCopy.ts` (`buildBookingStatusMessage`, `getBookingPaymentStatusText`, `formatBookingConversationDate`, `getConversationIdForBooking`, `getBookingConversationStatus`). Do not import `src/lib/conversations.ts` from client bundles: it pulls Firebase Admin and breaks the Next.js client build (for example `net` not found).
-- **Declined bookings:** The primary `booking_status` thread message should avoid embedding payment or authorization wording inside decline-reason lines; when the UI exposes `paymentStatus` on the message, surface payment language there separately. Player-facing rejection emails still include the payment block.
+- Auth guard:
+  - unauthenticated users redirect immediately to `/`.
+  - render must gate on `!user`, not only `authLoading`, to avoid stale prior-session data.
+- Layout:
+  - centered and constrained on wide screens.
+  - internal scroll regions for inbox/history.
+  - message composer must not sprawl across the page.
+- Threads:
+  - show dated message history.
+  - link/control to other participant public profile.
+  - link/control to Booking Details when applicable.
+- User-authored messages:
+  - must go through `POST /api/conversations/send-message`.
+  - must not write directly to Firestore from client code.
+- Booking status messages:
+  - accepted, declined, and cancelled actions post server-side `booking_status` messages.
+  - use stored `conversationId` or fallback `booking_{bookingId}`.
+- Host action dialogs:
+  - accepting from a message thread shows price breakdown.
+  - declining requires a host-written reason.
+  - decline reason is sent in thread and rejection email.
+- Declined bookings:
+  - primary `booking_status` message should avoid embedding payment/authorization wording inside decline-reason lines.
+  - if UI exposes `paymentStatus`, surface payment language separately.
+  - player rejection emails still include payment block.
 
 ### Upcoming Bookings (`/upcoming`)
 
-- Three tabs: **Upcoming Bookings** (confirmed + pending, sorted ascending), **Completed** (confirmed-past + completed status, sorted descending), **Cancelled Requests** (cancelled/rejected/expired, sorted descending).
-- Completed tab shows each booking's court image, name, a green **Completed** badge (always, regardless of raw Firestore status), price, "Hosted by …" line, date/time/duration, **Details** button, and a green **Review** button when `canReviewBooking` is true (within 7-day review window and not yet reviewed).
-- The **Completed** tab button icon shows a small emerald badge with the count of bookings pending review (within 7-day window, not yet reviewed). Badge is hidden when count is 0.
-- Includes `confirmed` bookings whose parsed start datetime is in the past via `isPastOrInactiveBooking` (cron marking lag — never filter on `status === "completed"` alone).
-- **Mobile tab layout:** On mobile the sidebar is hidden (`hidden lg:block`) and an expandable dropdown replaces it. The `<h2>` section heading and subtitle `<p>` are also hidden on mobile (`hidden lg:block`) because the dropdown already shows the active tab name — do not render both.
+- Tabs:
+  - Upcoming Bookings: confirmed + pending, ascending.
+  - Completed: confirmed-past + completed status, descending.
+  - Cancelled Requests: cancelled/rejected/expired, descending.
+- Completed cards:
+  - court image.
+  - court name.
+  - green Completed badge regardless of raw Firestore status.
+  - price.
+  - `Hosted by ...`.
+  - date/time/duration.
+  - Details button.
+  - green Review button when `canReviewBooking` is true.
+- Completed tab icon:
+  - show small emerald badge with pending-review count.
+  - hide when count is 0.
+- Mobile layout:
+  - sidebar hidden with `hidden lg:block`.
+  - expandable dropdown replaces sidebar.
+  - hide section heading/subtitle on mobile with `hidden lg:block`.
 
 ### Host Dashboard (`/host`)
 
-- **Upcoming Reservations:** Confirmed and pending → Booking Details.
-- Show a small red pending-count badge on **Upcoming Reservations** when there are pending requests needing host attention.
-- **Your Courts:** Listings with edit weekly availability, **Edit Listing** → `/edit-listing/[courtId]`, **Add listing** → dialog then `/create-listing`.
-- **Earnings:** Earnings over time (chart) and Stripe setup / manage payout controls.
-- **Reviews:** Host and per-court review lists → Booking Details.
-- **Completed Reservations** and **Cancelled Requests:** Same navigation pattern as player upcoming page where applicable. In **Cancelled Requests**, host-facing status badges label `rejected` bookings as **Declined**.
-- **Completed Reservations cards:** Use **Past visit** (not **Confirmed**) for `confirmed` rows in this tab so copy matches a finished reservation; show **Completed** for `completed` status. **Upcoming** reservation rows still use **Confirmed** for `confirmed`. Show a **Court N** pill only when `courts/{courtId}.numberOfCourts` is greater than **1** (single-court listings omit it). Do not show a separate **Reviewed** badge once the host has reviewed—only show **Review player** while a review can still be submitted. The payout amount shown is `ownerAmountCents` (host take-home after CourtShare and Stripe fees), derived via `getBookingFinancials(booking, court)` which falls back to `calculateBookingPriceBreakdown` for older bookings without the field. Each booking row shows a small player avatar (profile image thumbnail, or initial fallback) next to the player name.
-- **Booking card header layout:** The status badge (Pending / Confirmed / Expired / Declined / etc.) always sits on the same line as the court name. If a Court N pill is shown (multi-court venues), it goes on its own row **below** the name+status line — never inline between the name and status, where it would push the status badge off to a second line on narrow screens.
-- **Accept / Decline buttons:** Both are solid filled — Accept is emerald green (`bg-emerald-600 text-white`), Decline is red (`bg-red-600 text-white`). They must visually stand out from the outline **Details** button so the host action path is unambiguous at a glance on both desktop and mobile.
-- **Your Courts — Preview Listing:** The button that opens the court's public listing page is labeled **Preview Listing** (not "View Listing") and opens in a **new tab** (`window.open(..., "_blank")`).
-- **Mobile tab layout:** Same as Upcoming Bookings — sidebar hidden on mobile, expandable dropdown used instead, and the `<h2>` section heading + subtitle are hidden on mobile (`hidden lg:block`) for all six tabs to avoid redundancy with the dropdown label.
-- **Payout setup incomplete banner:** Only shown after the Stripe account check has resolved with a confirmed non-active status. Do **not** show on initial null state (before the check runs) or when `status === "check_failed"` (timeout or network error). The check timeout is **15 seconds**. A transient failure should never nag a host who already has a working connected account.
+- Tabs and surfaces:
+  - Upcoming Reservations: confirmed and pending bookings.
+  - Your Courts: owned listings, weekly availability edits, edit listing, add listing.
+  - Earnings: earnings chart and Stripe setup/manage payout controls.
+  - Reviews: host and per-court review lists.
+  - Completed Reservations.
+  - Cancelled Requests.
+- Upcoming Reservations:
+  - show small red pending-count badge when pending requests need attention.
+- Completed Reservations cards:
+  - use Past visit for `confirmed` rows in completed tab.
+  - use Completed for `completed` status.
+  - Upcoming rows still use Confirmed for `confirmed`.
+  - show Court N pill only when `numberOfCourts > 1`.
+  - Court N pill goes on its own row below name/status.
+  - do not show separate Reviewed badge after host review.
+  - show Review player only while host can still submit.
+  - payout amount is `ownerAmountCents`.
+  - derive fallback payout through `getBookingFinancials(booking, court)` and `calculateBookingPriceBreakdown`.
+  - show small player avatar or initial next to player name.
+- Booking action buttons:
+  - Accept is solid emerald (`bg-emerald-600 text-white`).
+  - Decline is solid red (`bg-red-600 text-white`).
+  - Details remains outline.
+- Your Courts:
+  - Preview Listing label, not View Listing.
+  - Preview opens a new tab with `window.open(..., "_blank")`.
+- Mobile layout:
+  - same dropdown pattern as Upcoming Bookings.
+  - hide heading/subtitle on mobile for all six tabs.
+- Payout incomplete banner:
+  - show only after Stripe account check resolves with confirmed non-active status.
+  - do not show during initial null state.
+  - do not show when `status === "check_failed"`.
+  - check timeout is 15 seconds.
 
-### Add New Listing (`/create-listing`)
+### Add And Edit Listing
 
-- Full listing fields, including **Max Guests**; default missing/blank max guests to **10**. On submit, legal / waiver acknowledgement, then navigate to Host Dashboard **Your Courts**.
-
-### Edit Listing (`/edit-listing/[courtId]`)
-
-- Full edit fields, including **Max Guests**; default legacy/missing/blank max guests to **10**. On submit → Host Dashboard **Your Courts**.
+- `/create-listing`:
+  - full listing fields.
+  - Max Guests included.
+  - missing/blank max guests defaults to 10.
+  - submit requires owner listing waiver acknowledgement.
+  - new listings are draft until Stripe status activates them.
+  - after submit, navigate to Host Dashboard Your Courts.
+- `/edit-listing/[courtId]`:
+  - full edit fields.
+  - Max Guests included.
+  - legacy/missing/blank max guests defaults to 10.
+  - submit navigates to Host Dashboard Your Courts.
 
 ### Booking Details (`/booking/[bookingId]`)
 
-- **Status** and payment-related copy per actual booking state.
-- Pending host actions should use app dialogs, never native browser confirms. Accept confirmation should show the price breakdown (player pays, CourtShare fee, card processing, host payout). Decline must require a host-written reason that is stored, sent in the conversation, and included in the player rejection email. Pending status should be visually grouped with the time-left timer.
-- **Reviews (completed bookings):** Show submitted reviews; if the window is still open, allow the player to review host+court or the host to review the player; if the window closed with no review, show **No Review**. Server-side review eligibility uses `isBookingReviewable` in `src/lib/bookingDates.ts` (**seven days after the booking’s end time**, not merely “completed at” midnight semantics—keep UI aligned with the API).
-- **Review modal (`CourtBookingBookingMode` + `ReviewDialog`):** The page may auto-open the review dialog when the reservation is reviewable and the signed-in viewer has **not** yet submitted their review for that booking. Load viewer review state with **`GET /api/reviews?bookingIds=...&withPairedStatus=true`** (Bearer); the response includes `reviews` (caller’s own submitted reviews) and `counterpartyReviewedBookingIds` (booking IDs where the other party has already reviewed). Treat “unknown” vs “no review” vs “already reviewed” distinctly. Close the dialog after a successful submit. Star controls in `ReviewDialog` avoid a heavy focus ring. Booking detail UI lives in `src/components/CourtBookingBookingMode.tsx` (shared for host and player).
-- **Review visibility gating:** The booking detail page shows a “Host’s / Player’s review of you” section only on completed/past bookings with four states: (1) viewer reviewed + other party reviewed → show the review card; (2) viewer reviewed + other party hasn’t → “Waiting for them to review”; (3) other party reviewed + viewer hasn’t → emerald teaser with inline CTA; (4) neither party has reviewed + window still open → “Leave a review” button; window has passed → “Review window has passed.” The other party’s review is **never shown** until the viewer has also reviewed, enforced at the component level. Applies to both player-viewing-host and host-viewing-player directions.
-- **Review notification emails:** After either party submits a review via `POST /api/reviews`, the reviewee receives an email notification. If the recipient has not yet reviewed in return, the email includes a nudge to review back to unlock the feedback. Sent fire-and-forget so it never blocks the review API response.
-- **Cancellation:** Players can cancel pending requests, and confirmed player cancellations are only allowed at least 24 hours before the parsed court start time. Hosts can cancel bookings for their own courts. Booking detail UI must show a confirmation dialog before cancelling and must call `/api/cancel-booking` so authorization release/refund behavior happens server-side. `POST /api/cancel-booking` sends confirmation/notification emails fire-and-forget with independent try/catch per recipient so one failure does not suppress another — player always gets their own cancellation confirmation email separately from the host notification.
-- Court info, gallery, rating (rating opens reviews modal).
-- **Player view:** Host profile + rating (modal). **Host view:** Player profile + rating (modal).
-- **Tenure display:** "X months on CourtShare" is clamped to a minimum of **1** everywhere it appears (booking detail profile stats, court listing host card, own profile page). Never show 0 — users with missing `createdAt` or who joined less than a calendar month ago always display 1.
-- Message history scoped to this booking (booking conversation).
+- Status/payment copy follows actual booking state.
+- Pending host actions:
+  - use app dialogs, never native browser confirms.
+  - accept dialog shows player pays, CourtShare fee, card processing, host payout.
+  - decline requires host-written reason.
+  - pending status visually groups with time-left timer.
+- Reviews:
+  - show submitted reviews on completed/past bookings.
+  - review window is seven days after booking end time through `isBookingReviewable`.
+  - allow player to review host/court.
+  - allow host to review player.
+  - show No Review when window closed without review.
+- Review dialog:
+  - components: `CourtBookingBookingMode` and `ReviewDialog`.
+  - may auto-open when reviewable and viewer has not submitted.
+  - load state from `GET /api/reviews?bookingIds=...&withPairedStatus=true` with Bearer token.
+  - treat unknown, no review, and already reviewed distinctly.
+  - close dialog after successful submit.
+  - star controls avoid heavy focus rings.
+- Paired review visibility:
+  - viewer reviewed + other reviewed: show card.
+  - viewer reviewed + other not reviewed: show waiting state.
+  - other reviewed + viewer not reviewed: show teaser with CTA.
+  - neither reviewed + window open: show Leave a review.
+  - window passed: show Review window has passed.
+  - never show the other party's review until viewer has also reviewed.
+- Cancellation:
+  - players can cancel pending requests.
+  - confirmed player cancellations require at least 24 hours before parsed start time.
+  - hosts can cancel bookings for their own courts.
+  - UI must call `/api/cancel-booking`.
+  - cancellation emails are fire-and-forget with independent error handling.
+- Profiles:
+  - player view shows host profile + rating.
+  - host view shows player profile + rating.
+- Tenure:
+  - "X months on CourtShare" clamps to minimum 1 everywhere.
+- Message history:
+  - scoped to this booking conversation.
 
 ### Court Details (`/courts/[id]`)
 
-- Court info, gallery, rating (modal); host profile + rating (modal).
-- Request booking: if the player already has a pending request for this court, confirm they intentionally want to create another request; waiver then Stripe Checkout.
-- Slot selection must block confirmed bookings and still-actionable pending requests using `bookingConflicts.ts`, so players cannot select/pay for an already requested or booked overlapping slot. Guest count is capped by `courts/{courtId}.maxGuests`, defaulting to **10** when unset.
-- **Availability data comes from `GET /api/court-availability`**, not a direct Firestore query. The court page calls this endpoint (Bearer token) to get the minimal slot fields needed for conflict checking (`date`, `time`, `status`, `courtNumber`, `duration`, `durationMinutes`, `createdAt`, `expiresAt`). Do not revert this to a client-side Firestore query — the booking rules only allow reading a booking if you are its player, host, or court owner, so a cross-user availability query will silently fail and return empty results, making all slots appear available.
-- **TODO:** Map for court location.
-- **TODO:** Optional “send a message with request” style flow.
+- Show court info, gallery, rating modal, host profile, and host rating modal.
+- Request booking:
+  - if player already has a pending request for this court, confirm intentional duplicate request.
+  - require waiver before Stripe Checkout.
+- Slot selection:
+  - block confirmed bookings.
+  - block still-actionable pending requests.
+  - use `src/lib/bookingConflicts.ts`.
+  - cap guest count at `maxGuests`, default 10.
+- Availability:
+  - fetch from `GET /api/court-availability`.
+  - do not revert to direct cross-user client Firestore booking queries.
+- TODO:
+  - map for court location.
+  - optional "send a message with request" flow.
 
-### Sign In / Sign Up
+### Sign In, Sign Up, And Onboarding
 
-- Single card, **Continue with Google** only; copy differs for sign-in vs sign-up.
-- Keep auth-card spacing tight and intentional; avoid large empty gaps between the intro copy and Google CTA.
-- **Deep-link redirect:** Protected pages (e.g. `/booking/[bookingId]`) redirect unauthenticated visitors to `/sign-in?redirect=<current-path>` rather than showing an error. `AuthPage` reads the `redirect` query param and sends the user there after successful sign-in; already-authenticated visitors are also sent to `redirect` (not hardcoded `/profile`). Onboarding forwards the `redirect` param so deep-link flows survive new-user onboarding.
-- **Onboarding:** New users (no existing `users/{uid}` doc) are redirected to `/onboarding` immediately after Google sign-in. The page pre-fills the display name from Google but does **not** pre-fill the profile photo from Google — `profileImageUrl` is only set if the user explicitly uploads a photo during onboarding. Existing returning users bypass it entirely.
-
-### Onboarding (`/onboarding`)
-
-- Reached automatically after a brand-new Google sign-in (detected by missing `users/{uid}` doc in `AuthPage.tsx`).
-- Pre-fills display name from Google only. Profile photo is NOT pre-filled from Google — `profileImageUrl` is saved as `""` unless the user explicitly selects and uploads a file during onboarding.
-- Name is required; profile photo upload is optional (uploads to Firebase Storage under `users/{uid}/avatar_*`).
-- On submit, merges `displayName` and `profileImageUrl` into `users/{uid}` and redirects to `redirect` query param or `/`.
-- Redirect param is forwarded from the original sign-in `redirect` so deep-link flows survive onboarding.
+- Sign In/Sign Up:
+  - single card.
+  - Continue with Google only.
+  - copy differs for sign-in vs sign-up.
+  - keep spacing tight between intro copy and Google CTA.
+- Deep-link redirect:
+  - protected pages redirect unauthenticated users to `/sign-in?redirect=<current-path>`.
+  - `AuthPage` reads redirect and sends user there after sign-in.
+  - already-authenticated visitors are sent to redirect, not hardcoded `/profile`.
+  - onboarding forwards redirect.
+- Onboarding:
+  - reached automatically for brand-new Google users with no `users/{uid}` doc.
+  - pre-fills display name from Google.
+  - does not pre-fill Google profile photo.
+  - `profileImageUrl` remains `""` unless the user uploads.
+  - name is required.
+  - profile photo is optional.
+  - uploads photo to `users/{uid}/avatar_*`.
+  - submits `displayName` and `profileImageUrl` into `users/{uid}`.
 
 ## Repo Structure
 
-`app/` contains the Next.js App Router pages and API routes. The main pages are `app/courts/page.tsx` for the landing/search page, `app/courts/[id]/page.tsx` for court details and booking selection, `app/create-listing/page.tsx` for host listing creation, `app/onboarding/page.tsx` for the post-sign-up profile setup step, `app/upcoming/page.tsx` for the player dashboard, `app/host/page.tsx` for the host dashboard, `app/messages/page.tsx` for the Airbnb-style player/host inbox, `app/profile/page.tsx` for signed-in user profile editing/logout behavior, `app/profile/[userId]/page.tsx` for public player/host profiles and reviews, and `app/booking/[bookingId]/page.tsx` for booking detail/cancel flows. `app/api/` contains server-side Stripe, booking acceptance, expiration, cancellation, rejection, webhook, email, checkout finalization, review, public profile, and rate-limit routes. Firestore rules are checked into `firestore.rules`; keep them aligned with any client reads/writes added to pages.
-
-`src/components/` contains shared UI and product components. `AppHeader.tsx` is the current shared header and includes the top-right Messages navigation button with unread badge for signed-in users, `CourtBookingBookingMode.tsx` is the shared booking details experience (status, cancel/accept flows, reviews, chat), `ReviewDialog.tsx` is the star-rating review modal, `HeroSection.tsx` and `SearchSection.tsx` power the landing search experience, `CourtCard.tsx` renders court results, `AddressAutocomplete.tsx` handles address/location inputs, `InlineWeeklyCalendar.tsx` and `DayDetailModal.tsx` support availability selection, and `WaiverAcknowledgmentDialog.tsx` handles legal acknowledgement flows. `src/components/ui/` contains shadcn-style primitives such as `Button`, `Card`, `Input`, `Dialog`, `Badge`, and related controls.
-
-`src/lib/` contains shared logic and integrations. `firebase.ts` initializes client Firebase and mock-mode detection, `firebase-admin.ts` initializes Admin SDK for API routes, `AuthContext.tsx` provides auth/profile state, `mockData.ts` stores seeded local mock users/courts/bookings/messages, `bookingDates.ts` centralizes booking date parsing/filtering/sorting and pending-request expiry helpers, `bookingConflicts.ts` centralizes overlap detection for confirmed and actionable pending requests, `bookingCreation.ts` finalizes checkout sessions into booking records, `bookingConversationCopy.ts` holds pure helpers for booking-thread status and date copy safe for client bundles, `conversations.ts` creates booking request conversations and related server-side messaging helpers (do not import from client components—use `bookingConversationCopy.ts` instead), `stripeBookingPayments.ts` releases uncaptured authorizations or refunds captured payments, `geolocation.ts` contains location helpers, `waivers.ts` contains waiver versions/content, `email.ts` sends transactional email, `reviewVisibility.ts` centralizes public review visibility rules, `theme.ts` mirrors key theme colors for TypeScript, and `utils.ts` contains generic utility helpers.
+- `app/`:
+  - Next.js App Router pages and API routes.
+  - Important pages:
+    - `app/page.tsx`
+    - `app/courts/[id]/page.tsx`
+    - `app/create-listing/page.tsx`
+    - `app/edit-listing/[courtId]/page.tsx`
+    - `app/onboarding/page.tsx`
+    - `app/upcoming/page.tsx`
+    - `app/host/page.tsx`
+    - `app/messages/page.tsx`
+    - `app/profile/page.tsx`
+    - `app/profile/[userId]/page.tsx`
+    - `app/booking/[bookingId]/page.tsx`
+  - `app/api/` contains Stripe, booking, webhook, cancellation, rejection, review, public profile, messaging, notification, and rate-limit routes.
+- `src/components/`:
+  - shared UI and product components.
+  - key components:
+    - `AppHeader.tsx`
+    - `CourtBookingBookingMode.tsx`
+    - `ReviewDialog.tsx`
+    - `HeroSection.tsx`
+    - `SearchSection.tsx`
+    - `CourtCard.tsx`
+    - `AddressAutocomplete.tsx`
+    - `InlineWeeklyCalendar.tsx`
+    - `DayDetailModal.tsx`
+    - `WaiverAcknowledgmentDialog.tsx`
+  - `src/components/ui/` contains shadcn-style primitives.
+- `src/lib/`:
+  - shared logic and integrations.
+  - key files:
+    - `firebase.ts`: client Firebase and mock-mode detection.
+    - `firebase-admin.ts`: Admin SDK for API routes.
+    - `AuthContext.tsx`: auth/profile state.
+    - `mockData.ts`: browser mock data.
+    - `mockApiServer.ts`: mock API behavior.
+    - `apiSecurity.ts`: auth/origin/rate-limit helpers.
+    - `imageUploadValidation.ts`: client upload constraints.
+    - `bookingDates.ts`: date parsing, sorting, expiry, reviewability.
+    - `bookingConflicts.ts`: overlap checks.
+    - `bookingCreation.ts`: checkout session to booking.
+    - `bookingConversationCopy.ts`: pure client-safe conversation copy.
+    - `conversations.ts`: server-only conversation helpers.
+    - `stripeBookingPayments.ts`: auth release/refund helpers.
+    - `stripeConnectAccounts.ts`: Stripe mode/account helpers.
+    - `pricing.ts`: pricing and payout calculations.
+    - `email.ts`: transactional email.
+    - `reviewVisibility.ts`: public/paired review visibility.
+    - `theme.ts`: TypeScript theme mirror.
+- `firestore.rules`:
+  - keep aligned with any client reads/writes.
+- `next.config.ts`:
+  - image remote patterns and security headers.
 
 ## Theme, Colors, Fonts, And Style
 
-Global styling starts in `app/globals.css`, which imports `app/theme.css`. The theme system should be the source of truth for brand colors: `--brand-logo` and `--brand-green` are `#00b884`, `--site-accent` is `#008665`, `--site-accent-hover` is `#00785b`, soft/muted variants are computed with `color-mix`, and Tailwind inline tokens map green/emerald/teal utilities back to the accent color. The TypeScript mirror in `src/lib/theme.ts` should stay aligned when color values change.
-
-Fonts come from `app/layout.tsx` using `Geist` and `Geist_Mono`, with global fallbacks in `app/globals.css` to system UI, Segoe UI, Roboto, Inter, and related sans-serif fonts. The visual style is clean marketplace SaaS: white surfaces, subtle gray borders, restrained shadows, green accent CTAs, large rounded cards currently standardized around `rounded-[32px]` for major rectangular sections, smaller `rounded-xl` controls where appropriate, and a tennis-focused green brand identity. Prefer theme variables or Tailwind theme tokens over hardcoded green values. The shared header should show the signed-in user's profile image in the top-right slot when `users/{uid}.profileImageUrl` or Firebase `user.photoURL` exists, falling back to an initial/avatar state rather than a text-only desktop Profile button.
+- Styling entry points:
+  - `app/globals.css`
+  - `app/theme.css`
+- Brand color source of truth:
+  - `--brand-logo`: `#00b884`
+  - `--brand-green`: `#00b884`
+  - `--site-accent`: `#008665`
+  - `--site-accent-hover`: `#00785b`
+  - soft variants use `color-mix`.
+- Tailwind green/emerald/teal inline tokens map back to the accent color.
+- Keep `src/lib/theme.ts` aligned with CSS theme values.
+- Fonts:
+  - `app/layout.tsx` loads `Geist` and `Geist_Mono`.
+  - global fallbacks include system UI, Segoe UI, Roboto, Inter, and related sans-serif fonts.
+- Visual style:
+  - clean marketplace SaaS.
+  - white surfaces.
+  - subtle gray borders.
+  - restrained shadows.
+  - green accent CTAs.
+  - major rectangular sections often use `rounded-[32px]`.
+  - smaller controls use `rounded-xl` where appropriate.
+- Header avatar:
+  - prefer `users/{uid}.profileImageUrl`.
+  - fallback to Firebase `user.photoURL`.
+  - fallback to initial/avatar state.
+  - do not use text-only desktop Profile button when an avatar state is available.
 
 ## Database Schemas
 
-Firestore `users/{uid}` stores profile and account state: `uid`, `email`, `displayName`, `bio`, `profileImageUrl`, legacy host flag `isOwner`, aggregate review fields `playerRating`, `playerReviewCount`, `ownerRating`, and `ownerReviewCount`, optional Stripe fields such as `stripeAccountId` for legacy/live compatibility, `stripeLiveAccountId`, `stripeTestAccountId`, `stripeAccountMode`, `stripeAccountStatus`, `stripeChargesEnabled`, `stripePayoutsEnabled`, `stripeDetailsSubmitted`, Stripe requirements/disabled-reason data returned by account-status routes, and waiver fields such as `ownerListingWaiverVersionAccepted`, `ownerListingWaiverAcceptedAt`, `playerBookingWaiverVersionAccepted`, and `playerBookingWaiverAcceptedAt`. User-facing copy should say host, but existing Firestore field names still use owner terminology for compatibility. `displayName` is required for trustworthy marketplace identity: Google sign-in should populate it when available, and users with a blank name should be sent to `/profile` to complete it. Profile saves must reject blank names and propagate name changes into existing conversation participant fields. `profileImageUrl` is the preferred app-level avatar source for the header and profile UI.
+### `users/{uid}`
 
-Firestore `courts/{courtId}` stores court listings: `name`, `location`, `address`, `accessInstructions`, `price` as dollars per hour, `description`, `imageUrl`, `imageUrls`, `ownerId`, optional `latitude` and `longitude`, `numberOfCourts`, `maxGuests` (default **10** when blank or missing), `maxAdvanceBookingDays`, `blockedDates`, date-specific `blockedTimes`, global `alwaysBlockedTimes`, `alwaysBlockedTimesByDay`, multi-court `courtSpecificAlwaysBlockedTimes`, `courtSpecificAlwaysBlockedTimesByDay`, `surface`, `indoor`, `amenities`, `rating`, `reviewCount`, and `createdAt`. Images are uploaded to Firebase Storage under `courts/...` when not in mock mode.
+- Identity/profile fields:
+  - `uid`
+  - `email`
+  - `displayName`
+  - `bio`
+  - `profileImageUrl`
+  - legacy `isOwner`
+- Review aggregates:
+  - `playerRating`
+  - `playerReviewCount`
+  - `ownerRating`
+  - `ownerReviewCount`
+- Stripe fields:
+  - `stripeAccountId`
+  - `stripeLiveAccountId`
+  - `stripeTestAccountId`
+  - `stripeAccountMode`
+  - `stripeAccountStatus`
+  - `stripeChargesEnabled`
+  - `stripePayoutsEnabled`
+  - `stripeDetailsSubmitted`
+  - requirements/disabled-reason data from account-status routes.
+- Waiver fields:
+  - `ownerListingWaiverVersionAccepted`
+  - `ownerListingWaiverAcceptedAt`
+  - `playerBookingWaiverVersionAccepted`
+  - `playerBookingWaiverAcceptedAt`
+- Rules:
+  - user-facing copy should say host.
+  - legacy Firestore field names may still use owner terminology.
+  - display name is required for trustworthy marketplace identity.
+  - blank names should route users to `/profile`.
+  - profile saves must reject blank names.
+  - profile name changes must propagate into existing conversation participant fields.
 
-Firestore `bookings/{bookingId}` stores booking requests created after Stripe Checkout completes and the card authorization exists: `courtId`, `userId`, `date`, `time`, `courtNumber`, `duration` in hours for backward compatibility, `durationMinutes`, `guestCount`, `status` as one of `pending`, `confirmed`, `completed`, `cancelled`, `rejected`, or `expired`, optional `cancelReason`, optional `declineReason`, `createdAt`, `expiresAt`, `expiredAt`, `confirmedAt`, `capturedAt`, `sessionId`, `paymentIntentId`, `paymentStatus`, `refundId`, `totalAmountCents`, `expectedAmountCents`, `ownerAmountCents`, `courtShareFeeCents`, `processingFeeCents`, optional `conversationId`, and notification bookkeeping such as `checkInReminderSentAt`, `playerReviewReminderCount`, `playerReviewReminderLastSentAt`, `ownerReviewReminderCount`, and `ownerReviewReminderLastSentAt`. Pending booking requests are actionable for 24 hours; after that they should be treated as expired, hidden from pending counts/lists, and not allowed to block future checkout attempts. Upcoming and host dashboards should expire stale pending bookings on load; the scheduled notification route also expires stale pending bookings, releases/refunds payment, and emails the player. If a booking points at a deleted or unreadable court, never display the raw `courtId`; use a neutral label such as `Court unavailable`. Mock mode stores equivalent `MockUserProfile`, `MockCourt`, `MockBooking`, `MockConversation`, and `MockMessage` shapes in browser storage through `src/lib/mockData.ts`.
+### `courts/{courtId}`
 
-Cancellation reasons are stored as internal codes such as `host_cancellation`; always format them with `formatBookingCancelReason` before display in UI, conversation messages, or email copy.
+- Listing fields:
+  - `name`
+  - `location`
+  - `address`
+  - `accessInstructions`
+  - `price` as dollars per hour
+  - `description`
+  - `imageUrl`
+  - `imageUrls`
+  - `ownerId`
+  - optional `latitude`
+  - optional `longitude`
+  - `numberOfCourts`
+  - `maxGuests`, default 10
+  - `maxAdvanceBookingDays`
+  - `surface`
+  - `indoor`
+  - `amenities`
+  - `rating`
+  - `reviewCount`
+  - `createdAt`
+- Availability fields:
+  - `blockedDates`
+  - date-specific `blockedTimes`
+  - global `alwaysBlockedTimes`
+  - `alwaysBlockedTimesByDay`
+  - `courtSpecificAlwaysBlockedTimes`
+  - `courtSpecificAlwaysBlockedTimesByDay`
+- Bookability fields:
+  - `bookableStatus`
+  - `ownerStripeAccountStatus`
+  - `ownerStripeMode`
+- Images:
+  - upload to Firebase Storage under `courts/{uid}/...` when not in mock mode.
 
-Firestore `conversations/{conversationId}` stores lightweight booking-related messaging state: `participantIds`, `playerId`, `playerName`, `ownerId`, `ownerName`, `courtId`, `courtName`, `bookingId`, booking summary fields such as `bookingDate`, `bookingTime`, `bookingDurationMinutes`, and `bookingCourtNumber`, `status`, last-message metadata, unread recipients, and timestamps. Booking request conversations use deterministic IDs like `booking_{bookingId}` and contain a `messages` subcollection. Keep conversation creation idempotent because Stripe webhooks and checkout finalization can be retried. Keep `unreadBy` accurate; the header Messages badge counts conversations where the signed-in user appears in `unreadBy`, so booking requests naturally notify hosts/players through the same mechanism as messages. Do not display raw Firebase UIDs in messaging or dashboard UI; fetch/use profile display names, then email prefixes, then generic labels such as `Player` or `Court host`. The messages page should load the selected booking and let hosts accept or decline pending requests directly from the conversation header while still calling the protected booking API routes for payment capture or authorization release.
+### `bookings/{bookingId}`
 
-Firestore `reviews/{bookingId}_{reviewerRole}` stores one review per booking participant role: `bookingId`, `courtId`, `playerId`, `ownerId`, `reviewerId`, `reviewerRole` (`player` or legacy `owner` for host reviews), `revieweeId`, `targetType` (`court_owner` or `player`), whole-star `rating` from 1 to 5, `comment`, `createdAt`, and `updatedAt`. Players review the host and court together, which updates both `courts/{courtId}.rating/reviewCount` and the host's `ownerRating/ownerReviewCount`; hosts review players, which updates the player's `playerRating/playerReviewCount`. Reviews are available for one week after the booking end instant per `isBookingReviewable` in `src/lib/bookingDates.ts`. Public profile and court review visibility is centralized in `src/lib/reviewVisibility.ts`: player-targeted reviews can show on member profiles when present, while host/court reviews keep paired-review gating so one party cannot read the other party's host/court review before submitting their own; authenticated dashboard review-state checks still return the caller's own submitted reviews immediately.
+- Core fields:
+  - `courtId`
+  - `userId`
+  - `date`
+  - `time`
+  - `courtNumber`
+  - `duration`
+  - `durationMinutes`
+  - `guestCount`
+  - `status`: `pending`, `confirmed`, `completed`, `cancelled`, `rejected`, or `expired`.
+- Status/payment fields:
+  - `cancelReason`
+  - `declineReason`
+  - `createdAt`
+  - `expiresAt`
+  - `expiredAt`
+  - `confirmedAt`
+  - `capturedAt`
+  - `sessionId`
+  - `paymentIntentId`
+  - `paymentStatus`
+  - `refundId`
+  - `totalAmountCents`
+  - `expectedAmountCents`
+  - `ownerAmountCents`
+  - `courtShareFeeCents`
+  - `processingFeeCents`
+  - `conversationId`
+- Notification bookkeeping:
+  - `checkInReminderSentAt`
+  - `playerReviewReminderCount`
+  - `playerReviewReminderLastSentAt`
+  - `ownerReviewReminderCount`
+  - `ownerReviewReminderLastSentAt`
+- Pending requests:
+  - actionable for 24 hours.
+  - expired pending requests should be hidden from pending counts/lists.
+  - expired pending requests should not block future checkout attempts.
+- Display:
+  - if court is deleted or unreadable, show `Court unavailable`, never raw `courtId`.
+- Cancellation reasons:
+  - stored as internal codes such as `host_cancellation`.
+  - display through `formatBookingCancelReason`.
 
-## Backend — Architecture and API Reference
+### `conversations/{conversationId}`
 
-### Layer overview
+- Fields:
+  - `participantIds`
+  - `playerId`
+  - `playerName`
+  - `ownerId`
+  - `ownerName`
+  - `courtId`
+  - `courtName`
+  - `bookingId`
+  - `bookingDate`
+  - `bookingTime`
+  - `bookingDurationMinutes`
+  - `bookingCourtNumber`
+  - `status`
+  - last-message metadata
+  - `unreadBy`
+  - timestamps.
+- Booking request conversations use deterministic IDs like `booking_{bookingId}`.
+- Messages live in `conversations/{conversationId}/messages/{messageId}`.
+- Conversation creation must be idempotent because webhooks and checkout finalization can retry.
+- Keep `unreadBy` accurate for the header badge.
+- Do not display raw Firebase UIDs in messaging or dashboard UI.
+- Use profile display names, then email prefixes, then generic labels such as `Player` or `Court host`.
+
+### `reviews/{bookingId}_{reviewerRole}`
+
+- One review per booking participant role.
+- Fields:
+  - `bookingId`
+  - `courtId`
+  - `playerId`
+  - `ownerId`
+  - `reviewerId`
+  - `reviewerRole`: `player` or legacy `owner`
+  - `revieweeId`
+  - `targetType`: `court_owner` or `player`
+  - whole-star `rating` from 1 to 5
+  - `comment`
+  - `createdAt`
+  - `updatedAt`
+- Player reviews update:
+  - `courts/{courtId}.rating`
+  - `courts/{courtId}.reviewCount`
+  - host `ownerRating`
+  - host `ownerReviewCount`
+- Host reviews update:
+  - player `playerRating`
+  - player `playerReviewCount`
+- Reviews are available for one week after booking end instant.
+- Public profile and court review visibility is centralized in `src/lib/reviewVisibility.ts`.
+
+## Backend API Reference
+
+### Layers
 
 | Layer | Responsibility |
 | --- | --- |
-| **Firebase Authentication** | Google-only sign-in; issues **ID tokens** for the client and for `Authorization: Bearer` on server routes. |
-| **Firestore + Storage (client)** | Primary read/write for profiles, courts/listings, booking lists, conversations/messages, and many dashboard/search flows—governed by **`firestore.rules`**. |
-| **Next.js `app/api/*/route.ts`** | Server-only work needing **Firebase Admin**, **Stripe**, **email**, or **must not trust the client** (pricing, capture, refunds, public profile aggregation). |
-| **`POST /api/stripe-webhook`** | Stripe-signed events (e.g. `checkout.session.completed`) to create **pending** bookings and conversations **idempotently**. |
+| Firebase Authentication | Google-only sign-in and ID tokens. |
+| Firestore + Storage | Client reads/writes governed by rules. |
+| Next.js `app/api/*` | Server-only Firebase Admin, Stripe, email, pricing, payment state, public aggregation. |
+| `POST /api/stripe-webhook` | Stripe-signed booking creation, idempotency, conversation creation. |
 
-### Authentication (not primarily `/api`)
-
-- **Sign in / Sign up:** Google via Firebase Auth. After sign-in, ensure **`users/{uid}`** exists (client-side pattern in `AuthContext` / profile flows).
-- **Protected APIs:** `Authorization: Bearer <Firebase ID token>` from `user.getIdToken()`; routes use Admin **`verifyIdToken`** for `uid`.
-
-### User and profile data
-
-| Concern | Mechanism |
-| --- | --- |
-| **Create / update profile** (name, bio, image, waivers, Stripe fields, etc.) | **Firestore** `users/{uid}` from the client under rules—not a generic `/api/users` REST layer. |
-| **Read another member’s public profile** | **`GET /api/public-profiles/[userId]`** — safe fields (display name, bio, image, `isOwner` host flag, review aggregates, **`memberSince`**) plus **`confirmedBookingsCount`** (player, `status === "confirmed"`) and **`listingsCount`** (courts where `ownerId === userId`), computed server-side. |
-
-### Reviews
+### API Routes
 
 | Route | Method | Auth | Purpose |
 | --- | --- | --- | --- |
-| **`/api/reviews`** | `GET` | **None** for public queries; **Bearer** for private | **Public:** `?targetUserId=` or `?courtId=` (court reviews use `targetType === "court_owner"`). **Authenticated:** `?bookingIds=id1,id2` — caller’s submitted reviews for dashboard UI state. Add `&withPairedStatus=true` to also receive `counterpartyReviewedBookingIds: string[]` — booking IDs where the other participant has already submitted a review (used for the booking detail visibility teaser). |
-| **`/api/reviews`** | `POST` | **Bearer** required | Submit **one review per role per booking** (`bookingId`, whole-star `rating`, optional `comment`). Server verifies participant role, booking completed/confirmed and **`isBookingReviewable`** window in `src/lib/bookingDates.ts`, and updates court + user aggregates in a transaction. |
+| `/api/create-checkout-session` | POST | Bearer | Validate slot, guest cap, active listing/Stripe status, server-side price, create manual-capture Stripe Checkout session. |
+| `/api/finalize-checkout-session` | POST | Bearer | Verify session belongs to caller, idempotently create pending booking, send host request email when this path creates first. |
+| `/api/stripe-webhook` | POST | Stripe signature | Idempotent Stripe event processing, pending bookings, conversations, emails. |
+| `/api/accept-booking` | POST | Bearer host | Verify host, pending/actionable state, capture PaymentIntent, confirm booking, post status message, send confirmation. |
+| `/api/reject-booking` | POST | Bearer host | Verify host, require decline reason, release/refund payment, reject booking, post status message, send rejection. |
+| `/api/cancel-booking` | POST | Bearer participant | Verify player or host, enforce 24-hour confirmed player cancellation cutoff, release/refund payment, post status message, send emails. |
+| `/api/expire-pending-bookings` | POST | Bearer host | Expire only caller-owned stale pending booking IDs, release authorization, send expiration emails. |
+| `/api/public-profiles/[userId]` | GET | Public, rate-limited | Return safe public profile fields and server-computed counts. |
+| `/api/reviews` | GET | Public or Bearer | Public target/court reviews; authenticated booking review state with paired status. |
+| `/api/reviews` | POST | Bearer | Submit one review per role per booking; transactionally update aggregates. |
+| `/api/conversations/send-message` | POST | Bearer participant | Save message, update unread/last-message state, email other participants. |
+| `/api/court-availability` | GET | Bearer | Return minimal booking slot projection for conflict checks. |
+| `/api/stripe/create-connect-account` | POST | Bearer | Rate-limited Connect account/link creation or dashboard link. |
+| `/api/stripe/check-account-status` | POST | Bearer | Fetch Stripe account status, update user and owned court bookability. |
+| `/api/send-booking-confirmation` | POST | Bearer participant | Send player confirmation email for a participant's booking. |
+| `/api/notifications/send-scheduled` | GET/POST | Cron secret | Expire stale pending bookings, send check-in reminders, send review reminders. |
 
-### Messaging and scheduled notifications
+### Firestore-Backed Flows
 
-| Route | Method | Auth | Purpose |
-| --- | --- | --- | --- |
-| **`/api/conversations/send-message`** | `POST` | **Bearer** | Save a participant-authored conversation message, update last-message/unread metadata, and email every other participant with the message body. Body: **`conversationId`**, **`body`**. |
-| **`/api/notifications/send-scheduled`** | `GET` / `POST` | **Vercel Cron** (`Authorization: Bearer $CRON_SECRET` when configured) | Hourly job from `vercel.json`: expire stale pending bookings and email players, send review reminder emails roughly 1 hour / 2 days / 5 days after eligible bookings when either side has not reviewed, and post a 24-hour check-in reminder message with listing check-in instructions into the booking conversation, which also emails the player. |
-
-**Developer note:** Keep `src/lib/conversations.ts` on the server/API side only; shared booking-thread strings and formatting for React clients belong in `src/lib/bookingConversationCopy.ts` so Admin SDK code never enters client bundles.
-
-### Booking checkout and payment lifecycle (Stripe)
-
-| Route | Method | Auth | Purpose |
-| --- | --- | --- | --- |
-| **`/api/create-checkout-session`** | `POST` | **Bearer** | Validates slot, conflicts, advance rules, guest cap (`maxGuests` or default **10**), **server-side price** from `courts/{courtId}`; rate-limited; Stripe Checkout with **manual capture** metadata. Body: **`courtId`**, **`date`**, **`time`**, **`durationMinutes`**, optional **`courtNumber`**, **`guestCount`**, and **`initialMessage`**. Uses shared conflict checks so confirmed and still-actionable pending requests block overlapping slots for the same court/court number. |
-| **`/api/finalize-checkout-session`** | `POST` | **Bearer** | Client success path: **`sessionId`** verified for caller; **`createBookingFromPaidCheckoutSession`** (idempotent by session; shared with webhook logic); when this path creates the booking first, send the host booking-request email immediately so local/dev flows do not depend on Stripe webhook delivery. |
-| **`/api/stripe-webhook`** | `POST` | **Stripe signature** (`stripe-signature` + `STRIPE_WEBHOOK_SECRET`) | e.g. **`checkout.session.completed`**: pending booking, payment metadata, **`expiresAt`**, conversation, host email, conflict handling. |
-| **`/api/accept-booking`** | `POST` | **Bearer** (court **host**) | Pending + window; **capture** PaymentIntent; **`confirmed`**; payout / transfer per metadata; post a booking status conversation message. |
-| **`/api/reject-booking`** | `POST` | **Bearer** (host) | Release uncaptured auth (or refund); **`rejected`**; player email; post a booking status conversation message. |
-| **`/api/cancel-booking`** | `POST` | **Bearer** (booking **player** or court **host**) | Cancel; confirmed player cancellations require at least 24 hours before court time; host cancellations are allowed for courts they own; release uncaptured authorization or refund captured payment through the shared Stripe helper; write `cancelReason` as `player_cancellation` or `host_cancellation`; send cancellation emails where implemented; post a booking status conversation message. |
-| **`/api/expire-pending-bookings`** | `POST` | **Bearer** | Body **`bookingIds: string[]`**. For each **pending** booking whose court **`ownerId`** matches token `uid` and whose pending window is expired: mark **`expired`**, update payment fields, **release** authorization. Non-matching ids no-op per booking. |
-| **`/api/send-booking-confirmation`** | `POST` | **No auth in route** | Body **`bookingId`** — loads booking/court/users and sends **player confirmation** email; treat as internal/ops-style unless you add verification. |
-| **`/api/court-availability`** | `GET` | **Bearer** | Query params **`courtId`** + **`date`** (YYYY-MM-DD). Returns `{ slots: [...] }` — a minimal projection of bookings for that court/date containing only the fields needed for client-side conflict checking (no payment amounts, no Stripe IDs, no UIDs). Used by the court detail page to block already-taken time slots. |
-
-### Stripe Connect (hosts)
-
-| Route | Method | Auth | Purpose |
-| --- | --- | --- | --- |
-| **`/api/stripe/create-connect-account`** | `POST` | **Bearer** | Rate-limited; creates/refreshes Connect Express onboarding link; persists mode-specific account ids. Optional body `{ "update": true }`. |
-| **`/api/stripe/check-account-status`** | `POST` | **Bearer** | Reads Stripe capabilities/requirements; updates Firestore user Stripe fields; may complete platform-held transfers when Connect becomes ready. |
-
-### Rate limiting
-
-**`app/api/rate-limit.ts`** backs **checkout** and **Connect account creation** imports (`../rate-limit` or `../../rate-limit` from nested route folders). Designed to **fail open** if Upstash (or equivalent) is unavailable so checkout is not hard-blocked.
-
-### Not implemented as REST (Firestore + rules instead)
-
-Use **Firestore queries** (and rules) for: player bookings by `userId` (query includes `where("userId", "==", uid)` so rules can be satisfied), host reservations via `bookings` joined with `courts` where `ownerId == uid`, conversation reads (`conversations` + `messages` subcollections), **create/edit listings** and Storage uploads. User-authored conversation writes that need paired email should use `POST /api/conversations/send-message`. If you need a strict BFF with no client booking reads, add routes such as **`/api/bookings`**—they are not in the repo today.
-
-**Booking Firestore rules invariant:** `bookings/{bookingId}` is readable only by the booking's player (`userId`), the booking's `ownerId`, or the court's owner. Do **not** open this up to all signed-in users — doing so exposes payment amounts, Stripe payment intent IDs, and participant UIDs. Any cross-user booking read (e.g. availability checking) must go through an API route that uses Admin SDK and returns only the necessary fields.
-
-### Quick reference — all `app/api/**/route.ts` handlers
-
-1. `POST /api/create-checkout-session`
-2. `POST /api/finalize-checkout-session`
-3. `POST /api/stripe-webhook`
-4. `POST /api/accept-booking`
-5. `POST /api/reject-booking`
-6. `POST /api/cancel-booking`
-7. `POST /api/expire-pending-bookings`
-8. `GET /api/public-profiles/[userId]`
-9. `GET` + `POST /api/reviews`
-10. `POST /api/stripe/create-connect-account`
-11. `POST /api/stripe/check-account-status`
-12. `POST /api/send-booking-confirmation`
-13. `POST /api/conversations/send-message`
-14. `GET` + `POST /api/notifications/send-scheduled`
-15. `GET /api/court-availability`
-
-## Security Protections And Considerations
-
-Server API routes verify Firebase ID tokens with Admin Auth before sensitive operations. Checkout intentionally accepts only booking inputs such as `courtId`, `date`, `time`, `durationMinutes`, and `courtNumber`; it fetches court price and owner data server-side, validates duration/date/amount, checks max advance booking rules, blocks past dates, checks blocked slots and existing confirmed or still-actionable pending bookings through `bookingConflicts.ts`, rate-limits checkout creation, and creates Stripe Checkout sessions with metadata rather than trusting client-calculated price. The same overlap protection should run again when checkout finalizes or webhooks create pending bookings, so races still reject overlapping confirmed/actionable-pending requests while expired, rejected, and cancelled requests do not block. The rate limiter should fail open to the local fallback if Upstash is unavailable so transient Upstash failures do not take checkout down.
-
-Auth UI should use Google sign-in as the only account entry point. Login and signup pages can share the same Google popup behavior, should preserve `redirect` query handling, should create missing `users/{uid}` docs, and should avoid overwriting a user's existing `displayName` with Google profile data after they have edited it in CourtShare.
-
-Stripe Checkout uses PaymentIntents with `capture_method: "manual"`. The player authorizes the card during Checkout, but CourtShare does not capture funds until the host accepts the pending request through `/api/accept-booking`. CourtShare charges an 8% service fee on the host rental amount, and hosts currently absorb both that service fee and the estimated Stripe card processing cost; players pay the court rental price only, plus any future taxes. Keep fee math centralized in `src/lib/pricing.ts` so checkout UI, listing take-home estimates, accept-confirmation payout breakdowns, stored booking amounts, owner net amounts, and server-side `application_fee_amount` agree exactly. Prefer destination charges when the host has a ready Stripe Connect account with `charges_enabled`, `payouts_enabled`, and `details_submitted`; if the host has not finished payout setup, checkout should still proceed as a platform-held payment and booking records must store `hostPayoutStatus: "pending_connect_account"` until the host connects. Stripe Connect IDs are mode-specific: local/test-mode flows should use `stripeTestAccountId`, live production flows should use `stripeLiveAccountId` and maintain legacy `stripeAccountId` for live compatibility, and test-mode lookups must not delete a live account ID from a shared Firestore user doc. The accept route verifies host identity, confirms the request is still actionable, captures the PaymentIntent, marks the booking `confirmed`, and either captures the destination charge or transfers the stored `ownerAmountCents` from platform-held funds to the host once a Connect account is active. Rejection, cancellation, expiration, and double-booking race handling should release uncaptured authorizations; if a payment has already been captured, use the shared Stripe helper to refund it. Player cancellations of confirmed bookings must be enforced server-side with the same parsed booking start instant used by the UI (`parseBookingDateTime` / `isBookingCancellable`) so timezone parsing cannot incorrectly block bookings more than 24 hours away. Avoid direct client-side Firestore status flips for acceptance or cancellation because payment capture, release, transfer, and refund behavior must happen server-side. Host dashboard actions and message-thread accept/decline controls must both call `/api/accept-booking` or `/api/reject-booking`; conversation status/last-message metadata can be updated only after the API succeeds.
-
-User-facing payment copy should keep exact semantics while using friendly phrases such as `Payment is complete`, `the player has not been charged yet`, `card authorization has been released`, or `refund has been issued`; avoid exposing Stripe jargon like "capture" in customer-facing UI/email copy.
-
-Payment/refund QA should first use the Stripe sandbox/test-key account that matches the app's configured `sk_test`/`pk_test` keys. Confirm checkout authorization, host acceptance capture, Connect transfer/application fee metadata, and cancellation refunds in the matching Stripe Dashboard's **Transactions → Payments** view; dashboard account context matters, and searching from the wrong sandbox or platform account will show false "not found" results. A tiny live-mode smoke test is useful before launch to validate live keys, webhooks, and Connect account wiring, but successful sandbox capture/refund records are the right day-to-day proof that local payment/refund flows are working.
-
-Stripe webhooks and checkout finalization are responsible for creating pending booking records and booking request conversations. Both paths must be idempotent by `sessionId`, re-check double-booking conflicts before writing, store `paymentStatus: "authorized"`, and attach `expiresAt` 24 hours after creation. Stripe Connect onboarding checks account state before host transfers, and Firebase Admin logs are kept more concise in production to reduce credential leakage risk. The host dashboard should include a payout settings card that opens Stripe Express onboarding or the Express Dashboard, shows whether setup is active/incomplete/restricted, and surfaces requirements/disabled reasons from Stripe when available. Keep secrets in environment variables only, never expose private Stripe or Firebase Admin keys to client code, and keep all privileged writes in API routes or protected Firestore rules.
-
-Client messaging reads and writes depend on Firestore rules allowing only conversation participants to read `conversations/{conversationId}` and its `messages` subcollection, and allowing only participants to create messages with their own `senderId`. If `/messages` shows `Missing or insufficient permissions`, update and publish `firestore.rules` in Firebase Console or through the Firebase CLI before debugging the React page.
-
-Public profile reads should go through `/api/public-profiles/[userId]`, which returns only safe marketplace fields such as display name, bio, profile image, host/player review aggregates, and host status. Use this API from messages, dashboards, court details, and public profile pages instead of relying on broad client-side Firestore reads of `users/{uid}`. Public review display should use `/api/reviews?targetUserId=...` for member profiles and `/api/reviews?courtId=...` for court detail pages; authenticated dashboard review-state checks still use `/api/reviews?bookingIds=...` with the Firebase ID token.
-
-Security gaps to keep in mind: enforce Firestore and Storage rules to match these app-level assumptions, move booking conflict checks into Firestore transactions or a stronger slot-locking model, validate all API payloads with a shared schema library, sanitize uploaded filenames and restrict upload types/sizes, limit profile/listing edits by host identity at the rules layer, and review webhook authorization-release/refund/error paths for operational alerting.
+- Use Firestore plus rules for:
+  - player booking lists by `userId`.
+  - host reservations joined from owned courts.
+  - conversation reads.
+  - create/edit listing writes.
+  - Storage uploads.
+- Use API routes for:
+  - pricing.
+  - payment capture/release/refund.
+  - public profile aggregation.
+  - review creation.
+  - email-sending message writes.
+  - cross-user booking availability reads.
 
 ## Transactional Email
 
-Transactional emails are generated in `src/lib/email.ts` and should match CourtShare's restrained green marketplace theme. Avoid decorative emoji/checkmark headings, fake excitement, or casual icon-heavy copy. Use a CourtShare-branded green header with the tennis-ball logo from `${NEXT_PUBLIC_APP_URL}/icon.png` (falling back to `https://courtshare.co/icon.png`), clear booking detail tables, one primary CTA, and precise payment language: new booking request emails should say the player's card is authorized and will only be captured if accepted within 24 hours; confirmation emails should say payment has been captured; declined/cancelled/expired messaging should say the authorization was released or the payment was refunded depending on the actual Stripe outcome (player rejection emails should keep that payment block even when in-app `booking_status` lines separate the host's decline reason from payment wording). Host booking-request emails should feel like a polished pending-request email, include player/request/court/payment sections, and deep-link the host to `/messages?conversationId=...` so they can accept, decline, or reply in context. Use a lighter CourtShare green gradient shell rather than a heavy dark block, and keep the primary CTA green tied to the same shared brand-green value as email logo/accent elements. Every in-app user-authored message and system check-in reminder message should have a paired email containing the message body, with reply links back to `/messages?conversationId=...`.
+- Email generation lives in `src/lib/email.ts`.
+- Tone/style:
+  - restrained green marketplace theme.
+  - no decorative emoji/checkmark headings.
+  - no fake excitement or casual icon-heavy copy.
+  - clear booking detail tables.
+  - one primary CTA.
+- Branding:
+  - use CourtShare green.
+  - use tennis-ball logo from `${NEXT_PUBLIC_APP_URL}/icon.png`, fallback `https://courtshare.co/icon.png`.
+- Payment language:
+  - request emails: card is authorized and charged only if accepted within 24 hours.
+  - confirmation emails: payment captured/complete.
+  - declined/cancelled/expired emails: authorization released or payment refunded based on actual Stripe result.
+- Host request emails:
+  - include player/request/court/payment sections.
+  - deep-link to `/messages?conversationId=...`.
+  - host can accept, decline, or reply in context.
+- Message emails:
+  - every user-authored in-app message should have a paired email with message body.
+  - check-in reminder messages should also email the player.
+- Avoid duplicate emails:
+  - accept/reject/cancel routes own transactional booking emails.
+  - automated `booking_status` conversation messages should not trigger duplicate message emails unless intentionally adding that path.
 
-Accept/reject/cancel routes should preserve their transactional booking emails; automated `booking_status` conversation messages should not trigger duplicate message emails unless you are intentionally adding a separate email path.
+## Verification Commands
+
+- TypeScript:
+  - `npx tsc --noEmit`
+- Production build:
+  - `npm run build`
+- Tests:
+  - `npm test -- --runInBand`
+- Dependency audit:
+  - `npm audit --audit-level=moderate`
+  - use `npm audit fix` for non-breaking updates.
+  - avoid `npm audit fix --force` unless intentionally doing breaking dependency upgrades.
+
+## Known Verification Notes
+
+- `npm run build` passes after the current security implementation.
+- `npx tsc --noEmit` passes after clearing stale `.next` generated types.
+- `npm test -- --runInBand` currently has pre-existing failures unrelated to the security implementation:
+  - test mocks for `next/navigation` omit `usePathname`, which `AppHeader` now uses.
+  - an email copy test expects old wording.
+- `npm audit fix` reduced dependency findings but remaining issues need intentional Firebase/Firebase Admin/Next upgrades.
 
 ## Improvement Areas
 
-Efficiency improvements should focus on consolidating date/time conversion logic across API routes and UI, reducing repeated Firestore reads for court/user lookups, adding indexes for common queries such as bookings by `courtId/date` and bookings by `userId`, paginating dashboards as data grows, caching static court data where safe, and moving repeated Stripe/Firebase validation into shared server helpers. Security improvements should prioritize transaction-backed booking creation and acceptance, schema validation, stricter Firestore/Storage rules, centralized authorization helpers, better audit logs, and production monitoring for webhook failures, authorization release failures, refund failures, and suspicious checkout attempts.
+- Security:
+  - add Cloud Scheduler daily exports to a locked-down GCS bucket for retention beyond the 7-day PITR window — recommended before reaching meaningful transaction volume or if compliance retention is required (see `docs/SECURITY.md` Backups And Retention section for setup steps).
+  - two moderate `npm audit` findings remain in `firebase-admin` and `next` transitive deps — both packages are already at their latest published versions so there is nothing to upgrade; re-run `npm audit` after each new release from Google/Vercel.
+- Performance:
+  - consolidate date/time conversion logic.
+  - reduce repeated Firestore reads for user/court joins.
+  - add indexes for common booking queries.
+  - paginate dashboards as data grows.
+  - cache static court data where safe.
+- Product:
+  - richer review filtering/sorting.
+  - review responses for hosts.
+  - host calendar sync.
+  - saved/favorite courts.
+  - richer location search.
+  - court amenity filters.
+  - host payout dashboards.
+  - cancellation policy controls.
+  - dispute support.
+  - in-app notifications.
+  - stronger host verification before accepting paid bookings.
 
-Product features worth adding next include richer review filtering/sorting, review response flows for hosts, host calendar sync, saved/favorite courts, richer location search, court amenities filters, host payout dashboards, cancellation policy controls, dispute support, in-app notifications, and a stronger host verification flow before accepting paid bookings. See **Frontend — Pages and Navigation** for explicit **TODO** items (search map, profile host card, court map, message-with-request, post-sign-up profile onboarding).
+## Security
+
+Full security policies are in [`docs/SECURITY.md`](docs/SECURITY.md). Read that file before touching any auth, payment, API route, Firestore rules, CSP, or secrets-related code.
+
+### Non-Negotiable Rules
+
+- **Auth**: use `requireFirebaseUser` from `src/lib/apiSecurity.ts` on every authenticated route — never call `adminAuth.verifyIdToken` directly.
+- **Mutations**: call `validateMutationOrigin` before any mutation work on every browser-initiated route.
+- **Rate limiting**: call `enforceRateLimit` on every public and mutation route. See `docs/SECURITY.md` for the full list of covered routes.
+- **Payments**: never trust client-submitted price, fee, payout, owner ID, or payment state — always fetch server-side.
+- **Firestore rules**: `firestore.rules` is a security boundary — keep it in sync with any new client queries. Deploy with `npm run deploy:rules` after confirming the active project with `firebase use`.
+- **CSP**: nonce-based per-request via `middleware.ts`. Do not add `'unsafe-inline'` back to `script-src`. Do not expose the nonce in DOM attributes.
+- **User content**: never render user-authored content (bio, messages, reviews, descriptions) as HTML.
+- **Secrets**: never put secrets in `NEXT_PUBLIC_*` vars, git, or client bundles. Rotate anything that was committed or shared.
+- **Client components**: must not import `src/lib/conversations.ts` — it pulls Firebase Admin into client bundles.

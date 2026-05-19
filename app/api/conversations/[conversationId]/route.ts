@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
+import { isNextResponse, requireFirebaseUser } from "@/lib/apiSecurity";
 
 const serializeDate = (value: any) => {
   if (!value) return null;
@@ -17,20 +18,6 @@ const serializeDoc = (doc: any) => ({
   ...doc.data(),
 });
 
-const getAuthUserId = async (req: NextRequest) => {
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    throw new Error("Missing or invalid authorization header");
-  }
-  if (!adminAuth) {
-    throw new Error("Authentication service not initialized");
-  }
-  const decoded = await adminAuth.verifyIdToken(
-    authHeader.split("Bearer ")[1],
-    true
-  );
-  return decoded.uid;
-};
 
 export async function GET(
   req: NextRequest,
@@ -44,7 +31,9 @@ export async function GET(
       );
     }
 
-    const uid = await getAuthUserId(req);
+    const uidResult = await requireFirebaseUser(req, adminAuth);
+    if (isNextResponse(uidResult)) return uidResult;
+    const uid = uidResult.uid;
     const { conversationId } = await params;
     const normalizedConversationId = decodeURIComponent(conversationId || "");
 

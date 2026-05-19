@@ -5,6 +5,14 @@ import { createBookingFromPaidCheckoutSession } from "@/lib/bookingCreation";
 import { sendOwnerBookingNotification } from "@/lib/email";
 import { isMockApiMode } from "@/lib/mockApiMode";
 import { mockFinalizeCheckoutSessionPOST } from "@/lib/mockApiServer";
+import {
+  enforceRateLimit,
+  isNextResponse,
+  requireFirebaseUser,
+  validateMutationOrigin,
+} from "@/lib/apiSecurity";
+import { finalizeCheckoutBodySchema, parseJsonBody } from "@/lib/apiSchemas";
+import { writeSecurityAuditLog } from "@/lib/securityAudit";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: "2023-10-16",
@@ -15,6 +23,9 @@ export async function POST(req: NextRequest) {
     return mockFinalizeCheckoutSessionPOST(req);
   }
 
+  const originError = validateMutationOrigin(req);
+  if (originError) return originError;
+
   if (!adminAuth || !adminDb) {
     return NextResponse.json(
       { error: "Server configuration error" },
@@ -22,35 +33,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return NextResponse.json(
-      { error: "Missing or invalid authorization header" },
-      { status: 401 }
-    );
-  }
+  const auth = await requireFirebaseUser(req, adminAuth);
+  if (isNextResponse(auth)) return auth;
+  const userId = auth.uid;
 
-  let userId: string;
-  try {
-    const decodedToken = await adminAuth.verifyIdToken(
-      authHeader.split("Bearer ")[1],
-      true
-    );
-    userId = decodedToken.uid;
-  } catch {
-    return NextResponse.json(
-      { error: "Invalid or expired authentication token" },
-      { status: 401 }
-    );
-  }
+  const rateLimitError = await enforceRateLimit(req, "finalize-checkout", userId);
+  if (rateLimitError) return rateLimitError;
 
-  const { sessionId } = await req.json().catch(() => ({ sessionId: "" }));
-  if (!sessionId || typeof sessionId !== "string") {
-    return NextResponse.json(
-      { error: "Missing checkout session" },
-      { status: 400 }
-    );
-  }
+  const parsedBody = await parseJsonBody(req, finalizeCheckoutBodySchema);
+  if (isNextResponse(parsedBody)) return parsedBody;
+  const { sessionId } = parsedBody;
 
   try {
     const session = await stripe.checkout.sessions.retrieve(sessionId);
@@ -73,6 +65,12 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await createBookingFromPaidCheckoutSession(adminDb, session);
+    await writeSecurityAuditLog(adminDb, "checkout_finalized", {
+      actorId: userId,
+      sessionId,
+      bookingId: result.bookingId,
+      result: result.status,
+    });
 
     if (result.status === "created") {
       try {
@@ -157,7 +155,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error("[FINALIZE CHECKOUT] Failed:", err?.message || err);
     return NextResponse.json(
-      { error: err?.message || "Failed to finalize booking" },
+      { error: "Failed to finalize booking" },
       { status: 500 }
     );
   }

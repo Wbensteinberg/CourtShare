@@ -1,25 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebase-admin";
+import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { sendPlayerBookingConfirmation } from "@/lib/email";
 import { isMockApiMode } from "@/lib/mockApiMode";
 import { mockSendBookingConfirmationBody } from "@/lib/mockApiServer";
+import {
+  enforceRateLimit,
+  isNextResponse,
+  requireFirebaseUser,
+  validateMutationOrigin,
+} from "@/lib/apiSecurity";
+import { bookingIdBodySchema, parseJsonBody } from "@/lib/apiSchemas";
+import { writeSecurityAuditLog } from "@/lib/securityAudit";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => ({}));
+    const parsedBody = await parseJsonBody(req, bookingIdBodySchema);
+    if (isNextResponse(parsedBody)) return parsedBody;
 
     if (isMockApiMode()) {
-      return mockSendBookingConfirmationBody(body);
+      return mockSendBookingConfirmationBody(parsedBody);
     }
 
-    const { bookingId } = body;
+    const originError = validateMutationOrigin(req);
+    if (originError) return originError;
 
-    if (!bookingId) {
-      return NextResponse.json(
-        { error: "Booking ID is required" },
-        { status: 400 }
-      );
-    }
+    const auth = await requireFirebaseUser(req, adminAuth);
+    if (isNextResponse(auth)) return auth;
+
+    const rateLimitError = await enforceRateLimit(
+      req,
+      "send-booking-confirmation",
+      auth.uid
+    );
+    if (rateLimitError) return rateLimitError;
+
+    const { bookingId } = parsedBody;
 
     if (!adminDb) {
       return NextResponse.json(
@@ -73,6 +88,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (bookingData.userId !== auth.uid && courtData.ownerId !== auth.uid) {
+      return NextResponse.json(
+        { error: "Only booking participants can send booking confirmations" },
+        { status: 403 }
+      );
+    }
+
     // Fetch owner details
     const ownerDoc = await adminDb
       .collection("users")
@@ -113,6 +135,11 @@ export async function POST(req: NextRequest) {
         "[EMAIL API] Player confirmation email sent for booking:",
         bookingId
       );
+      await writeSecurityAuditLog(adminDb, "booking_confirmation_resent", {
+        actorId: auth.uid,
+        bookingId,
+        courtId: bookingData.courtId,
+      });
     } catch (emailError: any) {
       // Log error but don't fail the request - booking is already confirmed
       console.warn(
@@ -144,7 +171,7 @@ export async function POST(req: NextRequest) {
     console.error("[EMAIL API] Critical error:", error);
     return NextResponse.json(
       {
-        error: error.message || "Failed to process request",
+        error: "Failed to process request",
       },
       { status: 500 }
     );

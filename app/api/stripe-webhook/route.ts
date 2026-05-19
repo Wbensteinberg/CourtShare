@@ -1,48 +1,129 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { adminDb } from "@/lib/firebase-admin";
-import { createBookingRequestConversation } from "@/lib/conversations";
+import { createBookingFromPaidCheckoutSession } from "@/lib/bookingCreation";
 import { sendOwnerBookingNotification } from "@/lib/email";
 import { calculateBookingPriceBreakdown } from "@/lib/pricing";
-import { isBookingBlockingSlot } from "@/lib/bookingConflicts";
 import { releaseBookingPayment } from "@/lib/stripeBookingPayments";
 import { isMockApiMode } from "@/lib/mockApiMode";
 import { mockStripeWebhookPOST } from "@/lib/mockApiServer";
+import { writeSecurityAuditLog } from "@/lib/securityAudit";
+import { sendOpsAlert } from "@/lib/opsAlerts";
+import { checkRateLimit } from "../rate-limit";
 
-// Initialize Stripe with your secret key (set in .env.local)
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: "2023-10-16",
 });
 
-// Stripe webhook signing secret. Must be set in env as STRIPE_WEBHOOK_SECRET (exact name).
-// In production (Vercel): use the signing secret from the Stripe Dashboard for the endpoint
-// https://courtshare.co/api/stripe-webhook (Developers → Webhooks → that endpoint → Reveal).
 const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
-const ALERT_WEBHOOK_URL =
-  process.env.WEBHOOK_ALERT_WEBHOOK_URL || process.env.SLACK_WEBHOOK_URL;
 
-const getDisplayName = (profile: FirebaseFirestore.DocumentData | undefined) => {
-  const displayName = String(profile?.displayName || profile?.name || "").trim();
-  if (displayName) return displayName;
+const sendWebhookAlert = sendOpsAlert;
 
-  const email = String(profile?.email || "").trim();
-  if (email) return email.split("@")[0];
+async function sendOwnerNotification(
+  session: Stripe.Checkout.Session,
+  bookingId: string,
+  conversationId?: string
+) {
+  if (!adminDb) return;
+  const bookingDoc = await adminDb.collection("bookings").doc(bookingId).get();
+  const bookingData = bookingDoc.exists ? bookingDoc.data() : null;
+  if (!bookingData) return;
 
-  return undefined;
-};
+  const [courtDoc, playerDoc] = await Promise.all([
+    adminDb.collection("courts").doc(bookingData.courtId).get(),
+    adminDb.collection("users").doc(bookingData.userId).get(),
+  ]);
+  const courtData = courtDoc.exists ? courtDoc.data() : null;
+  const playerData = playerDoc.exists ? playerDoc.data() : null;
+  const ownerId = bookingData.ownerId || courtData?.ownerId;
+  const ownerDoc = ownerId
+    ? await adminDb.collection("users").doc(ownerId).get()
+    : null;
+  const ownerData = ownerDoc?.exists ? ownerDoc.data() : null;
 
-async function sendWebhookAlert(title: string, details: string) {
-  if (!ALERT_WEBHOOK_URL) return;
-  try {
-    await fetch(ALERT_WEBHOOK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: `:rotating_light: ${title}\n${details}`,
-      }),
+  if (!courtData || !ownerData?.email) return;
+
+  const duration =
+    typeof bookingData.duration === "number"
+      ? bookingData.duration
+      : typeof bookingData.durationMinutes === "number"
+        ? bookingData.durationMinutes / 60
+        : 1;
+  const price =
+    typeof bookingData.totalAmountCents === "number"
+      ? bookingData.totalAmountCents / 100
+      : (courtData.price || 0) * duration;
+
+  await sendOwnerBookingNotification({
+    bookingId,
+    conversationId: conversationId || bookingData.conversationId,
+    courtName: courtData.name || "Court",
+    courtAddress: courtData.address || courtData.location,
+    courtLocation: courtData.location,
+    courtImageUrl:
+      Array.isArray(courtData.imageUrls) && courtData.imageUrls[0]
+        ? courtData.imageUrls[0]
+        : courtData.imageUrl,
+    playerName: playerData?.displayName || playerData?.name,
+    playerEmail: playerData?.email || session.customer_email || bookingData.userId,
+    ownerName: ownerData.displayName || ownerData.name,
+    ownerEmail: ownerData.email,
+    date: bookingData.date,
+    time: bookingData.time,
+    duration,
+    durationMinutes:
+      typeof bookingData.durationMinutes === "number"
+        ? bookingData.durationMinutes
+        : undefined,
+    courtNumber:
+      typeof bookingData.courtNumber === "number"
+        ? bookingData.courtNumber
+        : undefined,
+    guestCount:
+      typeof bookingData.guestCount === "number"
+        ? bookingData.guestCount
+        : undefined,
+    price,
+    playerProfileImageUrl: playerData?.profileImageUrl,
+    ownerAmount:
+      typeof bookingData.ownerAmountCents === "number"
+        ? bookingData.ownerAmountCents / 100
+        : undefined,
+    initialMessage: bookingData.initialMessage || "",
+  });
+}
+
+async function verifyCheckoutAmount(session: Stripe.Checkout.Session) {
+  if (!adminDb) throw new Error("Firebase Admin not initialized");
+  const metadata = session.metadata || {};
+  const courtId = metadata.courtId;
+  if (!courtId) throw new Error("Checkout session is missing courtId");
+
+  const courtDoc = await adminDb.collection("courts").doc(courtId).get();
+  if (!courtDoc.exists) throw new Error(`Court ${courtId} not found`);
+
+  const courtData = courtDoc.data();
+  const durationMinutes = metadata.durationMinutes
+    ? Number(metadata.durationMinutes)
+    : (Number(metadata.duration) || 60) * 60;
+  const priceBreakdown = calculateBookingPriceBreakdown(
+    Number(courtData?.price),
+    durationMinutes
+  );
+  const expectedAmountCents = priceBreakdown.totalAmountCents;
+  const actualAmountCents = session.amount_total || 0;
+
+  if (Math.abs(actualAmountCents - expectedAmountCents) > 1) {
+    await writeSecurityAuditLog(adminDb, "stripe_amount_mismatch", {
+      sessionId: session.id,
+      courtId,
+      expectedAmountCents,
+      actualAmountCents,
     });
-  } catch (alertErr) {
-    console.error("[WEBHOOK] Failed to send alert notification:", alertErr);
+    await sendWebhookAlert(
+      "Stripe checkout amount mismatch",
+      `Session ${session.id} expected ${expectedAmountCents} cents but received ${actualAmountCents} cents.`
+    );
   }
 }
 
@@ -51,386 +132,104 @@ export async function POST(req: NextRequest) {
     return mockStripeWebhookPOST();
   }
 
-  console.log(
-    "[WEBHOOK] Stripe webhook POST handler called at",
-    new Date().toISOString()
-  );
+  const ip =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("x-real-ip") ||
+    "unknown";
+  const rateLimit = await checkRateLimit(`stripe-webhook:${ip}`);
+  if (!rateLimit.allowed) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
 
   const sig = req.headers.get("stripe-signature");
-  let event: Stripe.Event;
-
-  // Read the raw body for signature verification
   const rawBody = await req.text();
-  console.log("[WEBHOOK] Raw body length:", rawBody.length);
+  let event: Stripe.Event;
 
   try {
     if (!sig || !endpointSecret) {
-      console.error("[WEBHOOK] Missing Stripe signature or webhook secret");
       await sendWebhookAlert(
         "Stripe webhook misconfigured",
         `Missing signature or STRIPE_WEBHOOK_SECRET. endpointSecret=${!!endpointSecret}`
       );
-      return NextResponse.json(
-        { error: "Missing Stripe signature or webhook secret" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Webhook not configured" }, { status: 400 });
     }
     event = stripe.webhooks.constructEvent(rawBody, sig, endpointSecret);
-    console.log("[WEBHOOK] Stripe event type:", event.type);
   } catch (err: any) {
-    console.error(
-      "[WEBHOOK] Webhook signature verification failed:",
-      err.message
-    );
     await sendWebhookAlert(
       "Stripe webhook signature verification failed",
       err.message || "Unknown signature verification error"
     );
-    return NextResponse.json(
-      { error: `Webhook Error: ${err.message}` },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Invalid webhook signature" }, { status: 400 });
   }
 
-  // Handle the event
-  switch (event.type) {
-    case "checkout.session.completed": {
-      const session = event.data.object as Stripe.Checkout.Session;
-      const metadata = session.metadata || {};
-      console.log("[WEBHOOK] Session metadata:", metadata);
-      console.log(
-        "[WEBHOOK] Full session object:",
-        JSON.stringify(session, null, 2)
-      );
+  if (event.type !== "checkout.session.completed") {
+    return NextResponse.json({ received: true });
+  }
+
+  const session = event.data.object as Stripe.Checkout.Session;
+
+  try {
+    if (!adminDb) throw new Error("Firebase Admin not initialized");
+    await verifyCheckoutAmount(session);
+
+    const result = await createBookingFromPaidCheckoutSession(adminDb, session);
+    await writeSecurityAuditLog(adminDb, "stripe_checkout_processed", {
+      sessionId: session.id,
+      bookingId: result.bookingId,
+      result: result.status,
+    });
+
+    if (result.status === "created") {
       try {
-        // Add booking to Firestore
-        // Status is "pending" - requires host approval before confirmation
-        if (!adminDb) {
-          throw new Error("Firebase Admin not initialized");
-        }
-
-        // SECURITY: Verify webhook amounts server-side to prevent disputes/chargebacks
-        // Fetch court to verify the amount matches what was charged
-        if (!adminDb) {
-          throw new Error("Firebase Admin not initialized");
-        }
-
-        const courtDoc = await adminDb
-          .collection("courts")
-          .doc(metadata.courtId)
-          .get();
-
-        if (!courtDoc.exists) {
-          throw new Error(`Court ${metadata.courtId} not found`);
-        }
-
-        const courtData = courtDoc.data();
-        if (!courtData) {
-          throw new Error("Court data not found");
-        }
-
-        // Verify the amount charged matches the expected amount
-        const expectedDurationMinutes = metadata.durationMinutes
-          ? Number(metadata.durationMinutes)
-          : (Number(metadata.duration) || 60) * 60;
-        const priceBreakdown = calculateBookingPriceBreakdown(
-          Number(courtData.price),
-          expectedDurationMinutes
-        );
-        const expectedAmountCents = priceBreakdown.totalAmountCents;
-        const actualAmountCents = session.amount_total || 0;
-
-        // Allow small rounding differences (within 1 cent)
-        if (Math.abs(actualAmountCents - expectedAmountCents) > 1) {
-          console.error(
-            `[WEBHOOK] Amount mismatch! Expected ${expectedAmountCents} cents, got ${actualAmountCents} cents`
-          );
-          // Log but don't fail - Stripe already charged the correct amount
-          // This is just for fraud detection logging
-        }
-
-        // SECURITY FIX 4: Only create booking after payment is confirmed via webhook
-        const durationMinutes = expectedDurationMinutes;
-
-        // IDEMPOTENCY: Check if booking already exists for this session (prevent duplicate webhook processing)
-        const existingBookingBySession = await adminDb
-          .collection("bookings")
-          .where("sessionId", "==", session.id)
-          .get();
-        
-        if (!existingBookingBySession.empty) {
-          const existingBookingDoc = existingBookingBySession.docs[0];
-          const existingBooking = existingBookingDoc.data();
-          const [playerDoc, ownerDoc] = await Promise.all([
-            adminDb.collection("users").doc(existingBooking.userId || metadata.userId).get(),
-            adminDb.collection("users").doc(courtData.ownerId || metadata.ownerId).get(),
-          ]);
-
-          await createBookingRequestConversation(adminDb, {
-            bookingId: existingBookingDoc.id,
-            courtId: existingBooking.courtId || metadata.courtId,
-            courtName: courtData.name,
-            playerId: existingBooking.userId || metadata.userId,
-            playerName: getDisplayName(playerDoc.data()),
-            ownerId: courtData.ownerId || metadata.ownerId,
-            ownerName: getDisplayName(ownerDoc.data()),
-            date: existingBooking.date || metadata.date,
-            time: existingBooking.time || metadata.time,
-            durationMinutes:
-              existingBooking.durationMinutes ||
-              expectedDurationMinutes,
-            courtNumber:
-              existingBooking.courtNumber || Number(metadata.courtNumber) || 1,
-          });
-
-          console.log(
-            "[WEBHOOK] Booking already exists for this session, ensured conversation and skipped duplicate booking:",
-            session.id
-          );
-          return NextResponse.json({
-            received: true,
-            message: "Booking already processed",
-          });
-        }
-
-        // SECURITY: Final check for double bookings before creating booking (race condition protection)
-        // This is the last line of defense in case two payments completed simultaneously
-        const existingBookingsSnapshot = await adminDb
-          .collection("bookings")
-          .where("courtId", "==", metadata.courtId)
-          .where("date", "==", metadata.date)
-          .get();
-
-        for (const bookingDoc of existingBookingsSnapshot.docs) {
-          const existingBooking = bookingDoc.data() as {
-            date: string;
-            time: string;
-            status: string;
-            createdAt?: unknown;
-            expiresAt?: unknown;
-            courtNumber?: number;
-            duration?: number;
-            durationMinutes?: number;
-            sessionId?: string;
-          };
-          // Skip if this is the same session (idempotency - webhook might be called multiple times)
-          if (existingBooking.sessionId === session.id) {
-            continue;
-          }
-          const newCourtNum = Number(metadata.courtNumber) || 1;
-          if (
-            isBookingBlockingSlot(existingBooking, {
-              date: metadata.date || "",
-              time: metadata.time || "",
-              durationMinutes,
-              courtNumber: newCourtNum,
-            })
-          ) {
-              console.error("[WEBHOOK] Double booking detected! Payment completed but time slot already booked:", {
-                existingBooking: bookingDoc.id,
-                newBooking: { time: metadata.time, durationMinutes },
-              });
-              // Release the authorization or refund if this payment was already captured.
-              try {
-                await releaseBookingPayment(
-                  stripe,
-                  session.id,
-                  session.id,
-                  "double_booking_prevention"
-                );
-              } catch (refundError) {
-                console.error("[WEBHOOK] Failed to release double-booked payment:", refundError);
-                await sendWebhookAlert(
-                  "Webhook payment release failed after double-booking detection",
-                  `Session ${session.id} could not be auto-released.`
-                );
-              }
-              // Don't create the booking - return error
-              return NextResponse.json(
-                { error: "Time slot was already booked. The card authorization has been released." },
-                { status: 409 }
-              );
-          }
-        }
-
-        const bookingData = {
-          courtId: metadata.courtId,
-          ownerId: courtData.ownerId || metadata.ownerId,
-          userId: metadata.userId,
-          date: metadata.date,
-          time: metadata.time,
-          courtNumber: Number(metadata.courtNumber) || 1,
-          duration: durationMinutes / 60, // Store as hours for backward compatibility
-          durationMinutes: durationMinutes, // Also store as minutes
-          status: "pending", // Requires host approval - SECURITY FIX 4: Only confirmed after webhook
-          createdAt: new Date(),
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
-          sessionId: session.id,
-          paymentIntentId: session.payment_intent || null,
-          paymentStatus: "authorized",
-          totalAmountCents: actualAmountCents, // Use actual amount from Stripe
-          expectedAmountCents: expectedAmountCents, // Store expected for audit
-          ownerAmountCents: priceBreakdown.ownerAmountCents,
-          courtShareFeeCents: priceBreakdown.courtShareFeeCents,
-          processingFeeCents: priceBreakdown.processingFeeCents,
-          applicationFeeCents: priceBreakdown.applicationFeeCents,
-          transferToOwner: metadata.transferToOwner === "true",
-          hostPayoutMode: metadata.hostPayoutMode || "platform_hold",
-          hostPayoutStatus:
-            metadata.transferToOwner === "true"
-              ? "destination_charge_pending_capture"
-              : "pending_connect_account",
-          stripeConnectAccountId: metadata.stripeConnectAccountId || null,
-        };
-        console.log("[WEBHOOK] Booking data to write:", bookingData);
-        const bookingRef = await adminDb
-          .collection("bookings")
-          .add(bookingData);
-        console.log(
-          "[WEBHOOK] Booking created in Firestore for session:",
-          session.id,
-          "with booking ID:",
-          bookingRef.id
-        );
-
-        const [conversationPlayerDoc, conversationOwnerDoc] = await Promise.all([
-          adminDb.collection("users").doc(metadata.userId).get(),
-          adminDb.collection("users").doc(courtData.ownerId || metadata.ownerId).get(),
-        ]);
-
-        const conversationId = await createBookingRequestConversation(adminDb, {
-          bookingId: bookingRef.id,
-          courtId: metadata.courtId,
-          courtName: courtData.name,
-          playerId: metadata.userId,
-          playerName: getDisplayName(conversationPlayerDoc.data()),
-          ownerId: courtData.ownerId || metadata.ownerId,
-          ownerName: getDisplayName(conversationOwnerDoc.data()),
-          date: metadata.date,
-          time: metadata.time,
-          durationMinutes,
-          courtNumber: Number(metadata.courtNumber) || 1,
-        });
-        console.log(
-          "[WEBHOOK] Booking request conversation created:",
-          conversationId
-        );
-
-        // Fetch user details to send email notification (court already fetched above)
-        try {
-          console.log("[WEBHOOK] Fetching player doc for userId:", metadata.userId);
-          const playerDoc = await adminDb
-            .collection("users")
-            .doc(metadata.userId)
-            .get();
-
-          if (!playerDoc.exists) {
-            console.warn("[WEBHOOK] Player doc not found for userId:", metadata.userId, "- skipping email");
-          }
-
-          if (playerDoc.exists) {
-            const playerData = playerDoc.data();
-
-            if (!courtData || !playerData) {
-              console.warn("[WEBHOOK] Court or player data is undefined");
-              return;
-            }
-
-            console.log("[WEBHOOK] Fetching owner doc for ownerId:", courtData.ownerId);
-            const ownerDoc = await adminDb
-              .collection("users")
-              .doc(courtData.ownerId)
-              .get();
-            const ownerData = ownerDoc.exists ? ownerDoc.data() : null;
-
-            if (!ownerDoc.exists) {
-              console.warn("[WEBHOOK] Owner doc not found for ownerId:", courtData.ownerId, "- skipping email");
-            } else if (!ownerData?.email) {
-              console.warn("[WEBHOOK] Owner doc exists but email missing or empty - skipping email");
-            }
-
-            if (ownerData?.email) {
-              console.log("[WEBHOOK] Sending owner notification to:", ownerData.email);
-              // Calculate total price from stored metadata or compute it
-              const durationMinutes = metadata.durationMinutes
-                ? Number(metadata.durationMinutes)
-                : (Number(metadata.duration) || 1) * 60;
-              const durationHours = durationMinutes / 60;
-              const price = metadata.totalAmountCents
-                ? Number(metadata.totalAmountCents) / 100
-                : (courtData.price || 0) * durationHours;
-
-              // Send email to owner
-              await sendOwnerBookingNotification({
-                bookingId: bookingRef.id,
-                conversationId,
-                courtName: courtData.name || "Court",
-                courtAddress: courtData.address || courtData.location,
-                courtLocation: courtData.location,
-                courtImageUrl:
-                  Array.isArray(courtData.imageUrls) && courtData.imageUrls[0]
-                    ? courtData.imageUrls[0]
-                    : courtData.imageUrl,
-                playerName: playerData.displayName || playerData.name,
-                playerEmail: playerData.email || metadata.userId,
-                ownerName: ownerData.displayName || ownerData.name,
-                ownerEmail: ownerData.email,
-                date: metadata.date,
-                time: metadata.time,
-                duration: durationHours,
-                durationMinutes,
-                courtNumber: Number(metadata.courtNumber) || 1,
-                guestCount: Number(metadata.guestCount) || undefined,
-                price: price,
-                playerProfileImageUrl: playerData.profileImageUrl,
-                ownerAmount: priceBreakdown.ownerAmountCents / 100,
-                initialMessage:
-                  typeof metadata.initialMessage === "string"
-                    ? metadata.initialMessage
-                    : "",
-              });
-              console.log("[WEBHOOK] Owner notification email sent");
-            } else {
-              console.warn(
-                "[WEBHOOK] Owner email not found, skipping email notification"
-              );
-            }
-          } else {
-            console.warn(
-              "[WEBHOOK] Court or player data not found, skipping email notification"
-            );
-          }
-        } catch (emailError: any) {
-          // Don't fail the webhook if email fails - log and continue
-          console.error(
-            "[WEBHOOK] Failed to send email notification:",
-            emailError?.message ?? emailError
-          );
-          if (emailError?.stack) {
-            console.error("[WEBHOOK] Email error stack:", emailError.stack);
-          }
-        }
-      } catch (err: any) {
+        await sendOwnerNotification(session, result.bookingId, result.conversationId);
+      } catch (emailError: any) {
         console.error(
-          "[WEBHOOK] Failed to write booking to Firestore:",
-          err.message
-        );
-        await sendWebhookAlert(
-          "Webhook failed writing booking to Firestore",
-          err.message || "Unknown Firestore write failure"
-        );
-        return NextResponse.json(
-          { error: "Failed to write booking to Firestore" },
-          { status: 500 }
+          "[WEBHOOK] Failed to send owner booking notification:",
+          emailError?.message || emailError
         );
       }
-      break;
     }
-    // Add more event types as needed
-    default:
-      console.log(`[WEBHOOK] Unhandled event type: ${event.type}`);
-  }
 
-  // Return a 200 response to acknowledge receipt of the event
-  return NextResponse.json({ received: true });
+    return NextResponse.json({ received: true });
+  } catch (err: any) {
+    const message = err?.message || "Unknown webhook processing error";
+    console.error("[WEBHOOK] Failed processing checkout session:", message);
+
+    if (message === "Time slot was already booked") {
+      try {
+        await releaseBookingPayment(
+          stripe,
+          session.id,
+          session.id,
+          "double_booking_prevention"
+        );
+        await writeSecurityAuditLog(adminDb, "stripe_double_booking_released", {
+          sessionId: session.id,
+        });
+      } catch (releaseError) {
+        console.error("[WEBHOOK] Failed to release double-booked payment:", releaseError);
+        await sendWebhookAlert(
+          "Webhook payment release failed after double-booking detection",
+          `Session ${session.id} could not be auto-released.`
+        );
+      }
+      return NextResponse.json(
+        { error: "Time slot was already booked" },
+        { status: 409 }
+      );
+    }
+
+    await writeSecurityAuditLog(adminDb, "stripe_webhook_processing_failed", {
+      sessionId: session.id,
+      error: message.slice(0, 500),
+    });
+    await sendWebhookAlert(
+      "Webhook failed processing checkout session",
+      `Session ${session.id}: ${message}`
+    );
+    return NextResponse.json(
+      { error: "Failed to process webhook" },
+      { status: 500 }
+    );
+  }
 }

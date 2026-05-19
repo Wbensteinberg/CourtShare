@@ -14,6 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Camera } from "lucide-react";
 import { getMockProfile, updateMockProfile } from "@/lib/mockData";
+import { getSafeImageStoragePath, validateImageFile } from "@/lib/imageUploadValidation";
 
 function OnboardingForm() {
   const { user, loading: authLoading } = useAuth();
@@ -66,6 +67,12 @@ function OnboardingForm() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const invalid = validateImageFile(file);
+    if (invalid) {
+      setError(invalid);
+      e.target.value = "";
+      return;
+    }
     setSelectedFile(file);
     setPreviewUrl(URL.createObjectURL(file));
   };
@@ -93,7 +100,10 @@ function OnboardingForm() {
       if (selectedFile) {
         const storage = getStorageInstance();
         if (storage) {
-          const storageRef = ref(storage, `users/${user.uid}/avatar_${Date.now()}`);
+          const storageRef = ref(
+            storage,
+            getSafeImageStoragePath("users", user.uid, selectedFile)
+          );
           await uploadBytes(storageRef, selectedFile);
           photoUrl = await getDownloadURL(storageRef);
         }

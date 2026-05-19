@@ -6,10 +6,19 @@ import { isBookingBlockingSlot } from "@/lib/bookingConflicts";
 import {
   getStripeAccountIdForMode,
   getStripeMode,
+  isStripeAccountReady,
 } from "@/lib/stripeConnectAccounts";
 import { checkRateLimit } from "../rate-limit";
 import { isMockApiMode } from "@/lib/mockApiMode";
 import { mockCreateCheckoutSessionPOST } from "@/lib/mockApiServer";
+import {
+  isNextResponse,
+  requireFirebaseUser,
+  validateMutationOrigin,
+} from "@/lib/apiSecurity";
+import { sendOpsAlert } from "@/lib/opsAlerts";
+import { createCheckoutBodySchema, parseJsonBody } from "@/lib/apiSchemas";
+import { writeSecurityAuditLog } from "@/lib/securityAudit";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
@@ -23,6 +32,9 @@ export async function POST(req: NextRequest) {
   if (isMockApiMode()) {
     return mockCreateCheckoutSessionPOST(req);
   }
+
+  const originError = validateMutationOrigin(req);
+  if (originError) return originError;
 
   // Check for required environment variables
   if (!process.env.STRIPE_SECRET_KEY) {
@@ -62,65 +74,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // SECURITY FIX 2: Verify Firebase ID token instead of accepting userId from client
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return NextResponse.json(
-      { error: "Missing or invalid authorization header" },
-      { status: 401 }
-    );
-  }
-
-  const idToken = authHeader.split("Bearer ")[1];
-  let userId: string;
-
-  try {
-    if (!adminAuth) {
-      // Log detailed diagnostics
-      const envCheck = {
-        FIREBASE_PROJECT_ID: !!process.env.FIREBASE_PROJECT_ID,
-        FIREBASE_CLIENT_EMAIL: !!process.env.FIREBASE_CLIENT_EMAIL,
-        FIREBASE_PRIVATE_KEY: !!process.env.FIREBASE_PRIVATE_KEY,
-        VERCEL: !!process.env.VERCEL,
-        NODE_ENV: process.env.NODE_ENV,
-      };
-      console.error(
-        "[CHECKOUT] Firebase Admin Auth not initialized. Diagnostics:",
-        JSON.stringify(envCheck, null, 2)
-      );
-      console.error(
-        "[CHECKOUT] adminDb is:",
-        adminDb ? "initialized" : "undefined"
-      );
-      console.error(
-        "[CHECKOUT] adminAuth is:",
-        adminAuth ? "initialized" : "undefined"
-      );
-
-      return NextResponse.json(
-        {
-          error:
-            "Server configuration error: Authentication service not initialized",
-          details:
-            "Firebase Admin SDK requires FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY environment variables. Check Vercel function logs for detailed diagnostics.",
-          diagnostics: envCheck,
-        },
-        { status: 500 }
-      );
-    }
-    const decodedToken = await adminAuth.verifyIdToken(idToken, true);
-    userId = decodedToken.uid;
-    console.log("[CHECKOUT] User authenticated:", userId);
-  } catch (err: any) {
-    console.error("[CHECKOUT] Error verifying ID token:", err.message);
-    return NextResponse.json(
-      { error: "Invalid or expired authentication token" },
-      { status: 401 }
-    );
-  }
+  const authResult = await requireFirebaseUser(req, adminAuth);
+  if (isNextResponse(authResult)) return authResult;
+  const userId = authResult.uid;
+  console.log("[CHECKOUT] User authenticated:", userId);
 
   // SECURITY FIX 1: Only accept courtId, date, time, and durationMinutes from client
   // DO NOT accept price - fetch from court document
+  const parsedBody = await parseJsonBody(req, createCheckoutBodySchema);
+  if (isNextResponse(parsedBody)) return parsedBody;
   const {
     courtId,
     date,
@@ -129,17 +91,9 @@ export async function POST(req: NextRequest) {
     courtNumber,
     guestCount,
     initialMessage,
-  } = await req.json();
+  } = parsedBody;
 
   try {
-    // SECURITY: Validate all inputs
-    if (!courtId || !date || !time || !durationMinutes) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
-    }
-
     // Check if adminDb is initialized
     if (!adminDb) {
       console.error(
@@ -156,25 +110,7 @@ export async function POST(req: NextRequest) {
     }
 
     // SECURITY: Validate durationMinutes is a positive integer
-    const durationMinutesNum = Number(durationMinutes);
-    if (
-      !Number.isInteger(durationMinutesNum) ||
-      durationMinutesNum <= 0 ||
-      durationMinutesNum > 180 // Max 3 hours (180 minutes) per booking
-    ) {
-      return NextResponse.json(
-        { error: "Invalid duration. Must be between 1 and 180 minutes." },
-        { status: 400 }
-      );
-    }
-
-    // SECURITY: Validate date format (YYYY-MM-DD)
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return NextResponse.json(
-        { error: "Invalid date format" },
-        { status: 400 }
-      );
-    }
+    const durationMinutesNum = durationMinutes;
 
     // SECURITY: Prevent bookings in the past
     const bookingDate = new Date(date);
@@ -209,13 +145,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const guestCountNum = guestCount == null || guestCount === "" ? 1 : Number(guestCount);
-    if (!Number.isInteger(guestCountNum) || guestCountNum < 1) {
-      return NextResponse.json(
-        { error: "Guest count must be at least 1" },
-        { status: 400 }
-      );
-    }
+    const guestCountNum = guestCount == null ? 1 : guestCount;
     const maxGuests =
       typeof courtData.maxGuests === "number" && courtData.maxGuests > 0
         ? courtData.maxGuests
@@ -449,37 +379,36 @@ export async function POST(req: NextRequest) {
       cancel_url: `${req.nextUrl.origin}/courts/${courtId}`,
     };
 
-    let transferToOwner = false;
-    let hostPayoutMode = "platform_hold";
-    if (stripeAccountId) {
-      console.log(
-        `[CHECKOUT] Owner has ${stripeMode} Stripe Connect account: ${stripeAccountId}`
-      );
-      try {
-        const account = await stripe.accounts.retrieve(stripeAccountId);
-        if (
-          account.charges_enabled &&
-          account.payouts_enabled &&
-          account.details_submitted
-        ) {
-          transferToOwner = true;
-          hostPayoutMode = "destination_charge";
-        } else {
-          console.warn(
-            `[CHECKOUT] Owner ${ownerId} Stripe account not fully activated (charges_enabled: ${account.charges_enabled}, payouts_enabled: ${account.payouts_enabled}, details_submitted: ${account.details_submitted}); checkout will use platform-held funds`
-          );
-        }
-      } catch (err) {
-        console.error(
-          "[CHECKOUT] Unable to verify Stripe account; checkout will use platform-held funds:",
-          err
-        );
-      }
-    } else {
-      console.warn(
-        `[CHECKOUT] Owner ${ownerId} has no ${stripeMode} Stripe Connect account; checkout will use platform-held funds`
+    if (!stripeAccountId) {
+      return NextResponse.json(
+        { error: "This listing is not bookable until the host completes payout setup." },
+        { status: 409 }
       );
     }
+
+    let account: Stripe.Account;
+    try {
+      account = await stripe.accounts.retrieve(stripeAccountId);
+    } catch (err) {
+      console.error("[CHECKOUT] Unable to verify host Stripe account:", err);
+      return NextResponse.json(
+        { error: "This listing is not bookable until the host payout account can be verified." },
+        { status: 409 }
+      );
+    }
+
+    if (!isStripeAccountReady(account)) {
+      console.warn(
+        `[CHECKOUT] Owner ${ownerId} Stripe account is not active (charges_enabled: ${account.charges_enabled}, payouts_enabled: ${account.payouts_enabled}, details_submitted: ${account.details_submitted})`
+      );
+      return NextResponse.json(
+        { error: "This listing is not bookable until the host completes payout setup." },
+        { status: 409 }
+      );
+    }
+
+    const transferToOwner = true;
+    const hostPayoutMode = "destination_charge";
 
     sessionParams.metadata = {
       ...sessionParams.metadata,
@@ -516,10 +445,28 @@ export async function POST(req: NextRequest) {
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams);
+    await writeSecurityAuditLog(adminDb, "checkout_session_created", {
+      actorId: userId,
+      courtId,
+      ownerId,
+      sessionId: session.id,
+      totalAmountCents,
+    });
+
+    const volumeCheck = await checkRateLimit(`checkout:volume:${userId}`);
+    if (volumeCheck.remaining <= 4) {
+      await sendOpsAlert(
+        "SUSPICIOUS CHECKOUT VOLUME",
+        `userId=${userId} ip=${ip} remaining=${volumeCheck.remaining} — 6+ checkout sessions in rate-limit window`
+      );
+    }
 
     return NextResponse.json({ url: session.url });
   } catch (err: any) {
     console.error("Error creating checkout session:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to create checkout session" },
+      { status: 500 }
+    );
   }
 }

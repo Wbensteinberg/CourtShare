@@ -27,6 +27,24 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async headers() {
+    // CSP is set per-request with a nonce in middleware.ts.
+    // These headers are static and safe to set globally.
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), payment=(self), geolocation=(self)",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

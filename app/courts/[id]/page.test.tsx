@@ -5,15 +5,20 @@ import { act } from "react";
 
 // Mock next/navigation
 const mockBack = jest.fn();
+const mockPush = jest.fn();
 jest.mock("next/navigation", () => ({
   useParams: () => ({ id: "abc123" }),
-  useRouter: () => ({ back: mockBack }),
+  useRouter: () => ({ back: mockBack, push: mockPush }),
+  usePathname: () => "/courts/abc123",
 }));
+jest.mock("@/components/AppHeader", () => function MockAppHeader() {
+  return <div data-testid="app-header" />;
+});
 
 // Mock Firestore
 const mockDb = {};
 let mockBookings: any[] = [];
-jest.mock("@/src/lib/firebase", () => ({ db: mockDb }));
+jest.mock("@/lib/firebase", () => ({ db: mockDb, isMockMode: false }));
 jest.mock("firebase/firestore", () => {
   const actual = jest.requireActual("firebase/firestore");
   return {
@@ -44,6 +49,8 @@ const mockCourt = {
   price: 50,
   description: "A beautiful test court for all levels.",
   imageUrl: "https://example.com/court.jpg",
+  ownerId: "owner123",
+  bookableStatus: "active",
 };
 
 // Mock window.alert to prevent jsdom errors
@@ -75,6 +82,10 @@ describe("CourtDetailPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockUser = null; // default to logged out
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({ reviews: [] }),
+    });
   });
 
   it("shows loading state initially", () => {

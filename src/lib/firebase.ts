@@ -14,10 +14,11 @@ const firebaseConfig = {
 };
 
 export const isMockMode =
-  process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true" ||
-  !firebaseConfig.apiKey ||
-  !firebaseConfig.projectId ||
-  !firebaseConfig.authDomain;
+  process.env.NODE_ENV !== "production" &&
+  (process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true" ||
+    !firebaseConfig.apiKey ||
+    !firebaseConfig.projectId ||
+    !firebaseConfig.authDomain);
 
 // Validate configuration and log helpful errors
 if (typeof window !== "undefined" && !isMockMode) {

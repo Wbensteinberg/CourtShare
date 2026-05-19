@@ -3,6 +3,7 @@ import type { Firestore } from "firebase-admin/firestore";
 import { createBookingRequestConversation } from "@/lib/conversations";
 import { calculateBookingPriceBreakdown } from "@/lib/pricing";
 import { isBookingBlockingSlot } from "@/lib/bookingConflicts";
+import { assertAndWriteBookingSlotLocks } from "@/lib/bookingSlotLocks";
 
 type CreateBookingResult =
   | { status: "created"; bookingId: string; conversationId: string }
@@ -31,21 +32,6 @@ export async function createBookingFromPaidCheckoutSession(
   const missingField = requiredFields.find((field) => !metadata[field]);
   if (missingField) {
     throw new Error(`Checkout session is missing ${missingField}`);
-  }
-
-  const existingBookingBySession = await db
-    .collection("bookings")
-    .where("sessionId", "==", session.id)
-    .get();
-
-  if (!existingBookingBySession.empty) {
-    const existingBookingDoc = existingBookingBySession.docs[0];
-    const existingBooking = existingBookingDoc.data();
-    return {
-      status: "existing",
-      bookingId: existingBookingDoc.id,
-      conversationId: existingBooking.conversationId,
-    };
   }
 
   const courtDoc = await db.collection("courts").doc(metadata.courtId).get();
@@ -79,35 +65,7 @@ export async function createBookingFromPaidCheckoutSession(
   const guestCount = metadata.guestCount ? Number(metadata.guestCount) : 1;
   const initialMessage = String(metadata.initialMessage || "").trim().slice(0, 1000);
 
-  const existingBookingsSnapshot = await db
-    .collection("bookings")
-    .where("courtId", "==", metadata.courtId)
-    .where("date", "==", metadata.date)
-    .get();
-
-  for (const bookingDoc of existingBookingsSnapshot.docs) {
-    const existingBooking = bookingDoc.data() as {
-      date: string;
-      time: string;
-      status: string;
-      createdAt?: unknown;
-      expiresAt?: unknown;
-      courtNumber?: number;
-      duration?: number;
-      durationMinutes?: number;
-    };
-    if (
-      isBookingBlockingSlot(existingBooking, {
-        date: metadata.date || "",
-        time: metadata.time || "",
-        durationMinutes,
-        courtNumber: newCourtNumber,
-      })
-    ) {
-      throw new Error("Time slot was already booked");
-    }
-  }
-
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
   const bookingData = {
     courtId: metadata.courtId,
     ownerId,
@@ -121,7 +79,7 @@ export async function createBookingFromPaidCheckoutSession(
     durationMinutes,
     status: "pending",
     createdAt: new Date(),
-    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+    expiresAt,
     sessionId: session.id,
     paymentIntentId: session.payment_intent || null,
     paymentStatus: "authorized",
@@ -140,7 +98,77 @@ export async function createBookingFromPaidCheckoutSession(
     stripeConnectAccountId: metadata.stripeConnectAccountId || null,
   };
 
-  const bookingRef = await db.collection("bookings").add(bookingData);
+  const bookingRef = await db.runTransaction(async (transaction) => {
+    const existingBookingBySession = await transaction.get(
+      db.collection("bookings").where("sessionId", "==", session.id)
+    );
+
+    if (!existingBookingBySession.empty) {
+      return existingBookingBySession.docs[0].ref;
+    }
+
+    const existingBookingsSnapshot = await transaction.get(
+      db
+        .collection("bookings")
+        .where("courtId", "==", metadata.courtId)
+        .where("date", "==", metadata.date)
+    );
+
+    for (const bookingDoc of existingBookingsSnapshot.docs) {
+      const existingBooking = bookingDoc.data() as {
+        date: string;
+        time: string;
+        status: string;
+        createdAt?: unknown;
+        expiresAt?: unknown;
+        courtNumber?: number;
+        duration?: number;
+        durationMinutes?: number;
+      };
+      if (
+        isBookingBlockingSlot(existingBooking, {
+          date: metadata.date || "",
+          time: metadata.time || "",
+          durationMinutes,
+          courtNumber: newCourtNumber,
+        })
+      ) {
+        throw new Error("Time slot was already booked");
+      }
+    }
+
+    const newBookingRef = db.collection("bookings").doc();
+    const slotLockIds = await assertAndWriteBookingSlotLocks({
+      db,
+      transaction,
+      bookingId: newBookingRef.id,
+      sessionId: session.id,
+      input: {
+        courtId: metadata.courtId,
+        date: metadata.date,
+        time: metadata.time,
+        durationMinutes,
+        courtNumber: newCourtNumber,
+      },
+      expiresAt,
+    });
+    transaction.set(newBookingRef, {
+      ...bookingData,
+      slotLockIds,
+    });
+    return newBookingRef;
+  });
+
+  const bookingDoc = await bookingRef.get();
+  const savedBooking = bookingDoc.data();
+  if (savedBooking?.sessionId === session.id && savedBooking.conversationId) {
+    return {
+      status: "existing",
+      bookingId: bookingRef.id,
+      conversationId: savedBooking.conversationId,
+    };
+  }
+
   const conversationId = await createBookingRequestConversation(db, {
     bookingId: bookingRef.id,
     courtId: metadata.courtId,

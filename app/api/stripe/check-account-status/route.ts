@@ -10,10 +10,42 @@ import {
 import { transferPlatformHeldBookingToHost } from "@/lib/stripeHostPayouts";
 import { isMockApiMode } from "@/lib/mockApiMode";
 import { mockCheckAccountStatusPOST } from "@/lib/mockApiServer";
+import { writeSecurityAuditLog } from "@/lib/securityAudit";
+import {
+  enforceRateLimit,
+  isNextResponse,
+  requireFirebaseUser,
+  validateMutationOrigin,
+} from "@/lib/apiSecurity";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
 });
+
+async function updateOwnedCourtBookableStatus(
+  userId: string,
+  status: "active" | "draft",
+  stripeMode: string
+) {
+  if (!adminDb) return;
+  const courtsSnap = await adminDb
+    .collection("courts")
+    .where("ownerId", "==", userId)
+    .limit(100)
+    .get();
+  if (courtsSnap.empty) return;
+
+  const batch = adminDb.batch();
+  courtsSnap.docs.forEach((courtDoc) => {
+    batch.update(courtDoc.ref, {
+      bookableStatus: status,
+      ownerStripeAccountStatus: status === "active" ? "active" : "inactive",
+      ownerStripeMode: stripeMode,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  });
+  await batch.commit();
+}
 
 function isStripeConnectAccountMissing(err: unknown): boolean {
   if (!err || typeof err !== "object") return false;
@@ -45,34 +77,15 @@ export async function POST(req: NextRequest) {
     return mockCheckAccountStatusPOST(req);
   }
 
-  // SECURITY: Verify Firebase ID token instead of accepting userId from client
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return NextResponse.json(
-      { error: "Missing or invalid authorization header" },
-      { status: 401 }
-    );
-  }
+  const originError = validateMutationOrigin(req);
+  if (originError) return originError;
 
-  const idToken = authHeader.split("Bearer ")[1];
-  let userId: string;
+  const auth = await requireFirebaseUser(req, adminAuth);
+  if (isNextResponse(auth)) return auth;
+  const userId = auth.uid;
 
-  try {
-    if (!adminAuth) {
-      return NextResponse.json(
-        { error: "Authentication service not initialized" },
-        { status: 500 }
-      );
-    }
-    const decodedToken = await adminAuth.verifyIdToken(idToken, true);
-    userId = decodedToken.uid;
-  } catch (err: any) {
-    console.error("Error verifying ID token:", err);
-    return NextResponse.json(
-      { error: "Invalid or expired authentication token" },
-      { status: 401 }
-    );
-  }
+  const rateLimitError = await enforceRateLimit(req, "check-account-status", userId);
+  if (rateLimitError) return rateLimitError;
 
   try {
     if (!adminDb) {
@@ -90,6 +103,7 @@ export async function POST(req: NextRequest) {
     const selectedAccount = getStripeAccountIdForMode(userData, stripeMode);
 
     if (!selectedAccount.accountId) {
+      await updateOwnedCourtBookableStatus(userId, "draft", stripeMode);
       return NextResponse.json({
         hasAccount: false,
         status: "none",
@@ -112,6 +126,7 @@ export async function POST(req: NextRequest) {
               payoutEnabled: FieldValue.delete(),
             });
         }
+        await updateOwnedCourtBookableStatus(userId, "draft", stripeMode);
         return NextResponse.json({
           hasAccount: false,
           status: "none",
@@ -137,6 +152,18 @@ export async function POST(req: NextRequest) {
         stripeAccountMode: stripeMode,
         payoutEnabled: account.payouts_enabled || false,
       });
+
+    await updateOwnedCourtBookableStatus(
+      userId,
+      accountStatus === "active" ? "active" : "draft",
+      stripeMode
+    );
+    await writeSecurityAuditLog(adminDb, "stripe_account_status_checked", {
+      actorId: userId,
+      accountId: account.id,
+      accountStatus,
+      mode: stripeMode,
+    });
 
     let processedPendingTransfers = 0;
     if (accountStatus === "active") {

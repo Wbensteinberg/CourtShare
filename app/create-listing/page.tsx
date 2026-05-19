@@ -53,6 +53,7 @@ import {
 } from "@/lib/waivers";
 import { calculateBookingPriceBreakdown, formatCents } from "@/lib/pricing";
 import { addMockCourt, fileToDataUrl, updateMockProfile } from "@/lib/mockData";
+import { getSafeImageStoragePath, validateImageFile } from "@/lib/imageUploadValidation";
 
 interface CourtFormData {
   courtName: string;
@@ -306,12 +307,17 @@ const CreateListing = () => {
       if (!isMockMode) {
         const storage = getStorageInstance();
         for (const file of selectedFiles) {
-          const imageRef = ref(storage, `courts/${Date.now()}_${file.name}`);
+          const imageRef = ref(
+            storage,
+            getSafeImageStoragePath("courts", user.uid, file)
+          );
           await uploadBytes(imageRef, file);
           const url = await getDownloadURL(imageRef);
           imageUrls.push(url);
         }
       }
+
+      const bookableStatus: "active" | "draft" = "draft";
 
       const courtDoc: any = {
         name: data.courtName,
@@ -338,6 +344,8 @@ const CreateListing = () => {
         imageUrl: imageUrls[0],
         imageUrls,
         ownerId: user.uid,
+        bookableStatus,
+        ownerStripeAccountStatus: "inactive",
         numberOfCourts,
         maxAdvanceBookingDays: maxAdvanceBookingDays ?? null,
         alwaysBlockedTimes,
@@ -399,6 +407,12 @@ const CreateListing = () => {
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       const files = Array.from(event.target.files);
+      const invalid = files.map(validateImageFile).find(Boolean);
+      if (invalid) {
+        setError(invalid);
+        event.target.value = "";
+        return;
+      }
       setSelectedFiles((prev) => [...prev, ...files]);
     }
   };

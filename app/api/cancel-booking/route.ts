@@ -11,6 +11,16 @@ import {
 import { releaseBookingPayment } from "@/lib/stripeBookingPayments";
 import { isMockApiMode } from "@/lib/mockApiMode";
 import { mockCancelBookingPOST } from "@/lib/mockApiServer";
+import {
+  enforceRateLimit,
+  isNextResponse,
+  requireFirebaseUser,
+  validateMutationOrigin,
+} from "@/lib/apiSecurity";
+import { bookingIdBodySchema, parseJsonBody } from "@/lib/apiSchemas";
+import { releaseBookingSlotLocks } from "@/lib/bookingSlotLocks";
+import { writeSecurityAuditLog } from "@/lib/securityAudit";
+import { sendOpsAlert } from "@/lib/opsAlerts";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
@@ -22,39 +32,19 @@ export async function POST(req: NextRequest) {
       return mockCancelBookingPOST(req);
     }
 
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Missing or invalid authorization header" },
-        { status: 401 }
-      );
-    }
+    const originError = validateMutationOrigin(req);
+    if (originError) return originError;
 
-    const idToken = authHeader.split("Bearer ")[1];
-    let userId: string;
-    try {
-      if (!adminAuth) {
-        return NextResponse.json(
-          { error: "Authentication service not initialized" },
-          { status: 500 }
-        );
-      }
-      const decodedToken = await adminAuth.verifyIdToken(idToken, true);
-      userId = decodedToken.uid;
-    } catch (err: any) {
-      return NextResponse.json(
-        { error: "Invalid or expired authentication token" },
-        { status: 401 }
-      );
-    }
+    const auth = await requireFirebaseUser(req, adminAuth);
+    if (isNextResponse(auth)) return auth;
+    const userId = auth.uid;
 
-    const { bookingId } = await req.json();
-    if (!bookingId) {
-      return NextResponse.json(
-        { error: "Booking ID is required" },
-        { status: 400 }
-      );
-    }
+    const rateLimitError = await enforceRateLimit(req, "cancel-booking", userId);
+    if (rateLimitError) return rateLimitError;
+
+    const parsedBody = await parseJsonBody(req, bookingIdBodySchema);
+    if (isNextResponse(parsedBody)) return parsedBody;
+    const { bookingId } = parsedBody;
 
     if (!adminDb) {
       return NextResponse.json(
@@ -112,12 +102,21 @@ export async function POST(req: NextRequest) {
       ? "host_cancellation"
       : "player_cancellation";
 
-    const releasedPayment = await releaseBookingPayment(
-      stripe,
-      bookingData.sessionId,
-      bookingId,
-      cancelReason
-    );
+    let releasedPayment: Awaited<ReturnType<typeof releaseBookingPayment>>;
+    try {
+      releasedPayment = await releaseBookingPayment(
+        stripe,
+        bookingData.sessionId,
+        bookingId,
+        cancelReason
+      );
+    } catch (releaseErr: any) {
+      await sendOpsAlert(
+        "PAYMENT RELEASE FAILED (cancel)",
+        `bookingId=${bookingId} courtId=${bookingData.courtId} cancelReason=${cancelReason} error=${releaseErr?.message ?? String(releaseErr)}`
+      );
+      throw releaseErr;
+    }
 
     // Update booking status
     await adminDb.collection("bookings").doc(bookingId).update({
@@ -126,6 +125,14 @@ export async function POST(req: NextRequest) {
       cancelledAt: new Date(),
       paymentStatus: releasedPayment.paymentStatus,
       ...(releasedPayment.refundId ? { refundId: releasedPayment.refundId } : {}),
+    });
+    await releaseBookingSlotLocks(adminDb, { ...bookingData, status: "cancelled" });
+    await writeSecurityAuditLog(adminDb, "booking_cancelled", {
+      actorId: userId,
+      bookingId,
+      courtId: bookingData.courtId,
+      cancelReason,
+      paymentStatus: releasedPayment.paymentStatus,
     });
 
     const [ownerDoc, playerDoc] = await Promise.all([
@@ -217,7 +224,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error("[CANCEL-BOOKING] Error:", err);
     return NextResponse.json(
-      { error: err.message || "Failed to cancel booking" },
+      { error: "Failed to cancel booking" },
       { status: 500 }
     );
   }

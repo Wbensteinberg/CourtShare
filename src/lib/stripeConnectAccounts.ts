@@ -56,3 +56,17 @@ export function getStripeAccountWriteFields(
     ? { [modeField]: accountId, stripeAccountId: accountId }
     : { [modeField]: accountId };
 }
+
+export function isStripeAccountReady(
+  account: {
+    charges_enabled?: boolean | null;
+    payouts_enabled?: boolean | null;
+    details_submitted?: boolean | null;
+  } | null | undefined
+) {
+  return Boolean(
+    account?.charges_enabled &&
+      account?.payouts_enabled &&
+      account?.details_submitted
+  );
+}

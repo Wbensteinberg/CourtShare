@@ -6,6 +6,16 @@ import { releaseBookingPayment } from "@/lib/stripeBookingPayments";
 import { sendPlayerBookingExpiredNotification } from "@/lib/email";
 import { isMockApiMode } from "@/lib/mockApiMode";
 import { mockExpirePendingBookingsPOST } from "@/lib/mockApiServer";
+import {
+  enforceRateLimit,
+  isNextResponse,
+  requireFirebaseUser,
+  validateMutationOrigin,
+} from "@/lib/apiSecurity";
+import { expirePendingBookingsBodySchema, parseJsonBody } from "@/lib/apiSchemas";
+import { releaseBookingSlotLocks } from "@/lib/bookingSlotLocks";
+import { writeSecurityAuditLog } from "@/lib/securityAudit";
+import { sendOpsAlert } from "@/lib/opsAlerts";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
@@ -17,13 +27,8 @@ export async function POST(req: NextRequest) {
       return mockExpirePendingBookingsPOST(req);
     }
 
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Missing or invalid authorization header" },
-        { status: 401 }
-      );
-    }
+    const originError = validateMutationOrigin(req);
+    if (originError) return originError;
 
     if (!adminAuth || !adminDb) {
       return NextResponse.json(
@@ -33,12 +38,17 @@ export async function POST(req: NextRequest) {
     }
     const db = adminDb;
 
-    const idToken = authHeader.split("Bearer ")[1];
-    const decodedToken = await adminAuth.verifyIdToken(idToken, true);
-    const ownerId = decodedToken.uid;
+    const auth = await requireFirebaseUser(req, adminAuth);
+    if (isNextResponse(auth)) return auth;
+    const ownerId = auth.uid;
 
-    const { bookingIds } = await req.json();
-    if (!Array.isArray(bookingIds) || bookingIds.length === 0) {
+    const rateLimitError = await enforceRateLimit(req, "expire-pending", ownerId);
+    if (rateLimitError) return rateLimitError;
+
+    const parsedBody = await parseJsonBody(req, expirePendingBookingsBodySchema);
+    if (isNextResponse(parsedBody)) return parsedBody;
+    const { bookingIds } = parsedBody;
+    if (bookingIds.length === 0) {
       return NextResponse.json({ expiredBookingIds: [] });
     }
 
@@ -66,12 +76,21 @@ export async function POST(req: NextRequest) {
           return;
         }
 
-        const releasedPayment = await releaseBookingPayment(
-          stripe,
-          bookingData.sessionId,
-          bookingId,
-          "owner_acceptance_window_expired"
-        );
+        let releasedPayment: Awaited<ReturnType<typeof releaseBookingPayment>>;
+        try {
+          releasedPayment = await releaseBookingPayment(
+            stripe,
+            bookingData.sessionId,
+            bookingId,
+            "owner_acceptance_window_expired"
+          );
+        } catch (releaseErr: any) {
+          await sendOpsAlert(
+            "PAYMENT RELEASE FAILED (expire)",
+            `bookingId=${bookingId} courtId=${bookingData.courtId} error=${releaseErr?.message ?? String(releaseErr)}`
+          );
+          throw releaseErr;
+        }
 
         await bookingRef.update({
           status: "expired",
@@ -81,6 +100,13 @@ export async function POST(req: NextRequest) {
           ...(releasedPayment.refundId
             ? { refundId: releasedPayment.refundId }
             : {}),
+        });
+        await releaseBookingSlotLocks(db, { ...bookingData, status: "expired" });
+        await writeSecurityAuditLog(db, "booking_expired_by_host_view", {
+          actorId: ownerId,
+          bookingId,
+          courtId: bookingData.courtId,
+          paymentStatus: releasedPayment.paymentStatus,
         });
 
         try {
@@ -121,7 +147,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error("[EXPIRE-PENDING-BOOKINGS] Error:", err);
     return NextResponse.json(
-      { error: err.message || "Failed to expire pending bookings" },
+      { error: "Failed to expire pending bookings" },
       { status: 500 }
     );
   }

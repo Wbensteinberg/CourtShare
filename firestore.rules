@@ -11,31 +11,63 @@ service cloud.firestore {
         && request.auth.uid in resource.data.participantIds;
     }
 
-    function isIncomingParticipant() {
-      return signedIn()
-        && request.auth.uid in request.resource.data.participantIds;
-    }
-
     match /users/{userId} {
       allow read: if signedIn() && request.auth.uid == userId;
-      allow create: if signedIn() && request.auth.uid == userId;
-      allow update: if signedIn() && request.auth.uid == userId;
+      allow create: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.uid == request.auth.uid
+        && (!("isOwner" in request.resource.data) || request.resource.data.isOwner == false)
+        && request.resource.data.keys().hasOnly([
+          "uid",
+          "email",
+          "displayName",
+          "bio",
+          "profileImageUrl",
+          "isOwner",
+          "createdAt",
+          "updatedAt",
+          "ownerListingWaiverVersionAccepted",
+          "ownerListingWaiverAcceptedAt",
+          "playerBookingWaiverVersionAccepted",
+          "playerBookingWaiverAcceptedAt"
+        ]);
+      allow update: if signedIn()
+        && request.auth.uid == userId
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "displayName",
+          "bio",
+          "profileImageUrl",
+          "updatedAt",
+          "ownerListingWaiverVersionAccepted",
+          "ownerListingWaiverAcceptedAt",
+          "playerBookingWaiverVersionAccepted",
+          "playerBookingWaiverAcceptedAt"
+        ])
+        && (!("displayName" in request.resource.data) || request.resource.data.displayName.size() <= 100)
+        && (!("bio" in request.resource.data) || request.resource.data.bio.size() <= 500);
       allow delete: if false;
     }
 
     match /courts/{courtId} {
-      allow read: if true;
+      allow read: if resource.data.bookableStatus == "active"
+        || signedIn();
       allow create: if signedIn()
-        && request.resource.data.ownerId == request.auth.uid;
-      allow update, delete: if signedIn()
-        && resource.data.ownerId == request.auth.uid;
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.bookableStatus == "draft";
+      allow update: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.bookableStatus == resource.data.bookableStatus
+        && request.resource.data.ownerStripeAccountStatus == resource.data.ownerStripeAccountStatus
+        && request.resource.data.ownerStripeMode == resource.data.ownerStripeMode;
+      allow delete: if false;
     }
 
     match /bookings/{bookingId} {
       allow read: if signedIn()
         && (resource.data.userId == request.auth.uid
-          || resource.data.ownerId == request.auth.uid
-          || get(/databases/$(database)/documents/courts/$(resource.data.courtId)).data.ownerId == request.auth.uid);
+          || resource.data.ownerId == request.auth.uid);
       allow create, update, delete: if false;
     }
 
@@ -46,23 +78,35 @@ service cloud.firestore {
 
     match /conversations/{conversationId} {
       allow read: if isParticipant();
-      allow create: if isIncomingParticipant();
+      allow create: if false;
       allow update: if isParticipant()
         && request.resource.data.participantIds == resource.data.participantIds
         && request.resource.data.playerId == resource.data.playerId
         && request.resource.data.ownerId == resource.data.ownerId
         && request.resource.data.courtId == resource.data.courtId
-        && request.resource.data.bookingId == resource.data.bookingId;
+        && request.resource.data.bookingId == resource.data.bookingId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          "unreadBy",
+          "updatedAt",
+          "playerName",
+          "ownerName"
+        ]);
       allow delete: if false;
 
       match /messages/{messageId} {
         allow read: if signedIn()
           && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
-        allow create: if signedIn()
-          && request.auth.uid == request.resource.data.senderId
-          && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
+        allow create: if false;
         allow update, delete: if false;
       }
+    }
+
+    match /bookingSlotLocks/{lockId} {
+      allow read, write: if false;
+    }
+
+    match /securityAuditLogs/{logId} {
+      allow read, write: if false;
     }
   }
 }

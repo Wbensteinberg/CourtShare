@@ -21,9 +21,10 @@ jest.mock("firebase/storage", () => ({
 }));
 
 // Mock the getStorageInstance function
-jest.mock("@/src/lib/firebase", () => ({
+jest.mock("@/lib/firebase", () => ({
   db: {},
   getStorageInstance: jest.fn(() => ({})),
+  isMockMode: false,
 }));
 
 // Mock Firebase firestore
@@ -41,12 +42,14 @@ jest.mock("firebase/firestore", () => ({
 
 // Mock next/navigation
 const mockPush = jest.fn();
+const mockReplace = jest.fn();
 jest.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: mockReplace }),
+  usePathname: () => "/create-listing",
 }));
 
 // Mock useAuth to return a user by default
-jest.mock("@/src/lib/AuthContext", () => ({
+jest.mock("@/lib/AuthContext", () => ({
   useAuth: () => ({ user: { uid: "test-user-id", email: "test@example.com" } }),
 }));
 
@@ -65,14 +68,14 @@ describe("CreateListingPage", () => {
 
     // Check for form elements
     expect(screen.getByText("Create Court Listing")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Enter court name")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("e.g. Brentwood Backyard Court")).toBeInTheDocument();
     expect(
       screen.getByPlaceholderText(
-        "Describe your court's features, amenities, surface type..."
+        "Describe your court's surface, lighting, amenities, privacy, and anything players should know."
       )
     ).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("25.00")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("City, State")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("25")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Complete street address")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Create Listing" })
     ).toBeInTheDocument();
@@ -92,7 +95,7 @@ describe("CreateListingPage", () => {
     render(<CreateListingPage />);
 
     // Fill in some fields but not all
-    fireEvent.change(screen.getByPlaceholderText("Enter court name"), {
+    fireEvent.change(screen.getByPlaceholderText("e.g. Brentwood Backyard Court"), {
       target: { value: "Test Court" },
     });
     // Don't fill in location, price, description, or image
@@ -118,22 +121,19 @@ describe("CreateListingPage", () => {
     render(<CreateListingPage />);
 
     // Fill in the form
-    fireEvent.change(screen.getByPlaceholderText("Enter court name"), {
+    fireEvent.change(screen.getByPlaceholderText("e.g. Brentwood Backyard Court"), {
       target: { value: "Test Court" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("City, State"), {
-      target: { value: "Test City, TS" },
     });
     fireEvent.change(screen.getByPlaceholderText("Complete street address"), {
       target: { value: "123 Test St" },
     });
     fireEvent.change(
-      screen.getByPlaceholderText("Describe your court's features, amenities, surface type..."),
+      screen.getByPlaceholderText("Describe your court's surface, lighting, amenities, privacy, and anything players should know."),
       {
         target: { value: "A beautiful test court" },
       }
     );
-    fireEvent.change(screen.getByPlaceholderText("25.00"), {
+    fireEvent.change(screen.getByPlaceholderText("25"), {
       target: { value: "50" },
     });
 
@@ -166,7 +166,7 @@ describe("CreateListingPage", () => {
           name: "Test Court",
           description: "A beautiful test court",
           price: 50,
-          location: "Test City, TS",
+          address: "123 Test St",
           imageUrl: "https://example.com/image.jpg",
         })
       );
@@ -183,22 +183,19 @@ describe("CreateListingPage", () => {
     render(<CreateListingPage />);
 
     // Fill in the form and try to submit
-    fireEvent.change(screen.getByPlaceholderText("Enter court name"), {
+    fireEvent.change(screen.getByPlaceholderText("e.g. Brentwood Backyard Court"), {
       target: { value: "Test Court" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("City, State"), {
-      target: { value: "Test City, TS" },
     });
     fireEvent.change(screen.getByPlaceholderText("Complete street address"), {
       target: { value: "123 Test St" },
     });
     fireEvent.change(
-      screen.getByPlaceholderText("Describe your court's features, amenities, surface type..."),
+      screen.getByPlaceholderText("Describe your court's surface, lighting, amenities, privacy, and anything players should know."),
       {
         target: { value: "A beautiful test court" },
       }
     );
-    fireEvent.change(screen.getByPlaceholderText("25.00"), {
+    fireEvent.change(screen.getByPlaceholderText("25"), {
       target: { value: "50" },
     });
 

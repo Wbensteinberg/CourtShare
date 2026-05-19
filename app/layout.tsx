@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { headers } from "next/headers";
 import "./globals.css";
 import { AuthProvider } from "@/lib/AuthContext";
 import AppFooter from "@/components/AppFooter";
@@ -47,11 +48,15 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // nonce is read here so it can be passed to any <Script nonce={nonce}> added later.
+  // Do NOT put the nonce in DOM attributes — that exposes it to injection attacks.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  void nonce; // suppress unused-var until a Script component needs it
   return (
     <html lang="en">
       <body

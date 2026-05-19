@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
 import { isMockApiMode } from "@/lib/mockApiMode";
 import { mockPublicProfileGET } from "@/lib/mockApiServer";
+import { enforceRateLimit } from "@/lib/apiSecurity";
 
 const serializeMemberSince = (value: unknown): string | null => {
   if (!value) return null;
@@ -49,18 +50,21 @@ const getPublicProfile = (id: string, data: Record<string, any>) => ({
 });
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
   try {
     const { userId } = await params;
-    if (!userId) {
-      return NextResponse.json({ error: "User ID is required" }, { status: 400 });
+    if (!userId || typeof userId !== "string" || userId.trim().length === 0 || userId.length > 200) {
+      return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
     }
 
     if (isMockApiMode()) {
       return mockPublicProfileGET(userId);
     }
+
+    const rateLimitError = await enforceRateLimit(req, "public-profile", userId);
+    if (rateLimitError) return rateLimitError;
 
     if (!adminDb) {
       return NextResponse.json(

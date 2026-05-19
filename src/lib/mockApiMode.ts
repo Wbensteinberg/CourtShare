@@ -6,5 +6,6 @@
  * Never enable `MOCK_API` in production.
  */
 export const isMockApiMode = (): boolean =>
+  process.env.NODE_ENV !== "production" &&
   process.env.MOCK_API === "true" &&
   process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";

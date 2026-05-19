@@ -6,6 +6,16 @@ import { sendPlayerRejectionNotification } from "@/lib/email";
 import { releaseBookingPayment } from "@/lib/stripeBookingPayments";
 import { isMockApiMode } from "@/lib/mockApiMode";
 import { mockRejectBookingPOST } from "@/lib/mockApiServer";
+import {
+  enforceRateLimit,
+  isNextResponse,
+  requireFirebaseUser,
+  validateMutationOrigin,
+} from "@/lib/apiSecurity";
+import { parseJsonBody, rejectBookingBodySchema } from "@/lib/apiSchemas";
+import { releaseBookingSlotLocks } from "@/lib/bookingSlotLocks";
+import { writeSecurityAuditLog } from "@/lib/securityAudit";
+import { sendOpsAlert } from "@/lib/opsAlerts";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
@@ -17,48 +27,20 @@ export async function POST(req: NextRequest) {
       return mockRejectBookingPOST(req);
     }
 
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Missing or invalid authorization header" },
-        { status: 401 }
-      );
-    }
+    const originError = validateMutationOrigin(req);
+    if (originError) return originError;
 
-    const idToken = authHeader.split("Bearer ")[1];
-    let userId: string;
-    try {
-      if (!adminAuth) {
-        return NextResponse.json(
-          { error: "Authentication service not initialized" },
-          { status: 500 }
-        );
-      }
-      const decodedToken = await adminAuth.verifyIdToken(idToken, true);
-      userId = decodedToken.uid;
-    } catch (err: any) {
-      return NextResponse.json(
-        { error: "Invalid or expired authentication token" },
-        { status: 401 }
-      );
-    }
+    const auth = await requireFirebaseUser(req, adminAuth);
+    if (isNextResponse(auth)) return auth;
+    const userId = auth.uid;
 
-    const { bookingId, declineReason } = await req.json();
-    if (!bookingId) {
-      return NextResponse.json(
-        { error: "Booking ID is required" },
-        { status: 400 }
-      );
-    }
+    const rateLimitError = await enforceRateLimit(req, "reject-booking", userId);
+    if (rateLimitError) return rateLimitError;
 
-    const cleanDeclineReason =
-      typeof declineReason === "string" ? declineReason.trim().slice(0, 1000) : "";
-    if (!cleanDeclineReason) {
-      return NextResponse.json(
-        { error: "A decline reason is required" },
-        { status: 400 }
-      );
-    }
+    const parsedBody = await parseJsonBody(req, rejectBookingBodySchema);
+    if (isNextResponse(parsedBody)) return parsedBody;
+    const { bookingId } = parsedBody;
+    const cleanDeclineReason = parsedBody.declineReason;
 
     if (!adminDb) {
       return NextResponse.json(
@@ -93,12 +75,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const releasedPayment = await releaseBookingPayment(
-      stripe,
-      bookingData.sessionId,
-      bookingId,
-      "host_rejection"
-    );
+    let releasedPayment: Awaited<ReturnType<typeof releaseBookingPayment>>;
+    try {
+      releasedPayment = await releaseBookingPayment(
+        stripe,
+        bookingData.sessionId,
+        bookingId,
+        "host_rejection"
+      );
+    } catch (releaseErr: any) {
+      await sendOpsAlert(
+        "PAYMENT RELEASE FAILED (reject)",
+        `bookingId=${bookingId} courtId=${bookingData.courtId} error=${releaseErr?.message ?? String(releaseErr)}`
+      );
+      throw releaseErr;
+    }
 
     // Update booking status
     await adminDb.collection("bookings").doc(bookingId).update({
@@ -108,6 +99,13 @@ export async function POST(req: NextRequest) {
       rejectedAt: new Date(),
       paymentStatus: releasedPayment.paymentStatus,
       ...(releasedPayment.refundId ? { refundId: releasedPayment.refundId } : {}),
+    });
+    await releaseBookingSlotLocks(adminDb, { ...bookingData, status: "rejected" });
+    await writeSecurityAuditLog(adminDb, "booking_rejected", {
+      actorId: userId,
+      bookingId,
+      courtId: bookingData.courtId,
+      paymentStatus: releasedPayment.paymentStatus,
     });
 
     const [playerDoc, ownerDoc] = await Promise.all([
@@ -177,7 +175,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error("[REJECT-BOOKING] Error:", err);
     return NextResponse.json(
-      { error: err.message || "Failed to reject booking" },
+      { error: "Failed to reject booking" },
       { status: 500 }
     );
   }

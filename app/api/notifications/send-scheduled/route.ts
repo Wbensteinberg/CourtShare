@@ -13,6 +13,8 @@ import {
   sendReviewReminderEmail,
 } from "@/lib/email";
 import { releaseBookingPayment } from "@/lib/stripeBookingPayments";
+import { releaseBookingSlotLocks } from "@/lib/bookingSlotLocks";
+import { writeSecurityAuditLog } from "@/lib/securityAudit";
 import Stripe from "stripe";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -35,7 +37,9 @@ const getDisplayName = (profile: FirebaseFirestore.DocumentData | null | undefin
 
 const verifyCronRequest = (req: NextRequest) => {
   const cronSecret = process.env.CRON_SECRET;
-  if (!cronSecret) return true;
+  if (!cronSecret) {
+    return process.env.NODE_ENV !== "production";
+  }
   return req.headers.get("authorization") === `Bearer ${cronSecret}`;
 };
 
@@ -180,6 +184,12 @@ async function expirePendingBookings(now: Date) {
         expiredAt: FieldValue.serverTimestamp(),
         paymentStatus: releasedPayment.paymentStatus,
         ...(releasedPayment.refundId ? { refundId: releasedPayment.refundId } : {}),
+      });
+      await releaseBookingSlotLocks(adminDb!, { ...booking, status: "expired" });
+      await writeSecurityAuditLog(adminDb, "booking_expired_by_cron", {
+        bookingId: bookingDoc.id,
+        courtId: booking.courtId,
+        paymentStatus: releasedPayment.paymentStatus,
       });
 
       const playerEmail = String(player?.email || "").trim();

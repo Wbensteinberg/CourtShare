@@ -35,6 +35,7 @@ import {
   updateMockCourt,
 } from "@/lib/mockData";
 import { calculateBookingPriceBreakdown, formatCents } from "@/lib/pricing";
+import { getSafeImageStoragePath, validateImageFile } from "@/lib/imageUploadValidation";
 
 interface Court {
   id: string;
@@ -281,6 +282,12 @@ export default function EditListingPage() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const selectedFiles = Array.from(e.target.files);
+      const invalid = selectedFiles.map(validateImageFile).find(Boolean);
+      if (invalid) {
+        setError(invalid);
+        e.target.value = "";
+        return;
+      }
       setImages(prev => [...prev, ...selectedFiles]);
     }
   };
@@ -448,7 +455,10 @@ export default function EditListingPage() {
       if (!isMockMode) {
         const storage = getStorageInstance();
         for (const image of images) {
-          const imageRef = ref(storage, `courts/${Date.now()}_${image.name}`);
+          const imageRef = ref(
+            storage,
+            getSafeImageStoragePath("courts", user.uid, image)
+          );
           await uploadBytes(imageRef, image);
           const imageUrl = await getDownloadURL(imageRef);
           newImageUrls.push(imageUrl);

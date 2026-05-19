@@ -119,6 +119,7 @@ interface Court {
   rating?: number;
   reviewCount?: number;
   ownerId?: string;
+  bookableStatus?: "active" | "draft";
   // Extended fields
   latitude?: number;
   longitude?: number;
@@ -525,6 +526,7 @@ function CourtDetailPage() {
   }, [selectedTime, duration, selectedDate, court, bookingsForDate]);
 
   useEffect(() => {
+    if (authLoading && !isMockMode) return;
     if (!id) return;
     setLoading(true);
     setError("");
@@ -537,7 +539,14 @@ function CourtDetailPage() {
           const docRef = doc(db, "courts", id);
           const snapshot = await getDoc(docRef);
           if (snapshot.exists()) {
-            setCourt(snapshot.data() as Court);
+            const courtData = snapshot.data() as Court;
+            const isOwnerPreview = !!user && courtData.ownerId === user.uid;
+            if (courtData.bookableStatus !== "active" && !isOwnerPreview) {
+              setCourt(null);
+              setError("This listing is not currently available for booking.");
+              return;
+            }
+            setCourt(courtData);
           } else {
             setCourt(null);
           }
@@ -549,7 +558,7 @@ function CourtDetailPage() {
       }
     };
     fetchCourt();
-  }, [id]);
+  }, [authLoading, id, user]);
 
   useEffect(() => {
     const fetchHostAndReviews = async () => {

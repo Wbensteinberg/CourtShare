@@ -29,7 +29,11 @@ export async function getCourtForShareMetadata(
 ): Promise<CourtSharePreviewCourt | null> {
   if (!courtId) return null;
 
-  if (process.env.MOCK_API === "true" || process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true") {
+  if (
+    process.env.NODE_ENV !== "production" &&
+    (process.env.MOCK_API === "true" ||
+      process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true")
+  ) {
     const court = createMockApiSeedData().courts.find((row) => row.id === courtId);
     return court || null;
   }

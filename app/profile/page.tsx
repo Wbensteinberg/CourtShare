@@ -33,6 +33,7 @@ import {
   Star,
   User,
 } from "lucide-react";
+import { getSafeImageStoragePath, validateImageFile } from "@/lib/imageUploadValidation";
 import {
   fileToDataUrl,
   getMockBookingsForUser,
@@ -355,6 +356,12 @@ export default function ProfilePage() {
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      const invalid = validateImageFile(file);
+      if (invalid) {
+        setError(invalid);
+        e.target.value = "";
+        return;
+      }
       setProfileImage(file);
       const imageUrl = URL.createObjectURL(file);
       setOriginalImageUrl(imageUrl);
@@ -476,7 +483,7 @@ export default function ProfilePage() {
           const storage = getStorageInstance();
           const imageRef = ref(
             storage,
-            `profiles/${user.uid}_${Date.now()}_${profileImage.name}`
+            getSafeImageStoragePath("users", user.uid, profileImage)
           );
           await uploadBytes(imageRef, profileImage);
           profileImageUrl = await getDownloadURL(imageRef);
@@ -860,6 +867,7 @@ export default function ProfilePage() {
                           value={bio}
                           onChange={(e) => setBio(e.target.value)}
                           rows={6}
+                          maxLength={500}
                           className="w-full resize-none rounded-2xl border border-slate-300 bg-white p-4 text-sm focus:border-[var(--site-accent)] focus:outline-none focus:ring-2 focus:ring-[var(--site-accent)]"
                         />
                       </div>

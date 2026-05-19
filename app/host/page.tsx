@@ -333,18 +333,14 @@ export default function OwnerDashboard() {
               ...doc.data(),
             })) as Court[]);
         setCourts(courtsData);
-        const courtIds = courtsData.map((c) => c.id);
-        let bookingsData: Booking[] = [];
-        if (courtIds.length > 0) {
-          bookingsData = isMockMode
-            ? (getMockBookingsForOwner(user.uid) as Booking[])
-            : ((await getDocs(
-                query(collection(db, "bookings"), where("courtId", "in", courtIds))
-              )).docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-              })) as Booking[]);
-        }
+        let bookingsData: Booking[] = isMockMode
+          ? (getMockBookingsForOwner(user.uid) as Booking[])
+          : ((await getDocs(
+              query(collection(db, "bookings"), where("ownerId", "==", user.uid))
+            )).docs.map((doc) => ({
+              id: doc.id,
+              ...doc.data(),
+            })) as Booking[]);
 
         const expiredPendingBookings = bookingsData.filter((booking) =>
           isPendingBookingExpired(booking)

@@ -3,6 +3,14 @@ import { FieldValue } from "firebase-admin/firestore";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { sendConversationMessageEmail } from "@/lib/email";
 import { isMockApiMode } from "@/lib/mockApiMode";
+import {
+  enforceRateLimit,
+  isNextResponse,
+  requireFirebaseUser,
+  validateMutationOrigin,
+} from "@/lib/apiSecurity";
+import { parseJsonBody, sendMessageBodySchema } from "@/lib/apiSchemas";
+import { writeSecurityAuditLog } from "@/lib/securityAudit";
 
 const getDisplayName = (profile: FirebaseFirestore.DocumentData | undefined) => {
   const displayName = String(profile?.displayName || profile?.name || "").trim();
@@ -23,6 +31,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const originError = validateMutationOrigin(req);
+    if (originError) return originError;
+
     if (!adminAuth || !adminDb) {
       return NextResponse.json(
         { error: "Server configuration error" },
@@ -31,30 +42,16 @@ export async function POST(req: NextRequest) {
     }
     const db = adminDb;
 
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Missing or invalid authorization header" },
-        { status: 401 }
-      );
-    }
+    const auth = await requireFirebaseUser(req, adminAuth);
+    if (isNextResponse(auth)) return auth;
+    const senderId = auth.uid;
 
-    const decodedToken = await adminAuth.verifyIdToken(
-      authHeader.split("Bearer ")[1],
-      true
-    );
-    const senderId = decodedToken.uid;
-    const { conversationId, body } = await req.json();
-    const normalizedConversationId =
-      typeof conversationId === "string" ? conversationId.trim() : "";
-    const normalizedBody = typeof body === "string" ? body.trim().slice(0, 4000) : "";
-
-    if (!normalizedConversationId || !normalizedBody) {
-      return NextResponse.json(
-        { error: "Conversation ID and message are required" },
-        { status: 400 }
-      );
-    }
+    const rateLimitError = await enforceRateLimit(req, "send-message", senderId);
+    if (rateLimitError) return rateLimitError;
+    const parsedBody = await parseJsonBody(req, sendMessageBodySchema);
+    if (isNextResponse(parsedBody)) return parsedBody;
+    const normalizedConversationId = parsedBody.conversationId;
+    const normalizedBody = parsedBody.body;
 
     const conversationRef = db
       .collection("conversations")
@@ -123,6 +120,12 @@ export async function POST(req: NextRequest) {
         });
       })
     );
+    await writeSecurityAuditLog(db, "conversation_message_sent", {
+      actorId: senderId,
+      conversationId: normalizedConversationId,
+      bookingId:
+        typeof conversation.bookingId === "string" ? conversation.bookingId : null,
+    });
 
     return NextResponse.json({
       success: true,
@@ -138,7 +141,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error("[SEND-MESSAGE] Error:", err);
     return NextResponse.json(
-      { error: err.message || "Failed to send message" },
+      { error: "Failed to send message" },
       { status: 500 }
     );
   }

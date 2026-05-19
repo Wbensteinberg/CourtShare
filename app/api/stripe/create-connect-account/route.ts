@@ -7,9 +7,14 @@ import {
   getStripeAccountWriteFields,
   getStripeMode,
 } from "@/lib/stripeConnectAccounts";
-import { checkRateLimit } from "../../rate-limit";
 import { isMockApiMode } from "@/lib/mockApiMode";
 import { mockCreateConnectAccountPOST } from "@/lib/mockApiServer";
+import {
+  enforceRateLimit,
+  isNextResponse,
+  requireFirebaseUser,
+  validateMutationOrigin,
+} from "@/lib/apiSecurity";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
@@ -45,53 +50,15 @@ export async function POST(req: NextRequest) {
     return mockCreateConnectAccountPOST(req);
   }
 
-  // SECURITY: Rate limiting to prevent abuse
-  const ip =
-    req.headers.get("x-forwarded-for") ||
-    req.headers.get("x-real-ip") ||
-    "unknown";
-  const rateLimitResult = await checkRateLimit(
-    `${ip}-${req.headers.get("user-agent")}-connect`
-  );
+  const originError = validateMutationOrigin(req);
+  if (originError) return originError;
 
-  if (!rateLimitResult.allowed) {
-    return NextResponse.json(
-      {
-        error: "Too many requests. Please try again later.",
-        retryAfter: Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000),
-      },
-      { status: 429 }
-    );
-  }
+  const auth = await requireFirebaseUser(req, adminAuth);
+  if (isNextResponse(auth)) return auth;
+  const userId = auth.uid;
 
-  // SECURITY: Verify Firebase ID token instead of accepting userId from client
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return NextResponse.json(
-      { error: "Missing or invalid authorization header" },
-      { status: 401 }
-    );
-  }
-
-  const idToken = authHeader.split("Bearer ")[1];
-  let userId: string;
-
-  try {
-    if (!adminAuth) {
-      return NextResponse.json(
-        { error: "Authentication service not initialized" },
-        { status: 500 }
-      );
-    }
-    const decodedToken = await adminAuth.verifyIdToken(idToken, true);
-    userId = decodedToken.uid;
-  } catch (err: any) {
-    console.error("Error verifying ID token:", err);
-    return NextResponse.json(
-      { error: "Invalid or expired authentication token" },
-      { status: 401 }
-    );
-  }
+  const rateLimitError = await enforceRateLimit(req, "create-connect-account", userId);
+  if (rateLimitError) return rateLimitError;
 
   // Parse request body to check for update flag
   let requestBody: { update?: boolean } = {};

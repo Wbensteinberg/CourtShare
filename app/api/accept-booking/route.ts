@@ -7,6 +7,16 @@ import { sendPlayerBookingConfirmation } from "@/lib/email";
 import { transferPlatformHeldBookingToHost } from "@/lib/stripeHostPayouts";
 import { isMockApiMode } from "@/lib/mockApiMode";
 import { mockAcceptBookingPOST } from "@/lib/mockApiServer";
+import {
+  enforceRateLimit,
+  isNextResponse,
+  requireFirebaseUser,
+  validateMutationOrigin,
+} from "@/lib/apiSecurity";
+import { bookingIdBodySchema, parseJsonBody } from "@/lib/apiSchemas";
+import { markBookingSlotLocksConfirmed, releaseBookingSlotLocks } from "@/lib/bookingSlotLocks";
+import { writeSecurityAuditLog } from "@/lib/securityAudit";
+import { sendOpsAlert } from "@/lib/opsAlerts";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
@@ -18,13 +28,8 @@ export async function POST(req: NextRequest) {
       return mockAcceptBookingPOST(req);
     }
 
-    const authHeader = req.headers.get("authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { error: "Missing or invalid authorization header" },
-        { status: 401 }
-      );
-    }
+    const originError = validateMutationOrigin(req);
+    if (originError) return originError;
 
     if (!adminAuth || !adminDb) {
       return NextResponse.json(
@@ -34,17 +39,16 @@ export async function POST(req: NextRequest) {
     }
     const db = adminDb;
 
-    const idToken = authHeader.split("Bearer ")[1];
-    const decodedToken = await adminAuth.verifyIdToken(idToken, true);
-    const ownerId = decodedToken.uid;
+    const auth = await requireFirebaseUser(req, adminAuth);
+    if (isNextResponse(auth)) return auth;
+    const ownerId = auth.uid;
 
-    const { bookingId } = await req.json();
-    if (!bookingId) {
-      return NextResponse.json(
-        { error: "Booking ID is required" },
-        { status: 400 }
-      );
-    }
+    const rateLimitError = await enforceRateLimit(req, "accept-booking", ownerId);
+    if (rateLimitError) return rateLimitError;
+
+    const parsedBody = await parseJsonBody(req, bookingIdBodySchema);
+    if (isNextResponse(parsedBody)) return parsedBody;
+    const { bookingId } = parsedBody;
 
     const bookingRef = db.collection("bookings").doc(bookingId);
     const bookingDoc = await bookingRef.get();
@@ -73,6 +77,12 @@ export async function POST(req: NextRequest) {
       await bookingRef.update({
         status: "expired",
         expiredAt: new Date(),
+      });
+      await releaseBookingSlotLocks(db, { ...bookingData, status: "expired" });
+      await writeSecurityAuditLog(db, "booking_expired_on_accept", {
+        actorId: ownerId,
+        bookingId,
+        courtId: bookingData.courtId,
       });
       return NextResponse.json(
         { error: "This booking request has expired" },
@@ -116,6 +126,13 @@ export async function POST(req: NextRequest) {
     }
 
     await bookingRef.update(bookingUpdate);
+    await markBookingSlotLocksConfirmed(db, bookingId, bookingData);
+    await writeSecurityAuditLog(db, "booking_accepted", {
+      actorId: ownerId,
+      bookingId,
+      courtId: bookingData.courtId,
+      paymentIntentId,
+    });
 
     if (bookingData.transferToOwner !== true) {
       const ownerDoc = await db.collection("users").doc(ownerId).get();
@@ -141,6 +158,10 @@ export async function POST(req: NextRequest) {
               ? transferError.message
               : "Unknown transfer error",
         });
+        await sendOpsAlert(
+          "HOST PAYOUT TRANSFER FAILED",
+          `bookingId=${bookingId} ownerId=${ownerId} error=${transferError instanceof Error ? transferError.message : String(transferError)}`
+        );
       }
     }
 
@@ -214,7 +235,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error("[ACCEPT-BOOKING] Error:", err);
     return NextResponse.json(
-      { error: err.message || "Failed to accept booking" },
+      { error: "Failed to accept booking" },
       { status: 500 }
     );
   }

@@ -6,21 +6,15 @@ import { isMockApiMode } from "@/lib/mockApiMode";
 import { mockReviewsGET, mockReviewsPOST } from "@/lib/mockApiServer";
 import { shouldShowPublicReview } from "@/lib/reviewVisibility";
 import { sendReviewNotificationEmail } from "@/lib/email";
+import {
+  enforceRateLimit,
+  isNextResponse,
+  requireFirebaseUser,
+  validateMutationOrigin,
+} from "@/lib/apiSecurity";
+import { parseJsonBody, reviewPostBodySchema } from "@/lib/apiSchemas";
+import { writeSecurityAuditLog } from "@/lib/securityAudit";
 
-const getAuthUserId = async (req: NextRequest) => {
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    throw new Error("Missing or invalid authorization header");
-  }
-
-  if (!adminAuth) {
-    throw new Error("Authentication service not initialized");
-  }
-
-  const idToken = authHeader.split("Bearer ")[1];
-  const decodedToken = await adminAuth.verifyIdToken(idToken, true);
-  return decodedToken.uid;
-};
 
 const getUpdatedAverage = (
   currentRating: unknown,
@@ -80,6 +74,13 @@ export async function GET(req: NextRequest) {
     const courtId = req.nextUrl.searchParams.get("courtId")?.trim();
 
     if (targetUserId || courtId) {
+      const rateLimitError = await enforceRateLimit(
+        req,
+        "public-reviews",
+        targetUserId || courtId
+      );
+      if (rateLimitError) return rateLimitError;
+
       const reviewsSnap = targetUserId
         ? await db
             .collection("reviews")
@@ -149,7 +150,9 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const reviewerId = await getAuthUserId(req);
+    const reviewerAuth = await requireFirebaseUser(req, adminAuth);
+    if (isNextResponse(reviewerAuth)) return reviewerAuth;
+    const reviewerId = reviewerAuth.uid;
     const bookingIds = new Set(
       (req.nextUrl.searchParams.get("bookingIds") || "")
         .split(",")
@@ -235,6 +238,9 @@ export async function POST(req: NextRequest) {
       return mockReviewsPOST(req);
     }
 
+    const originError = validateMutationOrigin(req);
+    if (originError) return originError;
+
     if (!adminDb) {
       return NextResponse.json(
         { error: "Database not initialized" },
@@ -243,25 +249,16 @@ export async function POST(req: NextRequest) {
     }
     const db = adminDb;
 
-    const reviewerId = await getAuthUserId(req);
-    const { bookingId, rating, comment } = await req.json();
-    const normalizedRating = Number(rating);
-    const normalizedComment =
-      typeof comment === "string" ? comment.trim().slice(0, 1000) : "";
-
-    if (!bookingId || !Number.isInteger(normalizedRating)) {
-      return NextResponse.json(
-        { error: "Booking ID and whole-star rating are required" },
-        { status: 400 }
-      );
-    }
-
-    if (normalizedRating < 1 || normalizedRating > 5) {
-      return NextResponse.json(
-        { error: "Rating must be between 1 and 5 stars" },
-        { status: 400 }
-      );
-    }
+    const reviewerAuth = await requireFirebaseUser(req, adminAuth);
+    if (isNextResponse(reviewerAuth)) return reviewerAuth;
+    const reviewerId = reviewerAuth.uid;
+    const rateLimitError = await enforceRateLimit(req, "submit-review", reviewerId);
+    if (rateLimitError) return rateLimitError;
+    const parsedBody = await parseJsonBody(req, reviewPostBodySchema);
+    if (isNextResponse(parsedBody)) return parsedBody;
+    const { bookingId } = parsedBody;
+    const normalizedRating = parsedBody.rating;
+    const normalizedComment = parsedBody.comment;
 
     const bookingRef = db.collection("bookings").doc(bookingId);
     const bookingDoc = await bookingRef.get();
@@ -382,6 +379,13 @@ export async function POST(req: NextRequest) {
           { merge: true }
         );
       }
+    });
+    await writeSecurityAuditLog(db, "review_submitted", {
+      actorId: reviewerId,
+      bookingId,
+      courtId: booking.courtId,
+      reviewerRole,
+      revieweeId,
     });
 
     // Fire-and-forget review notification email to the reviewee.
