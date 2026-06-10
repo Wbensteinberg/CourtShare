@@ -187,12 +187,16 @@
   - Max Guests included.
   - missing/blank max guests defaults to 10.
   - submit requires owner listing waiver acknowledgement.
-  - new listings are draft until Stripe status activates them.
-  - after submit, navigate to Host Dashboard Your Courts.
+  - owners can save incomplete listings as drafts without publishing.
+  - publishing sets `bookableStatus: "active"` even if Stripe payout setup is incomplete.
+  - Stripe setup is still required before host payouts can be transferred.
+  - after save/publish, navigate to Host Dashboard Your Courts.
 - `/edit-listing/[courtId]`:
   - full edit fields.
   - Max Guests included.
   - legacy/missing/blank max guests defaults to 10.
+  - draft listings show Edit Draft / Publish Listing and keep Save Draft available.
+  - published listings show Update Listing and can be unlisted back to draft.
   - submit navigates to Host Dashboard Your Courts.
 
 ### Booking Details (`/booking/[bookingId]`)
@@ -554,7 +558,7 @@
 
 | Route | Method | Auth | Purpose |
 | --- | --- | --- | --- |
-| `/api/create-checkout-session` | POST | Bearer | Validate slot, guest cap, active listing/Stripe status, server-side price, create manual-capture Stripe Checkout session. |
+| `/api/create-checkout-session` | POST | Bearer | Validate slot, guest cap, active listing status, server-side price, and create a manual-capture Stripe Checkout session. Uses destination charges when host Connect is active, otherwise platform-held payment until payout setup completes. |
 | `/api/finalize-checkout-session` | POST | Bearer | Verify session belongs to caller, idempotently create pending booking, send host request email when this path creates first. |
 | `/api/stripe-webhook` | POST | Stripe signature | Idempotent Stripe event processing, pending bookings, conversations, emails. |
 | `/api/accept-booking` | POST | Bearer host | Verify host, pending/actionable state, capture PaymentIntent, confirm booking, post status message, send confirmation. |
@@ -567,7 +571,7 @@
 | `/api/conversations/send-message` | POST | Bearer participant | Save message, update unread/last-message state, email other participants. |
 | `/api/court-availability` | GET | Bearer | Return minimal booking slot projection for conflict checks. |
 | `/api/stripe/create-connect-account` | POST | Bearer | Rate-limited Connect account/link creation or dashboard link. |
-| `/api/stripe/check-account-status` | POST | Bearer | Fetch Stripe account status, update user and owned court bookability. |
+| `/api/stripe/check-account-status` | POST | Bearer | Fetch Stripe account status, update user and owned court Stripe status fields, and attempt pending platform-held host transfers when payout setup becomes active. |
 | `/api/send-booking-confirmation` | POST | Bearer participant | Send player confirmation email for a participant's booking. |
 | `/api/notifications/send-scheduled` | GET/POST | Cron secret | Expire stale pending bookings, send check-in reminders, send review reminders. |
 

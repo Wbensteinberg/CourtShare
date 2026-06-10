@@ -11,7 +11,6 @@ import {
   getDocs,
   getDoc,
   orderBy,
-  deleteDoc,
   doc,
   updateDoc,
 } from "firebase/firestore";
@@ -35,7 +34,6 @@ import {
   ChevronDown,
   ChevronUp,
   Edit3,
-  Trash2,
   Calendar,
   User,
   Clock,
@@ -67,7 +65,6 @@ import {
 } from "@/components/ui/dialog";
 import {
   createMockReview,
-  deleteMockCourt,
   getMockBookingsForOwner,
   getMockCourts,
   getMockProfile,
@@ -115,6 +112,8 @@ interface Court {
   courtSpecificAlwaysBlockedTimes?: { [courtNum: string]: string[] };
   courtSpecificAlwaysBlockedTimesByDay?: { [courtNum: string]: { [dayOfWeek: string]: string[] } };
   maxAdvanceBookingDays?: number | null;
+  bookableStatus?: "active" | "draft";
+  ownerStripeAccountStatus?: "active" | "inactive" | string;
 }
 
 interface Booking {
@@ -204,7 +203,6 @@ export default function OwnerDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const router = useRouter();
-  const [deletingCourtId, setDeletingCourtId] = useState<string | null>(null);
   const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(
     null
   );
@@ -713,28 +711,6 @@ export default function OwnerDashboard() {
     }
   };
 
-  const handleDelete = async (courtId: string) => {
-    if (
-      !window.confirm(
-        "Are you sure you want to delete this court? This cannot be undone."
-      )
-    )
-      return;
-    setDeletingCourtId(courtId);
-    try {
-      if (isMockMode) {
-        await deleteMockCourt(courtId);
-      } else {
-        await deleteDoc(doc(db, "courts", courtId));
-      }
-      setCourts((prev) => prev.filter((c) => c.id !== courtId));
-    } catch (err: any) {
-      alert(err.message || "Failed to delete court");
-    } finally {
-      setDeletingCourtId(null);
-    }
-  };
-
   const handleAcceptBooking = async (bookingId: string) => {
     setAcceptBookingConfirm(null);
     setUpdatingBookingId(bookingId);
@@ -1188,7 +1164,7 @@ export default function OwnerDashboard() {
     payoutStatusLabel === "Active"
       ? "Your Stripe Express account is ready to receive payouts."
       : !stripeAccountStatus?.hasAccount
-        ? "Connect Stripe Express before accepting paid booking requests."
+        ? "Connect Stripe Express so CourtShare can transfer host payouts after accepted bookings."
         : payoutRequirementCount > 0
           ? `Stripe still needs ${payoutRequirementCount} ${
               payoutRequirementCount === 1 ? "item" : "items"
@@ -1434,8 +1410,8 @@ export default function OwnerDashboard() {
                     Payout setup incomplete
                   </p>
                   <p className="mt-0.5 leading-5 text-amber-700">
-                    Complete the Stripe setup in the Earnings tab to start
-                    accepting reservations.
+                    Complete Stripe setup in the Earnings tab so captured
+                    booking payments can be transferred to you.
                   </p>
                 </div>
               </button>
@@ -1601,6 +1577,10 @@ export default function OwnerDashboard() {
                     const courtPendingBookings = pendingBookings.filter(
                       (booking) => booking.courtId === court.id
                     );
+                    const isDraft = court.bookableStatus === "draft";
+                    const payoutReady =
+                      court.ownerStripeAccountStatus === "active" ||
+                      payoutStatusLabel === "Active";
 
                     return (
                       <Card
@@ -1643,6 +1623,24 @@ export default function OwnerDashboard() {
                                 <Badge variant="outline" className="rounded-md">
                                   {courtPendingBookings.length} pending
                                 </Badge>
+                                <Badge
+                                  variant="outline"
+                                  className={`rounded-md ${
+                                    isDraft
+                                      ? "border-slate-200 bg-slate-100 text-slate-600"
+                                      : "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                  }`}
+                                >
+                                  {isDraft ? "Draft" : "Listed"}
+                                </Badge>
+                                {!payoutReady && (
+                                  <Badge
+                                    variant="outline"
+                                    className="rounded-md border-amber-200 bg-amber-50 text-amber-700"
+                                  >
+                                    Payout setup needed
+                                  </Badge>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -1657,7 +1655,7 @@ export default function OwnerDashboard() {
                               }
                             >
                               <Edit3 className="mr-2 h-4 w-4" />
-                              Edit Listing
+                              {isDraft ? "Edit Draft" : "Edit Listing"}
                             </Button>
                             <Button
                               variant="outline"
@@ -2165,7 +2163,7 @@ export default function OwnerDashboard() {
               Create a court listing
             </DialogTitle>
             <DialogDescription className="text-base leading-7">
-              Add your court details, photos, pricing, access instructions, and availability. You can save the listing first, then connect Stripe before it becomes bookable.
+              Add your court details, photos, pricing, access instructions, and availability. You can save a draft first, publish when the listing is ready, and finish Stripe setup separately.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-[24px] bg-slate-50 p-5 text-sm leading-6 text-slate-600">
@@ -2174,7 +2172,9 @@ export default function OwnerDashboard() {
             </p>
             <p className="mt-2">
               Court details, at least one clear photo, availability rules,
-              booking access instructions, and a ready Stripe payout account.
+              and booking access instructions. Stripe can be connected from the
+              Earnings tab so host payouts can be transferred after bookings are
+              accepted.
             </p>
           </div>
           <DialogFooter className="gap-2 sm:gap-2">

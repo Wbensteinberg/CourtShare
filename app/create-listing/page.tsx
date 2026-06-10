@@ -264,39 +264,58 @@ const CreateListing = () => {
     }
   }, [authLoading, router, user]);
 
+  const validatePublishableListing = (data: CourtFormData) => {
+    const missingFields = [
+      !data.courtName.trim() ? "court name" : "",
+      !data.fullAddress.trim() ? "full address" : "",
+      !data.pricePerHour.trim() ? "price per hour" : "",
+      !data.description.trim() ? "description" : "",
+      !checkInType ? "check-in option" : "",
+      !data.accessInstructions.trim() ? "check-in instructions" : "",
+      selectedFiles.length === 0 ? "at least one image" : "",
+    ].filter(Boolean);
+
+    if (missingFields.length > 0) {
+      return `Please add: ${missingFields.join(", ")}.`;
+    }
+    if (!/^\d+$/.test(data.pricePerHour)) {
+      return "Price per hour must be a whole dollar amount.";
+    }
+    return "";
+  };
+
   /** Validates form; opens waiver dialog before Firestore write. */
   const trySubmitListing = (data: CourtFormData) => {
     setError("");
     const derivedLocation = deriveLocationFromAddress(data.fullAddress);
     form.setValue("location", derivedLocation);
-    if (!data.courtName || !data.fullAddress || !data.pricePerHour || !data.description) {
-      setError("Please fill in all required fields.");
-      return;
-    }
-    if (!/^\d+$/.test(data.pricePerHour)) {
-      setError("Price per hour must be a whole dollar amount.");
-      return;
-    }
-    if (!checkInType || !data.accessInstructions) {
-      setError("Please select a check-in option and add check-in instructions.");
+    const validationError = validatePublishableListing(data);
+    if (validationError) {
+      setError(validationError);
       return;
     }
     if (!user) {
       setError("You must be logged in to create a listing.");
-      return;
-    }
-    if (selectedFiles.length === 0) {
-      setError("Please upload at least one image.");
       return;
     }
     pendingListingDataRef.current = data;
     setOwnerWaiverOpen(true);
   };
 
-  const executeListingSubmit = async (data: CourtFormData) => {
+  const executeListingSubmit = async (
+    data: CourtFormData,
+    bookableStatus: "active" | "draft" = "active"
+  ) => {
     if (!user) {
       setError("You must be logged in to create a listing.");
       return;
+    }
+    if (bookableStatus === "active") {
+      const validationError = validatePublishableListing(data);
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -317,17 +336,22 @@ const CreateListing = () => {
         }
       }
 
-      const bookableStatus: "active" | "draft" = "draft";
+      const price = Number(data.pricePerHour);
+      const safePrice = Number.isFinite(price) && price > 0 ? price : 0;
+      const name = data.courtName.trim() || "Untitled court draft";
+      const address = data.fullAddress.trim();
+      const location =
+        address ? deriveLocationFromAddress(address) : data.location.trim() || "Location pending";
 
       const courtDoc: any = {
-        name: data.courtName,
-        location: deriveLocationFromAddress(data.fullAddress),
-        address: data.fullAddress,
-        accessInstructions: data.accessInstructions,
+        name,
+        location,
+        address,
+        accessInstructions: data.accessInstructions.trim(),
         checkInType,
-        checkInInstructions: data.accessInstructions,
-        price: Number(data.pricePerHour),
-        description: data.description,
+        checkInInstructions: data.accessInstructions.trim(),
+        price: safePrice,
+        description: data.description.trim(),
         surface: courtType,
         indoor: courtSetting === "indoor",
         amenities,
@@ -341,7 +365,7 @@ const CreateListing = () => {
         quietHoursEnd: speakersPolicy === "quiet_hours_only" ? quietHoursEnd || null : null,
         houseRules,
         additionalRules,
-        imageUrl: imageUrls[0],
+        imageUrl: imageUrls[0] || "",
         imageUrls,
         ownerId: user.uid,
         bookableStatus,
@@ -351,7 +375,14 @@ const CreateListing = () => {
         alwaysBlockedTimes,
         alwaysBlockedTimesByDay,
         createdAt: new Date(),
+        updatedAt: new Date(),
       };
+
+      if (bookableStatus === "draft") {
+        courtDoc.draftSavedAt = new Date();
+      } else {
+        courtDoc.publishedAt = new Date();
+      }
 
       if (data.latitude) courtDoc.latitude = Number(data.latitude);
       if (data.longitude) courtDoc.longitude = Number(data.longitude);
@@ -368,12 +399,17 @@ const CreateListing = () => {
         await addDoc(collection(db, "courts"), courtDoc);
       }
 
-      router.push("/host");
+      router.push("/host?tab=courts");
     } catch (err: any) {
       setError(err.message || "Failed to create listing");
     } finally {
       setSaving(false);
     }
+  };
+
+  const saveListingDraft = async (data: CourtFormData) => {
+    setError("");
+    await executeListingSubmit(data, "draft");
   };
 
   const confirmOwnerWaiverAndSubmit = async () => {
@@ -382,7 +418,7 @@ const CreateListing = () => {
 
     if (isMockMode) {
       setOwnerWaiverOpen(false);
-      await executeListingSubmit(data);
+      await executeListingSubmit(data, "active");
       return;
     }
 
@@ -401,7 +437,7 @@ const CreateListing = () => {
     }
 
     setOwnerWaiverOpen(false);
-    await executeListingSubmit(data);
+    await executeListingSubmit(data, "active");
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -452,11 +488,11 @@ const CreateListing = () => {
                 Create Court Listing
               </h1>
               <p className="mt-3 max-w-2xl text-base leading-7 text-slate-500">
-                Add the details players need to book confidently. You can create the listing now and connect Stripe before making it bookable.
+                Add the details players need to book confidently. Save your progress any time, then publish when the listing is ready.
               </p>
             </div>
             <div className="rounded-[24px] border border-emerald-100 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-800">
-              Draft first, publish after payout setup
+              Save drafts, publish when ready
 		                    </div>
 	          </div>
 	        </div>
@@ -494,7 +530,7 @@ const CreateListing = () => {
                   Payout setup
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Stripe is not required to draft the court, but the listing cannot accept bookings until payouts are connected.
+                  Stripe is not required to publish the court. If bookings are accepted before setup is complete, CourtShare holds the captured payment and transfers your host payout after Stripe is active.
                 </p>
               </CardContent>
             </Card>
@@ -1176,9 +1212,18 @@ const CreateListing = () => {
                       </div>
                     )}
 
-                    <div className="pt-6">
+                    <div className="grid gap-3 pt-6 sm:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={saving}
+                        onClick={form.handleSubmit(saveListingDraft)}
+                        className="h-14 rounded-2xl border-slate-300 bg-white text-lg font-extrabold text-slate-800 shadow-sm transition hover:bg-slate-50"
+                      >
+                        {saving ? "Saving..." : "Save Draft"}
+                      </Button>
                       <Button type="submit" disabled={saving}
-                        className="h-14 w-full rounded-2xl bg-[var(--site-accent)] text-lg font-extrabold text-white shadow-sm transition hover:bg-[var(--site-accent-hover)]">
+                        className="h-14 rounded-2xl bg-[var(--site-accent)] text-lg font-extrabold text-white shadow-sm transition hover:bg-[var(--site-accent-hover)]">
                         {saving ? "Creating Listing..." : "Create Listing"}
                       </Button>
                     </div>

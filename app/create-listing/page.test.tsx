@@ -58,6 +58,33 @@ describe("CreateListingPage", () => {
     type: "image/png",
   });
 
+  const fillPublishableListingFields = () => {
+    fireEvent.change(screen.getByPlaceholderText("e.g. Brentwood Backyard Court"), {
+      target: { value: "Test Court" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Complete street address"), {
+      target: { value: "123 Test St" },
+    });
+    fireEvent.change(
+      screen.getByPlaceholderText("Describe your court's surface, lighting, amenities, privacy, and anything players should know."),
+      {
+        target: { value: "A beautiful test court" },
+      }
+    );
+    fireEvent.change(screen.getByPlaceholderText("25"), {
+      target: { value: "50" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: /self-check in/i }));
+    fireEvent.change(
+      screen.getByPlaceholderText(
+        "Gate code, building access, where players should enter, and anything they need for check-in..."
+      ),
+      {
+        target: { value: "Use the side gate and enter code 1234." },
+      }
+    );
+  };
+
   beforeEach(() => {
     // Reset all mocks before each test
     jest.clearAllMocks();
@@ -109,7 +136,7 @@ describe("CreateListingPage", () => {
     // Check for validation message
     await waitFor(() => {
       expect(
-        screen.getByText("Please fill in all required fields.")
+        screen.getByText(/Please add:/)
       ).toBeInTheDocument();
     });
   });
@@ -120,22 +147,7 @@ describe("CreateListingPage", () => {
 
     render(<CreateListingPage />);
 
-    // Fill in the form
-    fireEvent.change(screen.getByPlaceholderText("e.g. Brentwood Backyard Court"), {
-      target: { value: "Test Court" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Complete street address"), {
-      target: { value: "123 Test St" },
-    });
-    fireEvent.change(
-      screen.getByPlaceholderText("Describe your court's surface, lighting, amenities, privacy, and anything players should know."),
-      {
-        target: { value: "A beautiful test court" },
-      }
-    );
-    fireEvent.change(screen.getByPlaceholderText("25"), {
-      target: { value: "50" },
-    });
+    fillPublishableListingFields();
 
     // Upload image
     const fileInput = document.querySelector(
@@ -167,10 +179,12 @@ describe("CreateListingPage", () => {
           description: "A beautiful test court",
           price: 50,
           address: "123 Test St",
+          accessInstructions: "Use the side gate and enter code 1234.",
+          bookableStatus: "active",
           imageUrl: "https://example.com/image.jpg",
         })
       );
-      expect(mockPush).toHaveBeenCalledWith("/host");
+      expect(mockPush).toHaveBeenCalledWith("/host?tab=courts");
     });
   });
 
@@ -182,22 +196,7 @@ describe("CreateListingPage", () => {
 
     render(<CreateListingPage />);
 
-    // Fill in the form and try to submit
-    fireEvent.change(screen.getByPlaceholderText("e.g. Brentwood Backyard Court"), {
-      target: { value: "Test Court" },
-    });
-    fireEvent.change(screen.getByPlaceholderText("Complete street address"), {
-      target: { value: "123 Test St" },
-    });
-    fireEvent.change(
-      screen.getByPlaceholderText("Describe your court's surface, lighting, amenities, privacy, and anything players should know."),
-      {
-        target: { value: "A beautiful test court" },
-      }
-    );
-    fireEvent.change(screen.getByPlaceholderText("25"), {
-      target: { value: "50" },
-    });
+    fillPublishableListingFields();
 
     const fileInput = document.querySelector(
       'input[type="file"]'

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { db, getStorageInstance, isMockMode } from "@/lib/firebase";
-import { doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,9 @@ interface Court {
   imageUrl: string;
   imageUrls?: string[];
   ownerId: string;
+  bookableStatus?: "active" | "draft";
+  ownerStripeAccountStatus?: string;
+  ownerStripeMode?: string;
   numberOfCourts?: number;
   blockedDates?: string[];
   blockedTimes?: { [date: string]: string[] };
@@ -170,7 +173,7 @@ export default function EditListingPage() {
   const [expandedCourt, setExpandedCourt] = useState<number | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [deletingListing, setDeletingListing] = useState(false);
+  const [unlistingListing, setUnlistingListing] = useState(false);
   
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
@@ -228,7 +231,12 @@ export default function EditListingPage() {
         
         setCourt(resolvedCourt);
         
-        setExistingImages(resolvedCourt.imageUrls || [resolvedCourt.imageUrl]);
+        setExistingImages(
+          (resolvedCourt.imageUrls?.length
+            ? resolvedCourt.imageUrls
+            : [resolvedCourt.imageUrl]
+          ).filter(Boolean)
+        );
         // Set the main image index to 0 (first image) by default
         setMainImageIndex(0);
         
@@ -323,26 +331,30 @@ export default function EditListingPage() {
     "min-h-[120px] resize-none rounded-2xl border-slate-300 bg-white p-4 text-base focus:border-[var(--site-accent)] focus:ring-[var(--site-accent)]";
   const sectionCardClass = "rounded-[32px] border-slate-200 bg-white shadow-sm";
 
-  const handleDeleteListing = async () => {
+  const handleUnlistListing = async () => {
     if (
       !window.confirm(
-        "Are you sure you want to delete your listing? This cannot be undone."
+        "Unlist this court? It will disappear from public search, but your booking history and messages will stay intact."
       )
     )
       return;
     if (!courtId) return;
-    setDeletingListing(true);
+    setUnlistingListing(true);
     try {
       if (isMockMode) {
         await deleteMockCourt(courtId);
       } else {
-        await deleteDoc(doc(db, "courts", courtId));
+        await updateDoc(doc(db, "courts", courtId), {
+          bookableStatus: "draft",
+          draftSavedAt: new Date(),
+          updatedAt: new Date(),
+        });
       }
       router.push("/host?tab=courts");
     } catch (err: any) {
-      setError(err.message || "Failed to delete listing");
+      setError(err.message || "Failed to unlist listing");
     } finally {
-      setDeletingListing(false);
+      setUnlistingListing(false);
     }
   };
 
@@ -421,37 +433,55 @@ export default function EditListingPage() {
     });
   };
 
-  const onSubmit = async (data: CourtFormData) => {
+  const validatePublishableListing = (data: CourtFormData) => {
+    const missingFields = [
+      !data.courtName.trim() ? "court name" : "",
+      !data.fullAddress.trim() ? "full address" : "",
+      !data.pricePerHour.trim() ? "price per hour" : "",
+      !data.description.trim() ? "description" : "",
+      !checkInType ? "check-in option" : "",
+      !data.accessInstructions.trim() ? "check-in instructions" : "",
+      existingImages.length === 0 && images.length === 0 ? "at least one image" : "",
+    ].filter(Boolean);
+
+    if (missingFields.length > 0) {
+      return `Please add: ${missingFields.join(", ")}.`;
+    }
+    if (!/^\d+$/.test(data.pricePerHour)) {
+      return "Price per hour must be a whole dollar amount.";
+    }
+    return "";
+  };
+
+  const saveListing = async (
+    data: CourtFormData,
+    bookableStatus: "active" | "draft"
+  ) => {
     setError("");
     setSuccess(false);
     const derivedLocation = deriveLocationFromAddress(data.fullAddress);
     form.setValue("location", derivedLocation);
-    
-    if (!data.courtName || !data.fullAddress || !data.pricePerHour || !data.description) {
-      setError("Please fill in all required fields.");
-      return;
-    }
-    if (!/^\d+$/.test(data.pricePerHour)) {
-      setError("Price per hour must be a whole dollar amount.");
-      return;
-    }
-    if (!checkInType || !data.accessInstructions) {
-      setError("Please select a check-in option and add check-in instructions.");
-      return;
-    }
-    
+
     if (!user || !court) {
       setError("You must be logged in to edit a listing.");
       return;
     }
-    
+
+    if (bookableStatus === "active") {
+      const validationError = validatePublishableListing(data);
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+    }
+
     setSaving(true);
-    
+
     try {
       const newImageUrls: string[] = isMockMode
         ? await Promise.all(images.map((image) => fileToDataUrl(image)))
         : [];
-      
+
       if (!isMockMode) {
         const storage = getStorageInstance();
         for (const image of images) {
@@ -464,27 +494,33 @@ export default function EditListingPage() {
           newImageUrls.push(imageUrl);
         }
       }
-      
+
       // Combine existing images (not removed) with new images
       const finalImageUrls = [...existingImages.filter(img => !removedImages.includes(img)), ...newImageUrls];
-      
-      if (finalImageUrls.length === 0) {
+
+      if (bookableStatus === "active" && finalImageUrls.length === 0) {
         setError("At least one image is required.");
         return;
       }
-      
+
       // Use the selected main image
-      const mainImageUrl = finalImageUrls[mainImageIndex] || finalImageUrls[0];
-      
+      const mainImageUrl = finalImageUrls[mainImageIndex] || finalImageUrls[0] || "";
+      const price = Number(data.pricePerHour);
+      const safePrice = Number.isFinite(price) && price > 0 ? price : 0;
+      const name = data.courtName.trim() || "Untitled court draft";
+      const address = data.fullAddress.trim();
+      const location =
+        address ? deriveLocationFromAddress(address) : data.location.trim() || "Location pending";
+
       const updateData: any = {
-        name: data.courtName,
-        location: deriveLocationFromAddress(data.fullAddress),
-        address: data.fullAddress,
-        accessInstructions: data.accessInstructions,
+        name,
+        location,
+        address,
+        accessInstructions: data.accessInstructions.trim(),
         checkInType,
-        checkInInstructions: data.accessInstructions,
-        price: Number(data.pricePerHour),
-        description: data.description,
+        checkInInstructions: data.accessInstructions.trim(),
+        price: safePrice,
+        description: data.description.trim(),
         surface: courtType,
         indoor: courtSetting === "indoor",
         amenities,
@@ -500,11 +536,19 @@ export default function EditListingPage() {
         additionalRules,
         imageUrl: mainImageUrl,
         imageUrls: finalImageUrls,
+        bookableStatus,
         numberOfCourts,
         maxAdvanceBookingDays: maxAdvanceBookingDays ?? null,
         alwaysBlockedTimes,
         alwaysBlockedTimesByDay,
+        updatedAt: new Date(),
       };
+
+      if (bookableStatus === "draft") {
+        updateData.draftSavedAt = new Date();
+      } else {
+        updateData.publishedAt = new Date();
+      }
 
       if (numberOfCourts > 1) {
         updateData.courtSpecificAlwaysBlockedTimes = courtSpecificAlwaysBlockedTimes;
@@ -516,19 +560,32 @@ export default function EditListingPage() {
       } else {
         await updateDoc(doc(db, "courts", courtId as string), updateData);
       }
-      
+
       setSuccess(true);
-      
+
       // Redirect to host dashboard after a short delay
       setTimeout(() => {
         router.push("/host?tab=courts");
       }, 2000);
-      
+
     } catch (err: any) {
       setError(err.message || "Failed to update listing");
     } finally {
       setSaving(false);
     }
+  };
+
+  const onSubmit = async (data: CourtFormData) => {
+    const validationError = validatePublishableListing(data);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    await saveListing(data, "active");
+  };
+
+  const saveListingDraft = async (data: CourtFormData) => {
+    await saveListing(data, "draft");
   };
 
   if (loading) {
@@ -583,6 +640,10 @@ export default function EditListingPage() {
       </div>
     );
   }
+
+  const isDraftListing = court.bookableStatus === "draft";
+  const primaryActionLabel = isDraftListing ? "Publish Listing" : "Update Listing";
+  const primarySavingLabel = isDraftListing ? "Publishing..." : "Updating Listing...";
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -647,7 +708,7 @@ export default function EditListingPage() {
                   Listing status
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Saved changes update the live court listing. Existing confirmed bookings keep their booking details.
+                  Save a draft if you are still working, or update the listing when it is ready for players.
                 </p>
               </CardContent>
             </Card>
@@ -1370,7 +1431,7 @@ export default function EditListingPage() {
                     )}
 
                     <div className="space-y-4 pt-6">
-                      <div className="flex flex-col gap-3 sm:flex-row">
+                      <div className={`flex flex-col gap-3 ${isDraftListing ? "sm:flex-row" : "sm:grid sm:grid-cols-2"}`}>
                         <Button
                           type="button"
                           variant="outline"
@@ -1379,24 +1440,35 @@ export default function EditListingPage() {
                         >
                           Cancel
                         </Button>
+                        {isDraftListing && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={form.handleSubmit(saveListingDraft)}
+                            className="h-14 flex-1 rounded-2xl border-slate-300 bg-white text-lg font-bold text-slate-700 hover:bg-slate-100"
+                            disabled={saving}
+                          >
+                            {saving ? "Saving..." : "Save Draft"}
+                          </Button>
+                        )}
                         <Button
                           type="submit"
                           className="h-14 flex-1 rounded-2xl bg-[var(--site-accent)] text-lg font-extrabold text-white shadow-sm transition hover:bg-[var(--site-accent-hover)]"
                           disabled={saving}
                         >
-                          {saving ? "Updating Listing..." : "Update Listing"}
+                          {saving ? primarySavingLabel : primaryActionLabel}
                         </Button>
                       </div>
 
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={handleDeleteListing}
-                        disabled={deletingListing}
+                        onClick={handleUnlistListing}
+                        disabled={unlistingListing}
                         className="h-12 w-full rounded-2xl border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700"
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
-                        {deletingListing ? "Deleting..." : "Delete Listing"}
+                        {unlistingListing ? "Unlisting..." : "Unlist Listing"}
                       </Button>
                     </div>
                   </form>

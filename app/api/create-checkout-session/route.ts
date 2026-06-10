@@ -145,6 +145,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (courtData.bookableStatus !== "active") {
+      return NextResponse.json(
+        { error: "This court is not currently bookable" },
+        { status: 409 }
+      );
+    }
+
     const guestCountNum = guestCount == null ? 1 : guestCount;
     const maxGuests =
       typeof courtData.maxGuests === "number" && courtData.maxGuests > 0
@@ -379,42 +386,35 @@ export async function POST(req: NextRequest) {
       cancel_url: `${req.nextUrl.origin}/courts/${courtId}`,
     };
 
-    if (!stripeAccountId) {
-      return NextResponse.json(
-        { error: "This listing is not bookable until the host completes payout setup." },
-        { status: 409 }
-      );
+    let verifiedStripeAccountId = "";
+    if (stripeAccountId) {
+      try {
+        const account = await stripe.accounts.retrieve(stripeAccountId);
+        if (isStripeAccountReady(account)) {
+          verifiedStripeAccountId = stripeAccountId;
+        } else {
+          console.warn(
+            `[CHECKOUT] Owner ${ownerId} Stripe account is not active; using platform-held payment until setup completes.`
+          );
+        }
+      } catch (err) {
+        console.warn(
+          "[CHECKOUT] Unable to verify host Stripe account; using platform-held payment until setup completes:",
+          err
+        );
+      }
     }
 
-    let account: Stripe.Account;
-    try {
-      account = await stripe.accounts.retrieve(stripeAccountId);
-    } catch (err) {
-      console.error("[CHECKOUT] Unable to verify host Stripe account:", err);
-      return NextResponse.json(
-        { error: "This listing is not bookable until the host payout account can be verified." },
-        { status: 409 }
-      );
-    }
-
-    if (!isStripeAccountReady(account)) {
-      console.warn(
-        `[CHECKOUT] Owner ${ownerId} Stripe account is not active (charges_enabled: ${account.charges_enabled}, payouts_enabled: ${account.payouts_enabled}, details_submitted: ${account.details_submitted})`
-      );
-      return NextResponse.json(
-        { error: "This listing is not bookable until the host completes payout setup." },
-        { status: 409 }
-      );
-    }
-
-    const transferToOwner = true;
-    const hostPayoutMode = "destination_charge";
+    const transferToOwner = Boolean(verifiedStripeAccountId);
+    const hostPayoutMode = transferToOwner
+      ? "destination_charge"
+      : "platform_hold";
 
     sessionParams.metadata = {
       ...sessionParams.metadata,
       transferToOwner: transferToOwner ? "true" : "false",
       hostPayoutMode,
-      stripeConnectAccountId: transferToOwner ? stripeAccountId || "" : "",
+      stripeConnectAccountId: transferToOwner ? verifiedStripeAccountId : "",
     };
 
     sessionParams.payment_intent_data = {
@@ -425,21 +425,21 @@ export async function POST(req: NextRequest) {
         guestCount: guestCountNum.toString(),
         transferToOwner: transferToOwner ? "true" : "false",
         hostPayoutMode,
-        stripeConnectAccountId: transferToOwner ? stripeAccountId || "" : "",
+        stripeConnectAccountId: transferToOwner ? verifiedStripeAccountId : "",
       },
     };
 
-    if (transferToOwner && stripeAccountId) {
+    if (transferToOwner && verifiedStripeAccountId) {
       sessionParams.payment_intent_data = {
         ...sessionParams.payment_intent_data,
         application_fee_amount: applicationFeeCents,
         transfer_data: {
-          destination: stripeAccountId,
+          destination: verifiedStripeAccountId,
         },
         metadata: {
           ...sessionParams.payment_intent_data?.metadata,
           transferToOwner: "true",
-          stripeConnectAccountId: stripeAccountId,
+          stripeConnectAccountId: verifiedStripeAccountId,
         },
       };
     }

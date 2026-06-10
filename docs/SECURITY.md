@@ -110,8 +110,8 @@ Deploy rules with `npm run deploy:rules`. Always run `firebase use <project-id>`
 ### `courts/{courtId}`
 - Public read when `bookableStatus == "active"`; any authenticated user can read any court (needed for booking history display even when status changes).
 - Client queries for public listings use `where("bookableStatus", "==", "active")` so only active courts appear in search and featured sections.
-- Create requires `ownerId == request.auth.uid` and `bookableStatus == "draft"`.
-- Update: owner only; cannot change `ownerId`, `bookableStatus`, `ownerStripeAccountStatus`, or `ownerStripeMode` — those are server-managed.
+- Create requires `ownerId == request.auth.uid`, `bookableStatus` of `"draft"` or `"active"`, and `ownerStripeAccountStatus == "inactive"`.
+- Update: owner only; cannot change `ownerId`, Stripe fields, rating aggregates, or arbitrary internal fields. Owner client writes are limited to listing content, images, availability, and `bookableStatus` (`"draft"` or `"active"`).
 - Delete: explicitly `allow delete: if false`. Kept separate from `allow update` so deletion is never accidentally permitted via a rule evaluation error.
 
 ### `bookings/{bookingId}`
@@ -166,10 +166,12 @@ Covers: single-document reads for all collections; list queries (active-court pu
 - Stored financial fields: `totalAmountCents`, `expectedAmountCents`, `ownerAmountCents`, `courtShareFeeCents`, `processingFeeCents`.
 
 ### Stripe And Listing Bookability
-- Hosts require a fully active Stripe Connect account (`charges_enabled && payouts_enabled && details_submitted`) before public booking is allowed.
-- `POST /api/stripe/check-account-status` promotes owned courts to `bookableStatus: "active"` on active Stripe status and demotes to `"draft"` otherwise.
-- New listings start as `bookableStatus: "draft"` and `ownerStripeAccountStatus: "inactive"`.
-- Firestore rules prevent clients from flipping `bookableStatus`, `ownerStripeAccountStatus`, or `ownerStripeMode`.
+- Published courts use `bookableStatus: "active"` and are publicly visible even if the host has not completed Stripe Connect setup.
+- Draft/unlisted courts use `bookableStatus: "draft"` and must not be bookable. `POST /api/create-checkout-session` explicitly rejects non-active courts because it uses Admin SDK and bypasses Firestore read rules.
+- If a host has a fully active Stripe Connect account (`charges_enabled && payouts_enabled && details_submitted`), checkout uses a destination-charge path with `application_fee_amount` and `transfer_data.destination`.
+- If the host has no active Connect account, checkout uses a platform-held manual-capture PaymentIntent (`hostPayoutMode: "platform_hold"`). On acceptance, payment is captured to CourtShare; the booking records `hostPayoutStatus: "pending_connect_account"` until the host completes setup.
+- `POST /api/stripe/check-account-status` updates owned courts' Stripe status fields only; it does not demote published listings back to draft. When a host becomes active, it attempts pending platform-held transfers via `transferPlatformHeldBookingToHost`.
+- Firestore rules let owners move their own listings between draft and active, while keeping `ownerStripeAccountStatus` and `ownerStripeMode` server-owned.
 
 ---
 
@@ -391,7 +393,8 @@ npm run deploy:rules
 - Player cannot accept or reject a booking.
 - Host cannot accept, reject, or cancel another host's booking.
 - User cannot alter checkout price, duration, host payout, or owner ID from the browser.
-- Checkout fails for courts whose host Stripe setup is incomplete.
+- Checkout succeeds for active courts whose host Stripe setup is incomplete, but records a platform-held payment and pending host payout.
+- Checkout fails for draft/unlisted courts, even if called directly against the API.
 - Draft listings do not appear in search, featured courts, or public direct URLs for non-owners.
 - Multiple tabs cannot create overlapping confirmed bookings for the same slot.
 - User cannot review a booking they were not part of.

@@ -22,9 +22,9 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
 });
 
-async function updateOwnedCourtBookableStatus(
+async function updateOwnedCourtStripeStatus(
   userId: string,
-  status: "active" | "draft",
+  status: "active" | "inactive",
   stripeMode: string
 ) {
   if (!adminDb) return;
@@ -38,8 +38,7 @@ async function updateOwnedCourtBookableStatus(
   const batch = adminDb.batch();
   courtsSnap.docs.forEach((courtDoc) => {
     batch.update(courtDoc.ref, {
-      bookableStatus: status,
-      ownerStripeAccountStatus: status === "active" ? "active" : "inactive",
+      ownerStripeAccountStatus: status,
       ownerStripeMode: stripeMode,
       updatedAt: FieldValue.serverTimestamp(),
     });
@@ -103,7 +102,7 @@ export async function POST(req: NextRequest) {
     const selectedAccount = getStripeAccountIdForMode(userData, stripeMode);
 
     if (!selectedAccount.accountId) {
-      await updateOwnedCourtBookableStatus(userId, "draft", stripeMode);
+      await updateOwnedCourtStripeStatus(userId, "inactive", stripeMode);
       return NextResponse.json({
         hasAccount: false,
         status: "none",
@@ -126,7 +125,7 @@ export async function POST(req: NextRequest) {
               payoutEnabled: FieldValue.delete(),
             });
         }
-        await updateOwnedCourtBookableStatus(userId, "draft", stripeMode);
+        await updateOwnedCourtStripeStatus(userId, "inactive", stripeMode);
         return NextResponse.json({
           hasAccount: false,
           status: "none",
@@ -153,9 +152,9 @@ export async function POST(req: NextRequest) {
         payoutEnabled: account.payouts_enabled || false,
       });
 
-    await updateOwnedCourtBookableStatus(
+    await updateOwnedCourtStripeStatus(
       userId,
-      accountStatus === "active" ? "active" : "draft",
+      accountStatus === "active" ? "active" : "inactive",
       stripeMode
     );
     await writeSecurityAuditLog(adminDb, "stripe_account_status_checked", {
