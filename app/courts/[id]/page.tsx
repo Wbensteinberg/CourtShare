@@ -1355,13 +1355,35 @@ function CourtDetailPage() {
               <>
                 <section className="space-y-4">
                   <SectionHeader>Approximate Location</SectionHeader>
-                  <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-                    <iframe
-                      title="Court location"
-                      src={`https://www.openstreetmap.org/export/embed.html?bbox=${court.longitude - 0.025},${court.latitude - 0.012},${court.longitude + 0.025},${court.latitude + 0.012}&layer=mapnik`}
-                      className="w-full h-56 sm:h-72 border-0"
-                      loading="lazy"
-                    />
+                  <div className="relative overflow-hidden rounded-2xl border border-emerald-100 bg-emerald-50 p-6 shadow-sm sm:p-8">
+                    <div className="absolute inset-0 opacity-40">
+                      <div className="absolute left-8 top-8 h-28 w-28 rounded-full border border-emerald-200" />
+                      <div className="absolute right-10 top-10 h-40 w-40 rounded-full border border-emerald-200" />
+                      <div className="absolute bottom-6 left-1/3 h-24 w-24 rounded-full border border-emerald-200" />
+                    </div>
+                    <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-4">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-[var(--site-accent)] shadow-sm">
+                          <MapPin className="h-6 w-6" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold uppercase tracking-[0.16em] text-emerald-700">
+                            Near {court.location || "this area"}
+                          </p>
+                          <p className="mt-2 max-w-xl text-base leading-7 text-slate-700">
+                            We show the general area before booking. The exact address and check-in details are shared after the host accepts your request.
+                          </p>
+                        </div>
+                      </div>
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${court.latitude},${court.longitude}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-12 shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-white px-5 text-sm font-bold text-emerald-800 shadow-sm transition-colors hover:bg-emerald-100"
+                      >
+                        View area
+                      </a>
+                    </div>
                   </div>
                   <p className="flex items-center gap-1.5 text-sm text-slate-500">
                     <MapPin className="h-4 w-4 shrink-0" />
