@@ -196,7 +196,8 @@
   - Max Guests included.
   - legacy/missing/blank max guests defaults to 10.
   - draft listings show Edit Draft / Publish Listing and keep Save Draft available.
-  - published listings show Update Listing and can be unlisted back to draft.
+  - draft listings can be deleted after confirmation.
+  - published listings show Update Listing and can be unlisted back to draft instead of hard-deleted.
   - submit navigates to Host Dashboard Your Courts.
 
 ### Booking Details (`/booking/[bookingId]`)

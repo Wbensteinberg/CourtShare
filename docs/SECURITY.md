@@ -112,7 +112,7 @@ Deploy rules with `npm run deploy:rules`. Always run `firebase use <project-id>`
 - Client queries for public listings use `where("bookableStatus", "==", "active")` so only active courts appear in search and featured sections.
 - Create requires `ownerId == request.auth.uid`, `bookableStatus` of `"draft"` or `"active"`, and `ownerStripeAccountStatus == "inactive"`.
 - Update: owner only; cannot change `ownerId`, Stripe fields, rating aggregates, or arbitrary internal fields. Owner client writes are limited to listing content, images, availability, and `bookableStatus` (`"draft"` or `"active"`).
-- Delete: explicitly `allow delete: if false`. Kept separate from `allow update` so deletion is never accidentally permitted via a rule evaluation error.
+- Delete: owners may delete only their own `draft` listings. Published listings are unlisted by updating `bookableStatus` back to `"draft"` so booking history and conversation references are not hard-deleted.
 
 ### `bookings/{bookingId}`
 - Readable by the booking player (`userId`) or the stored host (`ownerId`).

@@ -51,6 +51,49 @@ service cloud.firestore {
       ];
     }
 
+    function courtOwnerCreatableFields() {
+      return [
+        "name",
+        "location",
+        "address",
+        "accessInstructions",
+        "checkInType",
+        "checkInInstructions",
+        "price",
+        "description",
+        "surface",
+        "indoor",
+        "amenities",
+        "parkingSpaces",
+        "spaceGreatFor",
+        "maxGuests",
+        "speakersPolicy",
+        "quietHoursStart",
+        "quietHoursEnd",
+        "houseRules",
+        "additionalRules",
+        "imageUrl",
+        "imageUrls",
+        "bookableStatus",
+        "numberOfCourts",
+        "maxAdvanceBookingDays",
+        "blockedDates",
+        "blockedTimes",
+        "alwaysBlockedTimes",
+        "alwaysBlockedTimesByDay",
+        "courtSpecificAlwaysBlockedTimes",
+        "courtSpecificAlwaysBlockedTimesByDay",
+        "latitude",
+        "longitude",
+        "draftSavedAt",
+        "publishedAt",
+        "updatedAt",
+        "ownerId",
+        "ownerStripeAccountStatus",
+        "createdAt"
+      ];
+    }
+
     match /users/{userId} {
       allow read: if signedIn() && request.auth.uid == userId;
       allow create: if signedIn()
@@ -96,13 +139,7 @@ service cloud.firestore {
         && request.resource.data.ownerId == request.auth.uid
         && request.resource.data.bookableStatus in ["draft", "active"]
         && request.resource.data.ownerStripeAccountStatus == "inactive"
-        && request.resource.data.keys().hasOnly(
-          courtOwnerMutableFields() + [
-            "ownerId",
-            "ownerStripeAccountStatus",
-            "createdAt"
-          ]
-        );
+        && request.resource.data.keys().hasOnly(courtOwnerCreatableFields());
       allow update: if signedIn()
         && resource.data.ownerId == request.auth.uid
         && request.resource.data.ownerId == resource.data.ownerId
@@ -110,7 +147,9 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
           courtOwnerMutableFields()
         );
-      allow delete: if false;
+      allow delete: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && resource.data.bookableStatus == "draft";
     }
 
     match /bookings/{bookingId} {

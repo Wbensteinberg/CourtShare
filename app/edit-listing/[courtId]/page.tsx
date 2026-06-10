@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { db, getStorageInstance, isMockMode } from "@/lib/firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { deleteDoc, doc, getDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { useAuth } from "@/lib/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -332,9 +332,12 @@ export default function EditListingPage() {
   const sectionCardClass = "rounded-[32px] border-slate-200 bg-white shadow-sm";
 
   const handleUnlistListing = async () => {
+    const isDraft = court?.bookableStatus === "draft";
     if (
       !window.confirm(
-        "Unlist this court? It will disappear from public search, but your booking history and messages will stay intact."
+        isDraft
+          ? "Delete this draft? This removes the draft listing permanently."
+          : "Unlist this court? It will disappear from public search, but your booking history and messages will stay intact."
       )
     )
       return;
@@ -342,7 +345,17 @@ export default function EditListingPage() {
     setUnlistingListing(true);
     try {
       if (isMockMode) {
-        await deleteMockCourt(courtId);
+        if (isDraft) {
+          await deleteMockCourt(courtId);
+        } else {
+          await updateMockCourt(courtId, {
+            bookableStatus: "draft",
+            draftSavedAt: new Date(),
+            updatedAt: new Date(),
+          } as any);
+        }
+      } else if (isDraft) {
+        await deleteDoc(doc(db, "courts", courtId));
       } else {
         await updateDoc(doc(db, "courts", courtId), {
           bookableStatus: "draft",
@@ -352,7 +365,7 @@ export default function EditListingPage() {
       }
       router.push("/host?tab=courts");
     } catch (err: any) {
-      setError(err.message || "Failed to unlist listing");
+      setError(err.message || (isDraft ? "Failed to delete draft" : "Failed to unlist listing"));
     } finally {
       setUnlistingListing(false);
     }
@@ -1468,7 +1481,13 @@ export default function EditListingPage() {
                         className="h-12 w-full rounded-2xl border-red-200 text-red-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700"
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
-                        {unlistingListing ? "Unlisting..." : "Unlist Listing"}
+                        {unlistingListing
+                          ? isDraftListing
+                            ? "Deleting..."
+                            : "Unlisting..."
+                          : isDraftListing
+                            ? "Delete Draft"
+                            : "Unlist Listing"}
                       </Button>
                     </div>
                   </form>
